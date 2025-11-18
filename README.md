@@ -90,7 +90,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tsfile = "2.1"
+tsfile-rs = "0.1.0"
 ```
 
 Or from repository:
