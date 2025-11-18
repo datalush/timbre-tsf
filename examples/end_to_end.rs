@@ -5,7 +5,6 @@
 /// - Uso de diferentes tipos de datos y encodings
 /// - Lectura de datos completos y filtrados por tiempo
 /// - Iteración y acceso a datos
-
 use tsfile::common::{
     CompressionType, MeasurementSchema, TSDataType, TSEncoding, TsRecord, TsValue,
 };
@@ -199,10 +198,7 @@ fn main() -> tsfile::error::Result<()> {
         println!("\n📊 Primeras 5 lecturas de temperatura:");
         for (i, (ts, value)) in temp_chunk.iter().take(5).enumerate() {
             if let DecodedValueData::Float(v) = value {
-                println!(
-                    "  [{}] Timestamp: {}, Temperatura: {:.1}°C",
-                    i, ts, v
-                );
+                println!("  [{}] Timestamp: {}, Temperatura: {:.1}°C", i, ts, v);
             }
         }
     }

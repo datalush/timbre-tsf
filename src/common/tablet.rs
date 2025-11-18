@@ -62,9 +62,7 @@ impl ValueMatrix {
         match data_type {
             TSDataType::Boolean => Self::Boolean(Vec::with_capacity(capacity)),
             TSDataType::Int32 | TSDataType::Date => Self::Int32(Vec::with_capacity(capacity)),
-            TSDataType::Int64 | TSDataType::Timestamp => {
-                Self::Int64(Vec::with_capacity(capacity))
-            }
+            TSDataType::Int64 | TSDataType::Timestamp => Self::Int64(Vec::with_capacity(capacity)),
             TSDataType::Float => Self::Float(Vec::with_capacity(capacity)),
             TSDataType::Double => Self::Double(Vec::with_capacity(capacity)),
             TSDataType::Text | TSDataType::String => Self::Text(Vec::with_capacity(capacity)),
@@ -109,14 +107,38 @@ pub struct Tablet {
     pub values: Vec<ValueMatrix>,
     pub bitmaps: Vec<BitMap>,
     pub max_rows: usize,
+    /// Whether this tablet uses aligned encoding (shared timestamps across measurements)
+    is_aligned: bool,
 }
 
 impl Tablet {
+    /// Creates a new non-aligned tablet (default behavior for backwards compatibility)
     pub fn new(
         device_name: impl Into<String>,
         schemas: Vec<MeasurementSchema>,
         column_categories: Vec<ColumnCategory>,
         max_rows: usize,
+    ) -> Self {
+        Self::new_with_alignment(device_name, schemas, column_categories, max_rows, false)
+    }
+
+    /// Creates a new aligned tablet (shared timestamps across measurements)
+    pub fn new_aligned(
+        device_name: impl Into<String>,
+        schemas: Vec<MeasurementSchema>,
+        column_categories: Vec<ColumnCategory>,
+        max_rows: usize,
+    ) -> Self {
+        Self::new_with_alignment(device_name, schemas, column_categories, max_rows, true)
+    }
+
+    /// Internal constructor with explicit alignment parameter
+    fn new_with_alignment(
+        device_name: impl Into<String>,
+        schemas: Vec<MeasurementSchema>,
+        column_categories: Vec<ColumnCategory>,
+        max_rows: usize,
+        is_aligned: bool,
     ) -> Self {
         let schema_count = schemas.len();
         let values = schemas
@@ -133,7 +155,13 @@ impl Tablet {
             values,
             bitmaps,
             max_rows,
+            is_aligned,
         }
+    }
+
+    /// Returns whether this tablet uses aligned encoding
+    pub fn is_aligned(&self) -> bool {
+        self.is_aligned
     }
 
     pub fn row_count(&self) -> usize {
@@ -148,15 +176,9 @@ impl Tablet {
         self.row_count() >= self.max_rows
     }
 
-    pub fn add_row(
-        &mut self,
-        timestamp: i64,
-        values: Vec<Option<TsValue>>,
-    ) -> Result<()> {
+    pub fn add_row(&mut self, timestamp: i64, values: Vec<Option<TsValue>>) -> Result<()> {
         if self.is_full() {
-            return Err(TsFileError::InvalidState(
-                "Tablet is full".to_string(),
-            ));
+            return Err(TsFileError::InvalidState("Tablet is full".to_string()));
         }
 
         if values.len() != self.column_count() {
@@ -165,6 +187,23 @@ impl Tablet {
                 self.column_count(),
                 values.len()
             )));
+        }
+
+        // Validation for aligned tablets
+        if self.is_aligned {
+            // Timestamps must be monotonically increasing
+            if let Some(&last_ts) = self.timestamps.last() {
+                if timestamp <= last_ts {
+                    return Err(TsFileError::InvalidState(format!(
+                        "Aligned tablet requires strictly increasing timestamps. Got {} after {}",
+                        timestamp, last_ts
+                    )));
+                }
+            }
+
+            // All measurements must have values (no sparse data in aligned mode)
+            // Note: Individual values can still be null, but all columns must be present
+            // This is already validated by values.len() check above
         }
 
         let row_idx = self.timestamps.len();
@@ -201,7 +240,7 @@ impl Tablet {
                 return Err(TsFileError::TypeMismatch {
                     expected: expected_type.to_string(),
                     actual: actual_type.to_string(),
-                })
+                });
             }
         }
         Ok(())
@@ -282,11 +321,7 @@ impl TsRecord {
         self
     }
 
-    pub fn with_value(
-        mut self,
-        measurement_name: impl Into<String>,
-        value: TsValue,
-    ) -> Self {
+    pub fn with_value(mut self, measurement_name: impl Into<String>, value: TsValue) -> Self {
         self.points.push(DataPoint::new(measurement_name, value));
         self
     }
@@ -344,5 +379,137 @@ mod tests {
 
         assert_eq!(record.timestamp, 1000);
         assert_eq!(record.points.len(), 2);
+    }
+
+    #[test]
+    fn test_tablet_aligned_basic() {
+        let schemas = vec![
+            MeasurementSchema::with_defaults("temp", TSDataType::Float),
+            MeasurementSchema::with_defaults("humidity", TSDataType::Int32),
+        ];
+
+        let mut tablet = Tablet::new_aligned(
+            "device1",
+            schemas,
+            vec![ColumnCategory::Field, ColumnCategory::Field],
+            100,
+        );
+
+        assert!(tablet.is_aligned());
+        assert_eq!(tablet.row_count(), 0);
+
+        // Add first row
+        let result = tablet.add_row(
+            1000,
+            vec![Some(TsValue::Float(25.5)), Some(TsValue::Int32(60))],
+        );
+        assert!(result.is_ok());
+        assert_eq!(tablet.row_count(), 1);
+
+        // Add second row with increasing timestamp
+        let result = tablet.add_row(
+            2000,
+            vec![Some(TsValue::Float(26.0)), Some(TsValue::Int32(65))],
+        );
+        assert!(result.is_ok());
+        assert_eq!(tablet.row_count(), 2);
+    }
+
+    #[test]
+    fn test_tablet_aligned_validation() {
+        let schemas = vec![
+            MeasurementSchema::with_defaults("temp", TSDataType::Float),
+            MeasurementSchema::with_defaults("humidity", TSDataType::Int32),
+        ];
+
+        let mut tablet = Tablet::new_aligned(
+            "device1",
+            schemas,
+            vec![ColumnCategory::Field, ColumnCategory::Field],
+            100,
+        );
+
+        // Add first row
+        tablet
+            .add_row(
+                1000,
+                vec![Some(TsValue::Float(25.5)), Some(TsValue::Int32(60))],
+            )
+            .unwrap();
+
+        // Try to add row with non-increasing timestamp (should fail)
+        let result = tablet.add_row(
+            1000,
+            vec![Some(TsValue::Float(26.0)), Some(TsValue::Int32(65))],
+        );
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("strictly increasing timestamps")
+        );
+
+        // Try with decreasing timestamp (should also fail)
+        let result = tablet.add_row(
+            500,
+            vec![Some(TsValue::Float(26.0)), Some(TsValue::Int32(65))],
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_tablet_aligned_with_nulls() {
+        let schemas = vec![
+            MeasurementSchema::with_defaults("temp", TSDataType::Float),
+            MeasurementSchema::with_defaults("humidity", TSDataType::Int32),
+        ];
+
+        let mut tablet = Tablet::new_aligned(
+            "device1",
+            schemas,
+            vec![ColumnCategory::Field, ColumnCategory::Field],
+            100,
+        );
+
+        // Aligned tablets can have null values (just not sparse rows)
+        let result = tablet.add_row(1000, vec![Some(TsValue::Float(25.5)), None]);
+        assert!(result.is_ok());
+        assert!(tablet.bitmaps[1].get(0)); // Second column is null
+
+        let result = tablet.add_row(2000, vec![None, Some(TsValue::Int32(65))]);
+        assert!(result.is_ok());
+        assert!(tablet.bitmaps[0].get(1)); // First column is null
+    }
+
+    #[test]
+    fn test_tablet_non_aligned_compat() {
+        // Ensure non-aligned tablets still work as before
+        let schemas = vec![
+            MeasurementSchema::with_defaults("temp", TSDataType::Float),
+            MeasurementSchema::with_defaults("humidity", TSDataType::Int32),
+        ];
+
+        let mut tablet = Tablet::new(
+            "device1",
+            schemas,
+            vec![ColumnCategory::Field, ColumnCategory::Field],
+            100,
+        );
+
+        assert!(!tablet.is_aligned());
+
+        // Non-aligned tablets allow non-monotonic timestamps
+        tablet
+            .add_row(1000, vec![Some(TsValue::Float(25.5)), None])
+            .unwrap();
+        tablet
+            .add_row(500, vec![Some(TsValue::Float(24.0)), None])
+            .unwrap(); // Decreasing is OK
+        tablet
+            .add_row(1500, vec![None, Some(TsValue::Int32(70))])
+            .unwrap();
+
+        assert_eq!(tablet.row_count(), 3);
     }
 }

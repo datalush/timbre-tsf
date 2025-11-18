@@ -1,7 +1,6 @@
 use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
 use crate::error::{Result, TsFileError};
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 /// Encoder Gorilla para flotantes (algoritmo de Facebook)
 /// Usa XOR delta encoding optimizado para series temporales
@@ -14,19 +13,35 @@ pub struct GorillaEncoder {
     buffer: Vec<u8>,
     bit_buffer: u64,
     bits_in_buffer: u8,
+    // Number of bits for encoding leading/significant bits (5 for 32-bit, 6 for 64-bit)
+    leading_bits_width: u8,
+    significant_bits_width: u8,
+    value_bits: u8, // 32 or 64
 }
 
 impl GorillaEncoder {
     pub fn new(data_type: TSDataType) -> Self {
+        let (leading_bits_width, significant_bits_width, value_bits) = match data_type {
+            TSDataType::Float => (5, 5, 32),
+            TSDataType::Double => (6, 6, 64),
+            TSDataType::Int32 => (5, 5, 32),
+            TSDataType::Int64 => (6, 6, 64),
+            _ => (6, 6, 64), // Default to 64-bit
+        };
+
         Self {
             data_type,
             first_value: None,
             previous_value: 0,
-            previous_leading: 0,
+            // Initialize to INT32_MAX to ensure first XOR always writes new leading/trailing
+            previous_leading: i32::MAX as u32,
             previous_trailing: 0,
             buffer: Vec::new(),
             bit_buffer: 0,
             bits_in_buffer: 0,
+            leading_bits_width,
+            significant_bits_width,
+            value_bits,
         }
     }
 
@@ -35,7 +50,9 @@ impl GorillaEncoder {
             return;
         }
 
-        let shift_amount = 64u8.saturating_sub(self.bits_in_buffer).saturating_sub(num_bits);
+        let shift_amount = 64u8
+            .saturating_sub(self.bits_in_buffer)
+            .saturating_sub(num_bits);
         self.bit_buffer |= value << shift_amount;
         self.bits_in_buffer += num_bits;
 
@@ -64,7 +81,8 @@ impl GorillaEncoder {
         if self.first_value.is_none() {
             self.first_value = Some(bits);
             self.previous_value = bits;
-            self.write_bits(bits, 64);
+            // Write full value (32 or 64 bits depending on type)
+            self.write_bits(bits, self.value_bits);
             return;
         }
 
@@ -75,21 +93,30 @@ impl GorillaEncoder {
         } else {
             self.write_bit(true);
 
-            let leading = xor.leading_zeros();
-            let trailing = xor.trailing_zeros();
+            // For 32-bit values, we need to count leading zeros from bit 31, not bit 63
+            let leading = if self.value_bits == 32 {
+                (xor as u32).leading_zeros()
+            } else {
+                xor.leading_zeros()
+            };
+
+            let trailing = if self.value_bits == 32 {
+                (xor as u32).trailing_zeros()
+            } else {
+                xor.trailing_zeros()
+            };
 
             if leading >= self.previous_leading && trailing >= self.previous_trailing {
                 self.write_bit(false);
-                let significant_bits = 64 - self.previous_leading - self.previous_trailing;
-                self.write_bits(
-                    xor >> self.previous_trailing,
-                    significant_bits as u8,
-                );
+                let significant_bits =
+                    self.value_bits as u32 - self.previous_leading - self.previous_trailing;
+                self.write_bits(xor >> self.previous_trailing, significant_bits as u8);
             } else {
                 self.write_bit(true);
-                self.write_bits(leading as u64, 6);
-                let significant_bits = 64 - leading - trailing;
-                self.write_bits(significant_bits as u64, 6);
+                self.write_bits(leading as u64, self.leading_bits_width);
+                let significant_bits = self.value_bits as u32 - leading - trailing;
+                // Store significant_bits - 1 (to match C++ implementation)
+                self.write_bits((significant_bits - 1) as u64, self.significant_bits_width);
                 self.write_bits(xor >> trailing, significant_bits as u8);
 
                 self.previous_leading = leading;
@@ -152,16 +179,37 @@ pub struct GorillaDecoder {
     previous_value: u64,
     previous_leading: u32,
     previous_trailing: u32,
+    // Persistent bit position across multiple values
+    byte_pos: usize,
+    bit_pos: u8,
+    // Number of bits for decoding leading/significant bits (5 for 32-bit, 6 for 64-bit)
+    leading_bits_width: u8,
+    significant_bits_width: u8,
+    value_bits: u8, // 32 or 64
 }
 
 impl GorillaDecoder {
     pub fn new(data_type: TSDataType) -> Self {
+        let (leading_bits_width, significant_bits_width, value_bits) = match data_type {
+            TSDataType::Float => (5, 5, 32),
+            TSDataType::Double => (6, 6, 64),
+            TSDataType::Int32 => (5, 5, 32),
+            TSDataType::Int64 => (6, 6, 64),
+            _ => (6, 6, 64), // Default to 64-bit
+        };
+
         Self {
             data_type,
             first_value: None,
             previous_value: 0,
-            previous_leading: 0,
+            // Initialize to INT32_MAX to ensure first XOR always writes new leading/trailing
+            previous_leading: i32::MAX as u32,
             previous_trailing: 0,
+            byte_pos: 0,
+            bit_pos: 0,
+            leading_bits_width,
+            significant_bits_width,
+            value_bits,
         }
     }
 
@@ -208,33 +256,55 @@ impl GorillaDecoder {
         Ok(Self::read_bits(input, pos, bit_pos, 1)? != 0)
     }
 
-    fn decode_value(&mut self, input: &[u8], pos: &mut usize, bit_pos: &mut u8) -> Result<u64> {
+    fn decode_value(&mut self, input: &[u8]) -> Result<u64> {
         if self.first_value.is_none() {
-            let value = Self::read_bits(input, pos, bit_pos, 64)?;
+            let value = Self::read_bits(
+                input,
+                &mut self.byte_pos,
+                &mut self.bit_pos,
+                self.value_bits,
+            )?;
             self.first_value = Some(value);
             self.previous_value = value;
             return Ok(value);
         }
 
-        let is_different = Self::read_bit(input, pos, bit_pos)?;
+        let is_different = Self::read_bit(input, &mut self.byte_pos, &mut self.bit_pos)?;
         if !is_different {
             return Ok(self.previous_value);
         }
 
-        let use_previous_block = !Self::read_bit(input, pos, bit_pos)?;
+        let use_previous_block = !Self::read_bit(input, &mut self.byte_pos, &mut self.bit_pos)?;
 
-        let (leading, significant_bits) = if use_previous_block {
-            let bits = 64 - self.previous_leading - self.previous_trailing;
+        let (_leading, significant_bits) = if use_previous_block {
+            let bits = self.value_bits as u32 - self.previous_leading - self.previous_trailing;
             (self.previous_leading, bits)
         } else {
-            let leading = Self::read_bits(input, pos, bit_pos, 6)? as u32;
-            let significant_bits = Self::read_bits(input, pos, bit_pos, 6)? as u32;
+            let leading = Self::read_bits(
+                input,
+                &mut self.byte_pos,
+                &mut self.bit_pos,
+                self.leading_bits_width,
+            )? as u32;
+            let mut significant_bits = Self::read_bits(
+                input,
+                &mut self.byte_pos,
+                &mut self.bit_pos,
+                self.significant_bits_width,
+            )? as u32;
+            // Add 1 back (was stored as significant_bits - 1)
+            significant_bits += 1;
             self.previous_leading = leading;
-            self.previous_trailing = 64 - leading - significant_bits;
+            self.previous_trailing = self.value_bits as u32 - leading - significant_bits;
             (leading, significant_bits)
         };
 
-        let xor_value = Self::read_bits(input, pos, bit_pos, significant_bits as u8)?;
+        let xor_value = Self::read_bits(
+            input,
+            &mut self.byte_pos,
+            &mut self.bit_pos,
+            significant_bits as u8,
+        )?;
         let xor = xor_value << self.previous_trailing;
         let value = self.previous_value ^ xor;
         self.previous_value = value;
@@ -245,32 +315,33 @@ impl GorillaDecoder {
 
 impl Decoder for GorillaDecoder {
     fn read_bool(&mut self, input: &[u8], pos: &mut usize) -> Result<bool> {
-        let mut bit_pos = 0;
-        let value = self.decode_value(input, pos, &mut bit_pos)?;
+        let value = self.decode_value(input)?;
+        // Update pos to reflect bytes consumed (byte_pos is the actual position)
+        *pos = self.byte_pos;
         Ok(value != 0)
     }
 
     fn read_i32(&mut self, input: &[u8], pos: &mut usize) -> Result<i32> {
-        let mut bit_pos = 0;
-        let value = self.decode_value(input, pos, &mut bit_pos)?;
+        let value = self.decode_value(input)?;
+        *pos = self.byte_pos;
         Ok(value as u32 as i32)
     }
 
     fn read_i64(&mut self, input: &[u8], pos: &mut usize) -> Result<i64> {
-        let mut bit_pos = 0;
-        let value = self.decode_value(input, pos, &mut bit_pos)?;
+        let value = self.decode_value(input)?;
+        *pos = self.byte_pos;
         Ok(value as i64)
     }
 
     fn read_f32(&mut self, input: &[u8], pos: &mut usize) -> Result<f32> {
-        let mut bit_pos = 0;
-        let value = self.decode_value(input, pos, &mut bit_pos)?;
+        let value = self.decode_value(input)?;
+        *pos = self.byte_pos;
         Ok(f32::from_bits(value as u32))
     }
 
     fn read_f64(&mut self, input: &[u8], pos: &mut usize) -> Result<f64> {
-        let mut bit_pos = 0;
-        let value = self.decode_value(input, pos, &mut bit_pos)?;
+        let value = self.decode_value(input)?;
+        *pos = self.byte_pos;
         Ok(f64::from_bits(value))
     }
 
@@ -280,8 +351,9 @@ impl Decoder for GorillaDecoder {
         ))
     }
 
-    fn has_remaining(&self, input: &[u8], pos: usize) -> bool {
-        pos < input.len()
+    fn has_remaining(&self, input: &[u8], _pos: usize) -> bool {
+        // Check if we have more bytes to read based on internal position
+        self.byte_pos < input.len() || (self.byte_pos == input.len() && self.bit_pos > 0)
     }
 
     fn encoding_type(&self) -> TSEncoding {
@@ -293,12 +365,53 @@ impl Decoder for GorillaDecoder {
 mod tests {
     use super::*;
 
-    // TODO: El algoritmo Gorilla requiere más debugging para asegurar
-    // compatibilidad completa con la especificación de Facebook.
-    // Los tests están temporalmente deshabilitados.
+    #[test]
+    fn test_gorilla_f32_simple() {
+        // Test with just two values first
+        let mut encoder = GorillaEncoder::new(TSDataType::Float);
+        let mut out = Vec::new();
+
+        let v1 = 1.5f32;
+        let v2 = 1.5f32; // Same value to test XOR == 0 case
+
+        encoder.encode_f32(v1, &mut out).unwrap();
+        encoder.encode_f32(v2, &mut out).unwrap();
+        encoder.flush(&mut out).unwrap();
+
+        let mut decoder = GorillaDecoder::new(TSDataType::Float);
+        let mut pos = 0;
+
+        let d1 = decoder.read_f32(&out, &mut pos).unwrap();
+        assert_eq!(d1, v1);
+
+        let d2 = decoder.read_f32(&out, &mut pos).unwrap();
+        assert_eq!(d2, v2);
+    }
 
     #[test]
-    #[ignore]
+    fn test_gorilla_f32_two_diff() {
+        // Test with two different values
+        let mut encoder = GorillaEncoder::new(TSDataType::Float);
+        let mut out = Vec::new();
+
+        let v1 = 1.5f32;
+        let v2 = 1.6f32;
+
+        encoder.encode_f32(v1, &mut out).unwrap();
+        encoder.encode_f32(v2, &mut out).unwrap();
+        encoder.flush(&mut out).unwrap();
+
+        let mut decoder = GorillaDecoder::new(TSDataType::Float);
+        let mut pos = 0;
+
+        let d1 = decoder.read_f32(&out, &mut pos).unwrap();
+        assert_eq!(d1, v1);
+
+        let d2 = decoder.read_f32(&out, &mut pos).unwrap();
+        assert_eq!(d2, v2);
+    }
+
+    #[test]
     fn test_gorilla_f32() {
         let mut encoder = GorillaEncoder::new(TSDataType::Float);
         let mut out = Vec::new();
@@ -318,7 +431,29 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    fn test_gorilla_f64_two_diff() {
+        // Test with two different values
+        let mut encoder = GorillaEncoder::new(TSDataType::Double);
+        let mut out = Vec::new();
+
+        let v1 = 1.5f64;
+        let v2 = 1.6f64;
+
+        encoder.encode_f64(v1, &mut out).unwrap();
+        encoder.encode_f64(v2, &mut out).unwrap();
+        encoder.flush(&mut out).unwrap();
+
+        let mut decoder = GorillaDecoder::new(TSDataType::Double);
+        let mut pos = 0;
+
+        let d1 = decoder.read_f64(&out, &mut pos).unwrap();
+        assert_eq!(d1, v1);
+
+        let d2 = decoder.read_f64(&out, &mut pos).unwrap();
+        assert_eq!(d2, v2);
+    }
+
+    #[test]
     fn test_gorilla_f64() {
         let mut encoder = GorillaEncoder::new(TSDataType::Double);
         let mut out = Vec::new();

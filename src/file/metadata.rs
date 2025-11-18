@@ -1,5 +1,5 @@
-use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::common::statistic::Statistic;
+use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::error::Result;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::{Read, Write};
@@ -108,7 +108,7 @@ impl ChunkHeader {
         1 + // data_type
         1 + // compression_type
         1 + // encoding_type
-        4   // num_of_pages
+        4 // num_of_pages
     }
 }
 

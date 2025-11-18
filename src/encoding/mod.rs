@@ -1,12 +1,16 @@
-mod plain;
+mod dictionary;
 mod gorilla;
-mod ts2diff;
+mod plain;
 mod rle;
+mod ts2diff;
+mod zigzag;
 
-pub use plain::*;
+pub use dictionary::*;
 pub use gorilla::*;
-pub use ts2diff::*;
+pub use plain::*;
 pub use rle::*;
+pub use ts2diff::*;
+pub use zigzag::*;
 
 use crate::common::{TSDataType, TSEncoding};
 use crate::error::Result;
@@ -36,29 +40,27 @@ pub trait Decoder: Send + Sync {
 }
 
 /// Factory para crear encoders
-pub fn create_encoder(
-    encoding: TSEncoding,
-    data_type: TSDataType,
-) -> Box<dyn Encoder> {
+pub fn create_encoder(encoding: TSEncoding, data_type: TSDataType) -> Box<dyn Encoder> {
     match encoding {
         TSEncoding::Plain => Box::new(PlainEncoder::new(data_type)),
+        TSEncoding::Dictionary => Box::new(DictionaryEncoder::new(data_type)),
         TSEncoding::Gorilla => Box::new(GorillaEncoder::new(data_type)),
         TSEncoding::Ts2Diff => Box::new(Ts2DiffEncoder::new(data_type)),
         TSEncoding::Rle => Box::new(RleEncoder::new(data_type)),
+        TSEncoding::Zigzag => Box::new(ZigzagEncoder::new(data_type)),
         _ => Box::new(PlainEncoder::new(data_type)), // Fallback
     }
 }
 
 /// Factory para crear decoders
-pub fn create_decoder(
-    encoding: TSEncoding,
-    data_type: TSDataType,
-) -> Box<dyn Decoder> {
+pub fn create_decoder(encoding: TSEncoding, data_type: TSDataType) -> Box<dyn Decoder> {
     match encoding {
         TSEncoding::Plain => Box::new(PlainDecoder::new(data_type)),
+        TSEncoding::Dictionary => Box::new(DictionaryDecoder::new(data_type)),
         TSEncoding::Gorilla => Box::new(GorillaDecoder::new(data_type)),
         TSEncoding::Ts2Diff => Box::new(Ts2DiffDecoder::new(data_type)),
         TSEncoding::Rle => Box::new(RleDecoder::new(data_type)),
+        TSEncoding::Zigzag => Box::new(ZigzagDecoder::new(data_type)),
         _ => Box::new(PlainDecoder::new(data_type)), // Fallback
     }
 }

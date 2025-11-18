@@ -1,4 +1,4 @@
-use crate::common::statistic::{create_statistic, Statistic};
+use crate::common::statistic::{Statistic, create_statistic};
 use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::error::{Result, TsFileError};
 use crate::file::{ChunkHeader, PageData};
@@ -141,9 +141,7 @@ impl ChunkWriter {
         self.seal_current_page()?;
 
         if self.pages.is_empty() {
-            return Err(TsFileError::InvalidState(
-                "No pages to write".to_string(),
-            ));
+            return Err(TsFileError::InvalidState("No pages to write".to_string()));
         }
 
         let mut total_bytes = 0;

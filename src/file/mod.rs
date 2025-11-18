@@ -1,5 +1,5 @@
-pub mod metadata;
 pub mod byte_stream;
+pub mod metadata;
 
-pub use metadata::*;
 pub use byte_stream::*;
+pub use metadata::*;

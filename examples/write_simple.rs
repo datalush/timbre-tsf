@@ -37,7 +37,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stats = temp_writer.statistic();
     println!("\nChunk Statistics:");
     println!("  - Count: {}", stats.count());
-    println!("  - Time range: {} - {}", stats.start_time(), stats.end_time());
+    println!(
+        "  - Time range: {} - {}",
+        stats.start_time(),
+        stats.end_time()
+    );
 
     // Crear otro chunk para humedad
     let mut humidity_writer = ChunkWriter::new(

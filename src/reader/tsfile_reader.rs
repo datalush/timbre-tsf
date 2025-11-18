@@ -136,7 +136,9 @@ pub struct TsFileInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::{CompressionType, MeasurementSchema, TSDataType, TSEncoding, TsRecord, TsValue};
+    use crate::common::{
+        CompressionType, MeasurementSchema, TSDataType, TSEncoding, TsRecord, TsValue,
+    };
     use crate::writer::TsFileWriter;
     use tempfile::NamedTempFile;
 
@@ -183,7 +185,10 @@ mod tests {
         assert_eq!(chunk.len(), 10);
 
         // Verificar valor específico
-        let (ts, value) = reader.get_value("device1", "temperature", 5).unwrap().unwrap();
+        let (ts, value) = reader
+            .get_value("device1", "temperature", 5)
+            .unwrap()
+            .unwrap();
         assert_eq!(ts, 1500);
         if let DecodedValueData::Float(v) = value {
             assert_eq!(*v, 30.0);
@@ -223,7 +228,9 @@ mod tests {
 
         // Leer con filtro de tiempo
         let mut reader = TsFileReader::open(path).unwrap();
-        let filtered = reader.read_time_range("device1", "sensor", 500, 1500).unwrap();
+        let filtered = reader
+            .read_time_range("device1", "sensor", 500, 1500)
+            .unwrap();
 
         // Debe tener valores de timestamp 500 a 1500 (11 valores)
         assert_eq!(filtered.len(), 11);
@@ -314,8 +321,8 @@ mod tests {
             writer.register_timeseries("device1", schema).unwrap();
 
             for i in 0..10 {
-                let record = TsRecord::new(i * 100, "device1")
-                    .with_value("data", TsValue::Int64(i));
+                let record =
+                    TsRecord::new(i * 100, "device1").with_value("data", TsValue::Int64(i));
                 writer.write_record(record).unwrap();
             }
 

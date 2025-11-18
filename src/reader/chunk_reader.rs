@@ -49,7 +49,8 @@ impl ChunkReader {
             // Agregar valores
             match (all_values_data.as_mut(), &page.values) {
                 (None, DecodedValues::Boolean(v)) => {
-                    all_values_data = Some(v.iter().map(|&x| DecodedValueData::Boolean(x)).collect());
+                    all_values_data =
+                        Some(v.iter().map(|&x| DecodedValueData::Boolean(x)).collect());
                 }
                 (None, DecodedValues::Int32(v)) => {
                     all_values_data = Some(v.iter().map(|&x| DecodedValueData::Int32(x)).collect());
@@ -61,10 +62,15 @@ impl ChunkReader {
                     all_values_data = Some(v.iter().map(|&x| DecodedValueData::Float(x)).collect());
                 }
                 (None, DecodedValues::Double(v)) => {
-                    all_values_data = Some(v.iter().map(|&x| DecodedValueData::Double(x)).collect());
+                    all_values_data =
+                        Some(v.iter().map(|&x| DecodedValueData::Double(x)).collect());
                 }
                 (None, DecodedValues::Text(v)) => {
-                    all_values_data = Some(v.iter().map(|x| DecodedValueData::Text(x.clone())).collect());
+                    all_values_data = Some(
+                        v.iter()
+                            .map(|x| DecodedValueData::Text(x.clone()))
+                            .collect(),
+                    );
                 }
                 (Some(data), DecodedValues::Boolean(v)) => {
                     data.extend(v.iter().map(|&x| DecodedValueData::Boolean(x)));

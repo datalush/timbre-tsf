@@ -1,9 +1,9 @@
-pub mod types;
 pub mod schema;
-pub mod tablet;
 pub mod statistic;
+pub mod tablet;
+pub mod types;
 
-pub use types::*;
 pub use schema::*;
-pub use tablet::*;
 pub use statistic::*;
+pub use tablet::*;
+pub use types::*;

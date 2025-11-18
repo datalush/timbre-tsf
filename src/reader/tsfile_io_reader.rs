@@ -121,8 +121,9 @@ impl TsFileIOReader {
                 let name_len = file.read_u32::<LittleEndian>()? as usize;
                 let mut name_bytes = vec![0u8; name_len];
                 file.read_exact(&mut name_bytes)?;
-                let measurement_name = String::from_utf8(name_bytes)
-                    .map_err(|e| TsFileError::InvalidFile(format!("Invalid measurement name: {}", e)))?;
+                let measurement_name = String::from_utf8(name_bytes).map_err(|e| {
+                    TsFileError::InvalidFile(format!("Invalid measurement name: {}", e))
+                })?;
 
                 // Leer offset, data type, encoding, compression
                 let offset = file.read_i64::<LittleEndian>()?;
@@ -146,11 +147,16 @@ impl TsFileIOReader {
     }
 
     /// Lee un chunk específico por dispositivo y medición
-    pub fn read_chunk(&mut self, device_id: &str, measurement_name: &str) -> Result<crate::reader::DecodedChunk> {
+    pub fn read_chunk(
+        &mut self,
+        device_id: &str,
+        measurement_name: &str,
+    ) -> Result<crate::reader::DecodedChunk> {
         // Buscar metadata del chunk
-        let device_chunks = self.device_metadata.get(device_id).ok_or_else(|| {
-            TsFileError::NotFound(format!("Device {} not found", device_id))
-        })?;
+        let device_chunks = self
+            .device_metadata
+            .get(device_id)
+            .ok_or_else(|| TsFileError::NotFound(format!("Device {} not found", device_id)))?;
 
         let chunk_meta = device_chunks
             .iter()
@@ -183,13 +189,17 @@ impl TsFileIOReader {
 
     /// Obtiene la lista de mediciones para un dispositivo
     pub fn get_measurements(&self, device_id: &str) -> Option<Vec<String>> {
-        self.device_metadata.get(device_id).map(|chunks| {
-            chunks.iter().map(|c| c.measurement_name.clone()).collect()
-        })
+        self.device_metadata
+            .get(device_id)
+            .map(|chunks| chunks.iter().map(|c| c.measurement_name.clone()).collect())
     }
 
     /// Obtiene metadata de un chunk específico
-    pub fn get_chunk_metadata(&self, device_id: &str, measurement_name: &str) -> Option<&ChunkMetadata> {
+    pub fn get_chunk_metadata(
+        &self,
+        device_id: &str,
+        measurement_name: &str,
+    ) -> Option<&ChunkMetadata> {
         self.device_metadata
             .get(device_id)?
             .iter()
@@ -264,9 +274,21 @@ mod tests {
         // Verificar valores
         for (i, (ts, value)) in chunk.iter().enumerate() {
             eprintln!("Index {}: ts={}, value={:?}", i, ts, value);
-            assert_eq!(ts, 1000 + i as i64 * 100, "Timestamp mismatch at index {}", i);
+            assert_eq!(
+                ts,
+                1000 + i as i64 * 100,
+                "Timestamp mismatch at index {}",
+                i
+            );
             if let crate::reader::DecodedValueData::Float(v) = value {
-                assert_eq!(*v, 25.0 + i as f32, "Value mismatch at index {}: expected {}, got {}", i, 25.0 + i as f32, v);
+                assert_eq!(
+                    *v,
+                    25.0 + i as f32,
+                    "Value mismatch at index {}: expected {}, got {}",
+                    i,
+                    25.0 + i as f32,
+                    v
+                );
             } else {
                 panic!("Expected Float value");
             }

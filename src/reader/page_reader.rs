@@ -1,6 +1,6 @@
 use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::compress::create_compressor;
-use crate::encoding::{create_decoder, Decoder};
+use crate::encoding::{Decoder, create_decoder};
 use crate::error::Result;
 use crate::file::{PageData, PageHeader};
 use std::io::Read;
@@ -37,7 +37,8 @@ impl PageReader {
 
         // Descomprimir
         let mut compressor = create_compressor(self.compression_type);
-        let uncompressed = compressor.decompress(&compressed_data, header.uncompressed_size as usize)?;
+        let uncompressed =
+            compressor.decompress(&compressed_data, header.uncompressed_size as usize)?;
 
         // Leer tamaños y decodificar
         use byteorder::{LittleEndian, ReadBytesExt};
@@ -54,7 +55,9 @@ impl PageReader {
         let mut timestamps = Vec::with_capacity(header.num_of_values as usize);
         let mut pos = 0;
 
-        while time_decoder.has_remaining(time_buffer, pos) && timestamps.len() < header.num_of_values as usize {
+        while time_decoder.has_remaining(time_buffer, pos)
+            && timestamps.len() < header.num_of_values as usize
+        {
             let ts = time_decoder.read_i64(time_buffer, &mut pos)?;
             timestamps.push(ts);
         }
@@ -71,7 +74,12 @@ impl PageReader {
         let value_buffer = &uncompressed[value_start..value_end];
         let mut value_decoder = create_decoder(self.encoding, self.data_type);
         let mut value_pos = 0;
-        let values = self.decode_values(&mut value_decoder, value_buffer, &mut value_pos, header.num_of_values as usize)?;
+        let values = self.decode_values(
+            &mut value_decoder,
+            value_buffer,
+            &mut value_pos,
+            header.num_of_values as usize,
+        )?;
 
         Ok(DecodedPage {
             timestamps,
@@ -104,7 +112,9 @@ impl PageReader {
         let mut timestamps = Vec::with_capacity(page_data.header.num_of_values as usize);
         let mut pos = 0;
 
-        while time_decoder.has_remaining(time_buffer, pos) && timestamps.len() < page_data.header.num_of_values as usize {
+        while time_decoder.has_remaining(time_buffer, pos)
+            && timestamps.len() < page_data.header.num_of_values as usize
+        {
             let ts = time_decoder.read_i64(time_buffer, &mut pos)?;
             timestamps.push(ts);
         }
@@ -121,7 +131,12 @@ impl PageReader {
         let value_buffer = &uncompressed[value_start..value_end];
         let mut value_decoder = create_decoder(self.encoding, self.data_type);
         let mut value_pos = 0;
-        let values = self.decode_values(&mut value_decoder, value_buffer, &mut value_pos, page_data.header.num_of_values as usize)?;
+        let values = self.decode_values(
+            &mut value_decoder,
+            value_buffer,
+            &mut value_pos,
+            page_data.header.num_of_values as usize,
+        )?;
 
         Ok(DecodedPage {
             timestamps,
@@ -310,11 +325,8 @@ mod tests {
     #[test]
     fn test_page_reader_i32() {
         // Escribir página
-        let mut writer = PageWriter::new(
-            TSDataType::Int32,
-            TSEncoding::Plain,
-            CompressionType::Lz4,
-        );
+        let mut writer =
+            PageWriter::new(TSDataType::Int32, TSEncoding::Plain, CompressionType::Lz4);
 
         for i in 0..20 {
             writer.write_i32(2000 + i * 50, i as i32 * 10).unwrap();
@@ -323,11 +335,8 @@ mod tests {
         let page_data = writer.finish().unwrap();
 
         // Leer página
-        let mut reader = PageReader::new(
-            TSDataType::Int32,
-            TSEncoding::Plain,
-            CompressionType::Lz4,
-        );
+        let mut reader =
+            PageReader::new(TSDataType::Int32, TSEncoding::Plain, CompressionType::Lz4);
 
         let decoded = reader.read_page_data(&page_data).unwrap();
 

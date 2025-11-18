@@ -55,8 +55,12 @@ pub struct Lz4Compressor;
 
 impl Compressor for Lz4Compressor {
     fn compress(&mut self, input: &[u8]) -> Result<Vec<u8>> {
-        lz4::block::compress(input, Some(lz4::block::CompressionMode::HIGHCOMPRESSION(9)), false)
-            .map_err(|e| TsFileError::CompressionError(e.to_string()))
+        lz4::block::compress(
+            input,
+            Some(lz4::block::CompressionMode::HIGHCOMPRESSION(9)),
+            false,
+        )
+        .map_err(|e| TsFileError::CompressionError(e.to_string()))
     }
 
     fn decompress(&mut self, input: &[u8], uncompressed_size: usize) -> Result<Vec<u8>> {

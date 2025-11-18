@@ -16,8 +16,8 @@ pub struct TsFileConfig {
 impl Default for TsFileConfig {
     fn default() -> Self {
         Self {
-            max_page_size: 64 * 1024,      // 64KB
-            chunk_group_size: 100 * 1024,   // 100KB
+            max_page_size: 64 * 1024,     // 64KB
+            chunk_group_size: 100 * 1024, // 100KB
         }
     }
 }
@@ -158,7 +158,12 @@ impl TsFileWriter {
             for row_idx in 0..tablet.row_count() {
                 if !tablet.bitmaps[col_idx].get(row_idx) {
                     let timestamp = tablet.timestamps[row_idx];
-                    Self::write_column_value(chunk_writer, &tablet.values[col_idx], row_idx, timestamp)?;
+                    Self::write_column_value(
+                        chunk_writer,
+                        &tablet.values[col_idx],
+                        row_idx,
+                        timestamp,
+                    )?;
                 }
             }
         }
@@ -200,10 +205,12 @@ impl TsFileWriter {
             TsValue::Float(v) => chunk_writer.write_f32(timestamp, v)?,
             TsValue::Double(v) => chunk_writer.write_f64(timestamp, v)?,
             TsValue::Text(v) | TsValue::String(v) => chunk_writer.write_string(timestamp, &v)?,
-            _ => return Err(TsFileError::TypeMismatch {
-                expected: "supported type".to_string(),
-                actual: format!("{:?}", value),
-            }),
+            _ => {
+                return Err(TsFileError::TypeMismatch {
+                    expected: "supported type".to_string(),
+                    actual: format!("{:?}", value),
+                });
+            }
         }
 
         Ok(())
@@ -265,12 +272,10 @@ mod tests {
         writer.register_timeseries("device1", schema).unwrap();
 
         // Escribir registros
-        let record = TsRecord::new(1000, "device1")
-            .with_value("temperature", TsValue::Float(25.5));
+        let record = TsRecord::new(1000, "device1").with_value("temperature", TsValue::Float(25.5));
         writer.write_record(record).unwrap();
 
-        let record = TsRecord::new(2000, "device1")
-            .with_value("temperature", TsValue::Float(26.0));
+        let record = TsRecord::new(2000, "device1").with_value("temperature", TsValue::Float(26.0));
         writer.write_record(record).unwrap();
 
         // Cerrar
@@ -296,15 +301,19 @@ mod tests {
         );
 
         // Agregar datos
-        tablet.add_row(1000, vec![
-            Some(TsValue::Float(25.5)),
-            Some(TsValue::Int32(60)),
-        ]).unwrap();
+        tablet
+            .add_row(
+                1000,
+                vec![Some(TsValue::Float(25.5)), Some(TsValue::Int32(60))],
+            )
+            .unwrap();
 
-        tablet.add_row(2000, vec![
-            Some(TsValue::Float(26.0)),
-            Some(TsValue::Int32(65)),
-        ]).unwrap();
+        tablet
+            .add_row(
+                2000,
+                vec![Some(TsValue::Float(26.0)), Some(TsValue::Int32(65))],
+            )
+            .unwrap();
 
         // Escribir tablet
         writer.write_tablet(&tablet).unwrap();
@@ -313,4 +322,3 @@ mod tests {
         writer.close().unwrap();
     }
 }
-

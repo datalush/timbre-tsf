@@ -1,12 +1,12 @@
 use crate::common::{MeasurementSchema, TSDataType};
 use crate::error::{Result, TsFileError};
-use crate::file::{ChunkMeta, ChunkHeader};
+use crate::file::{ChunkHeader, ChunkMeta};
 use crate::writer::ChunkWriter;
+use byteorder::{LittleEndian, WriteBytesExt};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Seek, SeekFrom, Write};
 use std::path::Path;
-use byteorder::{LittleEndian, WriteBytesExt};
 
 /// Magic string para TsFile
 pub const MAGIC_STRING: &[u8] = b"TsFile";
@@ -41,7 +41,8 @@ impl TsFileIOWriter {
     /// Inicia un nuevo chunk group para un dispositivo
     pub fn start_chunk_group(&mut self, device_id: &str) -> Result<()> {
         if !self.device_chunk_groups.contains_key(device_id) {
-            self.device_chunk_groups.insert(device_id.to_string(), Vec::new());
+            self.device_chunk_groups
+                .insert(device_id.to_string(), Vec::new());
         }
         Ok(())
     }
@@ -76,9 +77,10 @@ impl TsFileIOWriter {
         // En la implementación completa, aquí se escribiría un marker de separación
         // Por ahora solo validamos que el device existe
         if !self.device_chunk_groups.contains_key(device_id) {
-            return Err(TsFileError::InvalidState(
-                format!("Device {} not found", device_id)
-            ));
+            return Err(TsFileError::InvalidState(format!(
+                "Device {} not found",
+                device_id
+            )));
         }
         Ok(())
     }
@@ -89,13 +91,15 @@ impl TsFileIOWriter {
         self.file.write_u8(0x02)?; // Metadata marker
 
         // Escribir número de dispositivos
-        self.file.write_u32::<LittleEndian>(self.device_chunk_groups.len() as u32)?;
+        self.file
+            .write_u32::<LittleEndian>(self.device_chunk_groups.len() as u32)?;
 
         // Escribir metadata de cada dispositivo
         for (device_id, chunks) in &self.device_chunk_groups {
             // Device ID
             let device_bytes = device_id.as_bytes();
-            self.file.write_u32::<LittleEndian>(device_bytes.len() as u32)?;
+            self.file
+                .write_u32::<LittleEndian>(device_bytes.len() as u32)?;
             self.file.write_all(device_bytes)?;
 
             // Número de chunks
@@ -105,11 +109,13 @@ impl TsFileIOWriter {
             for chunk in chunks {
                 // Measurement name
                 let name_bytes = chunk.measurement_name.as_bytes();
-                self.file.write_u32::<LittleEndian>(name_bytes.len() as u32)?;
+                self.file
+                    .write_u32::<LittleEndian>(name_bytes.len() as u32)?;
                 self.file.write_all(name_bytes)?;
 
                 // Offset y data type
-                self.file.write_i64::<LittleEndian>(chunk.offset_of_chunk_header)?;
+                self.file
+                    .write_i64::<LittleEndian>(chunk.offset_of_chunk_header)?;
                 self.file.write_u8(chunk.data_type.to_u8())?;
                 self.file.write_u8(chunk.encoding.to_u8())?;
                 self.file.write_u8(chunk.compression_type.to_u8())?;

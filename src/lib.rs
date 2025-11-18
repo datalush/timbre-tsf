@@ -41,13 +41,13 @@ pub mod compress;
 pub mod encoding;
 pub mod error;
 pub mod file;
-pub mod writer;
 pub mod reader;
+pub mod writer;
 
 // Re-exports principales
 pub use common::*;
-pub use compress::{create_compressor, Compressor};
-pub use encoding::{create_decoder, create_encoder, Decoder, Encoder};
+pub use compress::{Compressor, create_compressor};
+pub use encoding::{Decoder, Encoder, create_decoder, create_encoder};
 pub use error::{Result, TsFileError};
 
 /// Constantes del formato TsFile

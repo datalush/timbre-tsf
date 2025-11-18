@@ -1,7 +1,7 @@
-use crate::common::statistic::{create_statistic, Statistic};
+use crate::common::statistic::{Statistic, create_statistic};
 use crate::common::{CompressionType, TSDataType, TSEncoding};
-use crate::compress::{create_compressor, Compressor};
-use crate::encoding::{create_encoder, Encoder};
+use crate::compress::{Compressor, create_compressor};
+use crate::encoding::{Encoder, create_encoder};
 use crate::error::Result;
 use crate::file::{PageData, PageHeader};
 
@@ -51,8 +51,10 @@ impl PageWriter {
 
     /// Escribe un valor booleano
     pub fn write_bool(&mut self, timestamp: i64, value: bool) -> Result<()> {
-        self.time_encoder.encode_i64(timestamp, &mut self.time_buffer)?;
-        self.value_encoder.encode_bool(value, &mut self.value_buffer)?;
+        self.time_encoder
+            .encode_i64(timestamp, &mut self.time_buffer)?;
+        self.value_encoder
+            .encode_bool(value, &mut self.value_buffer)?;
         self.statistic.update_bool(timestamp, value);
         self.value_count += 1;
         Ok(())
@@ -60,8 +62,10 @@ impl PageWriter {
 
     /// Escribe un valor i32
     pub fn write_i32(&mut self, timestamp: i64, value: i32) -> Result<()> {
-        self.time_encoder.encode_i64(timestamp, &mut self.time_buffer)?;
-        self.value_encoder.encode_i32(value, &mut self.value_buffer)?;
+        self.time_encoder
+            .encode_i64(timestamp, &mut self.time_buffer)?;
+        self.value_encoder
+            .encode_i32(value, &mut self.value_buffer)?;
         self.statistic.update_i32(timestamp, value);
         self.value_count += 1;
         Ok(())
@@ -69,8 +73,10 @@ impl PageWriter {
 
     /// Escribe un valor i64
     pub fn write_i64(&mut self, timestamp: i64, value: i64) -> Result<()> {
-        self.time_encoder.encode_i64(timestamp, &mut self.time_buffer)?;
-        self.value_encoder.encode_i64(value, &mut self.value_buffer)?;
+        self.time_encoder
+            .encode_i64(timestamp, &mut self.time_buffer)?;
+        self.value_encoder
+            .encode_i64(value, &mut self.value_buffer)?;
         self.statistic.update_i64(timestamp, value);
         self.value_count += 1;
         Ok(())
@@ -78,8 +84,10 @@ impl PageWriter {
 
     /// Escribe un valor f32
     pub fn write_f32(&mut self, timestamp: i64, value: f32) -> Result<()> {
-        self.time_encoder.encode_i64(timestamp, &mut self.time_buffer)?;
-        self.value_encoder.encode_f32(value, &mut self.value_buffer)?;
+        self.time_encoder
+            .encode_i64(timestamp, &mut self.time_buffer)?;
+        self.value_encoder
+            .encode_f32(value, &mut self.value_buffer)?;
         self.statistic.update_f32(timestamp, value);
         self.value_count += 1;
         Ok(())
@@ -87,8 +95,10 @@ impl PageWriter {
 
     /// Escribe un valor f64
     pub fn write_f64(&mut self, timestamp: i64, value: f64) -> Result<()> {
-        self.time_encoder.encode_i64(timestamp, &mut self.time_buffer)?;
-        self.value_encoder.encode_f64(value, &mut self.value_buffer)?;
+        self.time_encoder
+            .encode_i64(timestamp, &mut self.time_buffer)?;
+        self.value_encoder
+            .encode_f64(value, &mut self.value_buffer)?;
         self.statistic.update_f64(timestamp, value);
         self.value_count += 1;
         Ok(())
@@ -96,8 +106,10 @@ impl PageWriter {
 
     /// Escribe un valor string
     pub fn write_string(&mut self, timestamp: i64, value: &str) -> Result<()> {
-        self.time_encoder.encode_i64(timestamp, &mut self.time_buffer)?;
-        self.value_encoder.encode_string(value, &mut self.value_buffer)?;
+        self.time_encoder
+            .encode_i64(timestamp, &mut self.time_buffer)?;
+        self.value_encoder
+            .encode_string(value, &mut self.value_buffer)?;
         self.statistic.update_string(timestamp, value);
         self.value_count += 1;
         Ok(())
@@ -194,11 +206,8 @@ mod tests {
 
     #[test]
     fn test_page_writer_float() {
-        let mut writer = PageWriter::new(
-            TSDataType::Float,
-            TSEncoding::Plain,
-            CompressionType::Lz4,
-        );
+        let mut writer =
+            PageWriter::new(TSDataType::Float, TSEncoding::Plain, CompressionType::Lz4);
 
         writer.write_f32(1000, 1.5).unwrap();
         writer.write_f32(2000, 2.5).unwrap();
