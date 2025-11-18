@@ -41,6 +41,8 @@ pub mod compress;
 pub mod encoding;
 pub mod error;
 pub mod file;
+pub mod index;
+pub mod query;
 pub mod reader;
 pub mod writer;
 

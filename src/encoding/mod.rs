@@ -2,6 +2,7 @@ mod dictionary;
 mod gorilla;
 mod plain;
 mod rle;
+mod sprintz;
 mod ts2diff;
 mod zigzag;
 
@@ -9,6 +10,7 @@ pub use dictionary::*;
 pub use gorilla::*;
 pub use plain::*;
 pub use rle::*;
+pub use sprintz::*;
 pub use ts2diff::*;
 pub use zigzag::*;
 
@@ -48,6 +50,7 @@ pub fn create_encoder(encoding: TSEncoding, data_type: TSDataType) -> Box<dyn En
         TSEncoding::Ts2Diff => Box::new(Ts2DiffEncoder::new(data_type)),
         TSEncoding::Rle => Box::new(RleEncoder::new(data_type)),
         TSEncoding::Zigzag => Box::new(ZigzagEncoder::new(data_type)),
+        TSEncoding::Sprintz => Box::new(SprintzEncoder::new(data_type)),
         _ => Box::new(PlainEncoder::new(data_type)), // Fallback
     }
 }
@@ -61,6 +64,7 @@ pub fn create_decoder(encoding: TSEncoding, data_type: TSDataType) -> Box<dyn De
         TSEncoding::Ts2Diff => Box::new(Ts2DiffDecoder::new(data_type)),
         TSEncoding::Rle => Box::new(RleDecoder::new(data_type)),
         TSEncoding::Zigzag => Box::new(ZigzagDecoder::new(data_type)),
+        TSEncoding::Sprintz => Box::new(SprintzDecoder::new(data_type)),
         _ => Box::new(PlainDecoder::new(data_type)), // Fallback
     }
 }

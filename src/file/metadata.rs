@@ -1,6 +1,7 @@
 use crate::common::statistic::Statistic;
 use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::error::Result;
+use crate::index::BloomFilter;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::{Read, Write};
 
@@ -121,6 +122,7 @@ pub struct ChunkMeta {
     pub statistic: Option<Box<dyn Statistic>>,
     pub encoding: TSEncoding,
     pub compression_type: CompressionType,
+    pub bloom_filter: Option<BloomFilter>,
 }
 
 impl ChunkMeta {
@@ -138,6 +140,25 @@ impl ChunkMeta {
             statistic: None,
             encoding,
             compression_type,
+            bloom_filter: None,
+        }
+    }
+
+    /// Get the bloom filter if present
+    pub fn bloom_filter(&self) -> Option<&BloomFilter> {
+        self.bloom_filter.as_ref()
+    }
+
+    /// Set the bloom filter
+    pub fn set_bloom_filter(&mut self, bloom: BloomFilter) {
+        self.bloom_filter = Some(bloom);
+    }
+
+    /// Check if a value might be present in this chunk using bloom filter
+    pub fn might_contain<T: std::hash::Hash>(&self, value: &T) -> bool {
+        match &self.bloom_filter {
+            Some(bloom) => bloom.might_contain(value),
+            None => true, // If no bloom filter, assume it might contain the value
         }
     }
 }

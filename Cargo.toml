@@ -11,8 +11,7 @@ categories = ["database", "compression", "encoding"]
 
 [dependencies]
 # Error handling
-thiserror = "2.0"
-anyhow = "1.0"
+thiserror = "1.0"
 
 # Compression
 lz4 = "1.28"
@@ -24,6 +23,7 @@ byteorder = "1.5"
 
 # Utilities
 bitflags = "2.6"
+bit-vec = "0.6"
 
 # Optional: for better performance
 bumpalo = { version = "3.14", optional = true }
