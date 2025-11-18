@@ -1,0 +1,45 @@
+[package]
+name = "tsfile"
+version = "2.1.0"
+edition = "2024"
+authors = ["Apache TsFile Contributors"]
+description = "Rust implementation of Apache TsFile - a columnar storage file format for time series data"
+license = "Apache-2.0"
+repository = "https://github.com/apache/tsfile"
+keywords = ["tsfile", "timeseries", "iot", "columnar", "storage"]
+categories = ["database", "compression", "encoding"]
+
+[dependencies]
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Compression
+lz4 = "1.28"
+snap = "1.1"  # Snappy
+flate2 = "1.0"  # GZIP
+
+# Serialization
+byteorder = "1.5"
+
+# Utilities
+bitflags = "2.6"
+
+# Optional: for better performance
+bumpalo = { version = "3.14", optional = true }
+
+[dev-dependencies]
+criterion = "0.5"
+tempfile = "3.8"
+
+[features]
+default = []
+arena = ["bumpalo"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[profile.bench]
+inherits = "release"
