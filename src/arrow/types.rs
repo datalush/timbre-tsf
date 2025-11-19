@@ -68,6 +68,38 @@ impl ArrowConversionConfig {
         Self::default()
     }
 
+    /// Create a fast configuration optimized for write speed (less compression)
+    pub fn fast() -> Self {
+        Self {
+            default_compression: CompressionType::Uncompressed,
+            default_encoding_i32: TSEncoding::Plain,
+            default_encoding_i64: TSEncoding::Plain,
+            default_encoding_f32: TSEncoding::Plain,
+            default_encoding_f64: TSEncoding::Plain,
+            default_encoding_bool: TSEncoding::Plain,
+            default_encoding_string: TSEncoding::Plain,
+            max_rows_per_chunk: 100_000, // Larger chunks = less overhead
+            use_aligned_chunks: true,
+            buffer_size: 8192,
+        }
+    }
+
+    /// Create a balanced configuration (good speed + decent compression)
+    pub fn balanced() -> Self {
+        Self {
+            default_compression: CompressionType::Lz4,
+            default_encoding_i32: TSEncoding::Plain,
+            default_encoding_i64: TSEncoding::Plain,
+            default_encoding_f32: TSEncoding::Plain,
+            default_encoding_f64: TSEncoding::Plain,
+            default_encoding_bool: TSEncoding::Rle,
+            default_encoding_string: TSEncoding::Plain,
+            max_rows_per_chunk: 50_000,
+            use_aligned_chunks: true,
+            buffer_size: 8192,
+        }
+    }
+
     /// Set the default compression type
     pub fn with_compression(mut self, compression: CompressionType) -> Self {
         self.default_compression = compression;

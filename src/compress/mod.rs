@@ -55,9 +55,13 @@ pub struct Lz4Compressor;
 
 impl Compressor for Lz4Compressor {
     fn compress(&mut self, input: &[u8]) -> Result<Vec<u8>> {
+        // OPTIMIZATION: Use FAST mode instead of HIGHCOMPRESSION(9)
+        // Gorilla encoding already provides excellent compression (3289KB -> 940KB uncompressed)
+        // LZ4-HC(9) is 3-10x slower than LZ4-FAST with minimal extra compression gain
+        // For pre-compressed Gorilla data, FAST mode is optimal (speed vs size trade-off)
         lz4::block::compress(
             input,
-            Some(lz4::block::CompressionMode::HIGHCOMPRESSION(9)),
+            Some(lz4::block::CompressionMode::FAST(1)),
             false,
         )
         .map_err(|e| TsFileError::CompressionError(e.to_string()))
