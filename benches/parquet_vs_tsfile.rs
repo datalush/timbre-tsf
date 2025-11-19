@@ -4,7 +4,7 @@ use std::time::Duration;
 use tempfile::NamedTempFile;
 
 // Arrow imports
-use arrow::array::{Float32Array, Int64Array, StringArray, TimestampMillisecondArray};
+use arrow::array::{Float32Array, StringArray, TimestampMillisecondArray};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 
@@ -15,7 +15,7 @@ use parquet::file::properties::WriterProperties;
 
 // TsFile imports
 use tsfile::arrow::{ArrowToTsFileConverter, TsFileRecordBatchReader};
-use tsfile::common::{ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsRecord, TsValue};
+use tsfile::common::{ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsValue};
 use tsfile::writer::TsFileWriter;
 
 /// Genera datos de prueba con 1M de filas
@@ -198,7 +198,6 @@ fn write_tsfile_native(batch: &RecordBatch, path: &std::path::Path) {
     log::info!("  Datos agrupados en {} devices ({:?})", rows_by_device.len(), start_total.elapsed());
 
     // Escribir cada device usando batch writing con Tablets (3.8x más rápido!)
-    let mut total_written = 0;
     for (device_id, rows) in rows_by_device {
         log::info!("  Escribiendo device {}: {} rows (usando Tablet)", device_id, rows.len());
 
@@ -248,7 +247,6 @@ fn write_tsfile_native(batch: &RecordBatch, path: &std::path::Path) {
 
         // Escribir todo el tablet de una vez (mucho más rápido!)
         writer.write_tablet(&tablet).unwrap();
-        total_written += tablet.row_count();
 
         log::info!("  Device {} escrito: {} rows ({:?} total)",
             device_id, tablet.row_count(), start_total.elapsed());
