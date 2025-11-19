@@ -396,42 +396,44 @@ impl GorillaDecoder {
 
     /// Refills the 64-bit read buffer from the input stream
     ///
-    /// Loads up to 8 bytes (64 bits) at once to reduce read overhead, providing
-    /// a significant performance improvement over reading individual bytes.
+    /// Loads up to 8 bytes at once as a single u64, providing significant
+    /// performance improvement over byte-by-byte reading.
     ///
-    /// Buffer layout: bits are packed at MSB (most significant bits)
-    /// [XXXXXXXX YYYYYYYY 00000000 ...] where X,Y are valid bits
+    /// Buffer layout: Valid bits start from MSB (bit 63 downward)
+    /// Example with 10 bits: [XXXXXXXXXX 000000...] (54 zero bits)
     #[inline]
-    fn refill_buffer(&mut self, input: &[u8]) -> Result<()> {
-        // Read up to 8 bytes from current position
-        let bytes_available = input.len().saturating_sub(self.byte_pos);
-        if bytes_available == 0 {
-            return Ok(()); // No more bytes available
+    fn refill_buffer(&mut self, input: &[u8]) -> Result<bool> {
+        // Check remaining input
+        let remaining = input.len() - self.byte_pos;
+        if remaining == 0 {
+            return Ok(false);  // No data added
         }
 
-        // Calculate how many bytes we can read (up to 8, limited by buffer capacity)
-        let max_bytes_to_read = (64 - self.bits_available as usize) / 8;
-        let bytes_to_read = bytes_available.min(max_bytes_to_read).min(8);
-
-        if bytes_to_read == 0 {
-            return Ok(()); // Buffer is full
+        // Calculate how many bytes we can add without overflow
+        let max_bytes = ((64 - self.bits_available) / 8) as usize;
+        if max_bytes == 0 {
+            return Ok(false);  // Buffer full
         }
 
-        let initial_bits = self.bits_available;
+        // Read up to max_bytes, limited by available input
+        let bytes_to_read = remaining.min(max_bytes).min(8);
 
-        // Load new bytes into buffer
-        // New bytes go right after existing bits (MSB to LSB)
-        for i in 0..bytes_to_read {
-            let byte = input[self.byte_pos + i];
-            // Calculate shift: place first byte at (56-initial_bits), second at (48-initial_bits), etc.
-            let shift_amount = 56u8.saturating_sub(initial_bits + (i * 8) as u8);
-            self.bit_buffer |= (byte as u64) << shift_amount;
-        }
+        // Load bytes into 8-byte array (zero-padded)
+        let mut buf = [0u8; 8];
+        buf[..bytes_to_read].copy_from_slice(
+            &input[self.byte_pos..self.byte_pos + bytes_to_read]
+        );
+
+        // Convert to u64 (big-endian: first byte becomes MSB)
+        let new_data = u64::from_be_bytes(buf);
+
+        // Shift right to place after existing bits
+        self.bit_buffer |= new_data >> self.bits_available;
 
         self.byte_pos += bytes_to_read;
         self.bits_available += (bytes_to_read * 8) as u8;
 
-        Ok(())
+        Ok(true)  // Data added
     }
 
     /// Reads a variable number of bits from the input stream
@@ -446,11 +448,15 @@ impl GorillaDecoder {
 
         // Refill buffer if needed (may need multiple refills for large reads)
         while self.bits_available < num_bits {
-            self.refill_buffer(input)?;
+            let added_data = self.refill_buffer(input)?;
 
-            // Check if we can't refill anymore (end of input)
-            if self.byte_pos >= input.len() && self.bits_available < num_bits {
-                return Err(TsFileError::UnexpectedEof);
+            // If we couldn't add any bits (no more data or buffer full)
+            if !added_data {
+                // Check if we have enough bits now
+                if self.bits_available < num_bits {
+                    return Err(TsFileError::UnexpectedEof);
+                }
+                break;
             }
         }
 
