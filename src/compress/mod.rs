@@ -123,14 +123,66 @@ impl Compressor for GzipCompressor {
     }
 }
 
-/// Factory para crear compresores
-pub fn create_compressor(compression_type: CompressionType) -> Box<dyn Compressor> {
+/// OPT-4: Enum-based compressor for static dispatch (eliminates virtual calls)
+/// Same pattern as EncoderImpl - avoids vtable lookups in hot path
+pub enum CompressorImpl {
+    Uncompressed(UncompressedCompressor),
+    Snappy(SnappyCompressor),
+    Lz4(Lz4Compressor),
+    Gzip(GzipCompressor),
+}
+
+impl CompressorImpl {
+    #[inline]
+    pub fn compress(&mut self, input: &[u8]) -> Result<Vec<u8>> {
+        match self {
+            Self::Uncompressed(c) => c.compress(input),
+            Self::Snappy(c) => c.compress(input),
+            Self::Lz4(c) => c.compress(input),
+            Self::Gzip(c) => c.compress(input),
+        }
+    }
+
+    #[inline]
+    pub fn decompress(&mut self, input: &[u8], uncompressed_size: usize) -> Result<Vec<u8>> {
+        match self {
+            Self::Uncompressed(c) => c.decompress(input, uncompressed_size),
+            Self::Snappy(c) => c.decompress(input, uncompressed_size),
+            Self::Lz4(c) => c.decompress(input, uncompressed_size),
+            Self::Gzip(c) => c.decompress(input, uncompressed_size),
+        }
+    }
+
+    #[inline]
+    pub fn compression_type(&self) -> CompressionType {
+        match self {
+            Self::Uncompressed(c) => c.compression_type(),
+            Self::Snappy(c) => c.compression_type(),
+            Self::Lz4(c) => c.compression_type(),
+            Self::Gzip(c) => c.compression_type(),
+        }
+    }
+}
+
+/// Factory para crear compresores (legacy - returns Box<dyn Compressor>)
+pub fn create_compressor_boxed(compression_type: CompressionType) -> Box<dyn Compressor> {
     match compression_type {
         CompressionType::Uncompressed => Box::new(UncompressedCompressor),
         CompressionType::Snappy => Box::new(SnappyCompressor),
         CompressionType::Lz4 => Box::new(Lz4Compressor),
         CompressionType::Gzip => Box::new(GzipCompressor::default()),
         _ => Box::new(UncompressedCompressor), // Fallback
+    }
+}
+
+/// OPT-4: Factory para crear compresores con static dispatch
+pub fn create_compressor(compression_type: CompressionType) -> CompressorImpl {
+    match compression_type {
+        CompressionType::Uncompressed => CompressorImpl::Uncompressed(UncompressedCompressor),
+        CompressionType::Snappy => CompressorImpl::Snappy(SnappyCompressor),
+        CompressionType::Lz4 => CompressorImpl::Lz4(Lz4Compressor),
+        CompressionType::Gzip => CompressorImpl::Gzip(GzipCompressor::default()),
+        _ => CompressorImpl::Uncompressed(UncompressedCompressor), // Fallback
     }
 }
 

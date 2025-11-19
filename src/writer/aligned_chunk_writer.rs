@@ -1,7 +1,7 @@
 use crate::common::statistic::{Statistic, create_statistic};
 use crate::common::tablet::BitMap;
 use crate::common::{CompressionType, TSDataType, TSEncoding, TsValue};
-use crate::compress::{Compressor, create_compressor};
+use crate::compress::{Compressor, CompressorImpl, create_compressor};
 use crate::encoding::{Encoder, create_encoder_boxed};
 use crate::error::{Result, TsFileError};
 use crate::file::{ChunkHeader, ChunkType, PageData, PageHeader};
@@ -14,7 +14,7 @@ struct ValueColumnWriter {
     encoding: TSEncoding,
     compression_type: CompressionType,
     encoder: Box<dyn Encoder>,
-    compressor: Box<dyn Compressor>,
+    compressor: CompressorImpl,
     value_buffer: Vec<u8>,
     bitmap: BitMap,
     statistic: Box<dyn Statistic>,
@@ -176,7 +176,7 @@ pub struct AlignedChunkWriter {
 
     // Time column
     time_encoder: Box<dyn Encoder>,
-    time_compressor: Box<dyn Compressor>,
+    time_compressor: CompressorImpl,
     time_buffer: Vec<u8>,
 
     // Value columns (one per measurement)

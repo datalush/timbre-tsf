@@ -1,5 +1,5 @@
 use crate::common::{CompressionType, TSDataType, TSEncoding};
-use crate::compress::{Compressor, create_compressor};
+use crate::compress::{Compressor, create_compressor_boxed};
 use crate::encoding::{Decoder, create_decoder};
 use crate::error::Result;
 use crate::file::{PageData, PageHeader};
@@ -21,7 +21,7 @@ impl PageReader {
         encoding: TSEncoding,
         compression_type: CompressionType,
     ) -> Self {
-        let compressor = create_compressor(compression_type);
+        let compressor = create_compressor_boxed(compression_type);
         Self {
             data_type,
             encoding,

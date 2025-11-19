@@ -17,7 +17,8 @@ pub struct PageWriter {
     // OPT-2: EncoderImpl en lugar de Box<dyn Encoder> para static dispatch
     time_encoder: EncoderImpl,
     value_encoder: EncoderImpl,
-    compressor: Box<dyn Compressor>,
+    // OPT-4: CompressorImpl en lugar de Box<dyn Compressor> para static dispatch
+    compressor: crate::compress::CompressorImpl,
 
     time_buffer: Vec<u8>,
     value_buffer: Vec<u8>,
