@@ -225,6 +225,9 @@ pub struct GorillaDecoder {
     // Persistent bit position across multiple values
     byte_pos: usize,
     bit_pos: u8,
+    // OPT-2: Batch bit reading buffer (pre-fetch 64 bits at a time)
+    bit_buffer: u64,
+    bits_available: u8,
     // Number of bits for decoding leading/significant bits (5 for 32-bit, 6 for 64-bit)
     leading_bits_width: u8,
     significant_bits_width: u8,
@@ -264,105 +267,101 @@ impl GorillaDecoder {
             previous_trailing: 0,
             byte_pos: 0,
             bit_pos: 0,
+            // OPT-2: Initialize batch buffer
+            bit_buffer: 0,
+            bits_available: 0,
             leading_bits_width,
             significant_bits_width,
             value_bits,
         }
     }
 
-    fn read_bits(input: &[u8], pos: &mut usize, bit_pos: &mut u8, num_bits: u8) -> Result<u64> {
+    /// OPT-2: Refill the 64-bit buffer from input
+    /// Loads up to 8 bytes (64 bits) at once to reduce read overhead
+    #[inline]
+    fn refill_buffer(&mut self, input: &[u8]) -> Result<()> {
+        // Only refill if we have less than 8 bits available
+        if self.bits_available >= 8 {
+            return Ok(());
+        }
+
+        // Read up to 8 bytes from current position
+        let bytes_available = input.len().saturating_sub(self.byte_pos);
+        if bytes_available == 0 {
+            return Err(TsFileError::UnexpectedEof);
+        }
+
+        // Read as many bytes as possible (up to 8)
+        let bytes_to_read = bytes_available.min(8);
+
+        // Shift existing bits to make room
+        self.bit_buffer <<= bytes_to_read * 8;
+
+        // Load new bytes into buffer
+        for i in 0..bytes_to_read {
+            let byte = input[self.byte_pos + i];
+            self.bit_buffer |= (byte as u64) << ((bytes_to_read - 1 - i) * 8);
+        }
+
+        self.byte_pos += bytes_to_read;
+        self.bits_available += (bytes_to_read * 8) as u8;
+
+        Ok(())
+    }
+
+    /// OPT-2: Optimized read_bits using batch buffer
+    /// Reduces function call overhead by reading from pre-fetched buffer
+    #[inline(always)]
+    fn read_bits(&mut self, input: &[u8], num_bits: u8) -> Result<u64> {
         if num_bits == 0 {
             return Ok(0);
         }
 
-        let mut result = 0u64;
-        let mut bits_read = 0u8;
-
-        while bits_read < num_bits {
-            if *pos >= input.len() {
-                return Err(TsFileError::UnexpectedEof);
-            }
-
-            let bits_to_read = num_bits - bits_read;
-            let bits_available = 8 - *bit_pos;
-            let bits_this_iter = bits_to_read.min(bits_available);
-
-            let byte = input[*pos];
-            // Quick Win #2: usa lookup table en lugar de branch + computation
-            let mask = BIT_MASKS[bits_this_iter as usize];
-            let shift = bits_available - bits_this_iter;
-            let value = (byte >> shift) & mask;
-
-            result = (result << bits_this_iter) | (value as u64);
-            bits_read += bits_this_iter;
-            *bit_pos += bits_this_iter;
-
-            if *bit_pos >= 8 {
-                *bit_pos = 0;
-                *pos += 1;
-            }
+        // Refill buffer if needed
+        if self.bits_available < num_bits {
+            self.refill_buffer(input)?;
         }
+
+        // Extract bits from buffer
+        let shift = 64 - num_bits;
+        let result = self.bit_buffer >> shift;
+
+        // Update buffer state
+        self.bit_buffer <<= num_bits;
+        self.bits_available -= num_bits;
 
         Ok(result)
     }
 
-    /// Quick Win #3: Inline read_bit() para evitar overhead de llamada (3-5% mejora)
+    /// OPT-2: Optimized read_bit using batch buffer
     #[inline(always)]
-    fn read_bit(input: &[u8], pos: &mut usize, bit_pos: &mut u8) -> Result<bool> {
-        // Implementación directa en lugar de llamar a read_bits(1)
-        if *pos >= input.len() {
-            return Err(TsFileError::UnexpectedEof);
-        }
-
-        let byte = input[*pos];
-        let shift = 7 - *bit_pos;
-        let bit = (byte >> shift) & 1;
-
-        *bit_pos += 1;
-        if *bit_pos >= 8 {
-            *bit_pos = 0;
-            *pos += 1;
-        }
-
+    fn read_bit(&mut self, input: &[u8]) -> Result<bool> {
+        // Use read_bits(1) which now uses the optimized buffer
+        let bit = self.read_bits(input, 1)?;
         Ok(bit != 0)
     }
 
     fn decode_value(&mut self, input: &[u8]) -> Result<u64> {
         if self.first_value.is_none() {
-            let value = Self::read_bits(
-                input,
-                &mut self.byte_pos,
-                &mut self.bit_pos,
-                self.value_bits,
-            )?;
+            let value = self.read_bits(input, self.value_bits)?;
             self.first_value = Some(value);
             self.previous_value = value;
             return Ok(value);
         }
 
-        let is_different = Self::read_bit(input, &mut self.byte_pos, &mut self.bit_pos)?;
+        let is_different = self.read_bit(input)?;
         if !is_different {
             return Ok(self.previous_value);
         }
 
-        let use_previous_block = !Self::read_bit(input, &mut self.byte_pos, &mut self.bit_pos)?;
+        let use_previous_block = !self.read_bit(input)?;
 
         let (_leading, significant_bits) = if use_previous_block {
             let bits = self.value_bits as u32 - self.previous_leading - self.previous_trailing;
             (self.previous_leading, bits)
         } else {
-            let leading = Self::read_bits(
-                input,
-                &mut self.byte_pos,
-                &mut self.bit_pos,
-                self.leading_bits_width,
-            )? as u32;
-            let mut significant_bits = Self::read_bits(
-                input,
-                &mut self.byte_pos,
-                &mut self.bit_pos,
-                self.significant_bits_width,
-            )? as u32;
+            let leading = self.read_bits(input, self.leading_bits_width)? as u32;
+            let mut significant_bits = self.read_bits(input, self.significant_bits_width)? as u32;
             // Add 1 back (was stored as significant_bits - 1)
             significant_bits += 1;
             self.previous_leading = leading;
@@ -370,12 +369,7 @@ impl GorillaDecoder {
             (leading, significant_bits)
         };
 
-        let xor_value = Self::read_bits(
-            input,
-            &mut self.byte_pos,
-            &mut self.bit_pos,
-            significant_bits as u8,
-        )?;
+        let xor_value = self.read_bits(input, significant_bits as u8)?;
         let xor = xor_value << self.previous_trailing;
         let value = self.previous_value ^ xor;
         self.previous_value = value;
@@ -423,8 +417,8 @@ impl Decoder for GorillaDecoder {
     }
 
     fn has_remaining(&self, input: &[u8], _pos: usize) -> bool {
-        // Check if we have more bytes to read based on internal position
-        self.byte_pos < input.len() || (self.byte_pos == input.len() && self.bit_pos > 0)
+        // OPT-2: Check if we have more bytes to read OR bits available in buffer
+        self.byte_pos < input.len() || self.bits_available > 0
     }
 
     fn encoding_type(&self) -> TSEncoding {

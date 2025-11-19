@@ -214,18 +214,67 @@ impl TsFileRecordBatchReader {
     /// Convert DecodedValues directly to Arrow array (zero-copy)
     /// OPT-READ-2: Eliminates intermediate Vec<&str> for strings
     /// Uses StringArray::from_iter_values which is more efficient
+    /// OPT-1: Zero-copy Arrow construction using Buffer::from_vec (takes ownership)
     fn decoded_values_to_arrow(
         &self,
         values: DecodedValues,
     ) -> Result<Arc<dyn arrow::array::Array>> {
+        use arrow::buffer::Buffer;
+        use arrow::array::ArrayData;
+        use arrow::datatypes::DataType;
+
         let array: Arc<dyn arrow::array::Array> = match values {
-            DecodedValues::Boolean(vec) => Arc::new(BooleanArray::from(vec)),
-            DecodedValues::Int32(vec) => Arc::new(Int32Array::from(vec)),
-            DecodedValues::Int64(vec) => Arc::new(Int64Array::from(vec)),
-            DecodedValues::Float(vec) => Arc::new(Float32Array::from(vec)),
-            DecodedValues::Double(vec) => Arc::new(Float64Array::from(vec)),
+            DecodedValues::Boolean(vec) => {
+                // BooleanArray has special bit-packed format, can't zero-copy easily
+                Arc::new(BooleanArray::from(vec))
+            }
+            DecodedValues::Int32(vec) => {
+                // OPT-1: Zero-copy - Buffer::from_vec takes ownership without copying
+                let len = vec.len();
+                let buffer = Buffer::from_vec(vec);
+                let data = ArrayData::builder(DataType::Int32)
+                    .len(len)
+                    .add_buffer(buffer)
+                    .build()
+                    .map_err(|e| crate::error::TsFileError::InvalidState(format!("Failed to build Int32Array: {}", e)))?;
+                Arc::new(Int32Array::from(data))
+            }
+            DecodedValues::Int64(vec) => {
+                // OPT-1: Zero-copy
+                let len = vec.len();
+                let buffer = Buffer::from_vec(vec);
+                let data = ArrayData::builder(DataType::Int64)
+                    .len(len)
+                    .add_buffer(buffer)
+                    .build()
+                    .map_err(|e| crate::error::TsFileError::InvalidState(format!("Failed to build Int64Array: {}", e)))?;
+                Arc::new(Int64Array::from(data))
+            }
+            DecodedValues::Float(vec) => {
+                // OPT-1: Zero-copy
+                let len = vec.len();
+                let buffer = Buffer::from_vec(vec);
+                let data = ArrayData::builder(DataType::Float32)
+                    .len(len)
+                    .add_buffer(buffer)
+                    .build()
+                    .map_err(|e| crate::error::TsFileError::InvalidState(format!("Failed to build Float32Array: {}", e)))?;
+                Arc::new(Float32Array::from(data))
+            }
+            DecodedValues::Double(vec) => {
+                // OPT-1: Zero-copy
+                let len = vec.len();
+                let buffer = Buffer::from_vec(vec);
+                let data = ArrayData::builder(DataType::Float64)
+                    .len(len)
+                    .add_buffer(buffer)
+                    .build()
+                    .map_err(|e| crate::error::TsFileError::InvalidState(format!("Failed to build Float64Array: {}", e)))?;
+                Arc::new(Float64Array::from(data))
+            }
             DecodedValues::Text(vec) => {
                 // OPT-READ-2: Use from_iter_values instead of collecting to Vec<&str>
+                // Text arrays are complex (offsets + values), not suitable for simple zero-copy
                 Arc::new(StringArray::from_iter_values(vec.iter().map(|s| s.as_str())))
             }
         };
