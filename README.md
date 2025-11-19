@@ -8,58 +8,58 @@ High-performance Rust implementation of the **TsFile** columnar file format, spe
 
 > **Note**: This is an independent implementation of the TsFile format, developed and maintained separately from Apache IoTDB. It aims to provide a production-ready, optimized Rust library for working with TsFile data.
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [Features](#-features)
-- [Core Concepts](#-core-concepts)
-- [Installation](#-installation)
-- [Quick Start](#-quick-start)
-- [Encodings & Compression](#-encodings--compression)
-- [Aligned Chunks](#-aligned-chunks)
-- [Query Filters](#-query-filters)
-- [Bloom Filters](#-bloom-filters)
-- [API](#-api)
-- [Examples](#-examples)
-- [Performance](#-performance)
-- [Testing](#-testing)
-- [Contributing](#-contributing)
+- [Features](#features)
+- [Core Concepts](#core-concepts)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Encodings & Compression](#encodings--compression)
+- [Aligned Chunks](#aligned-chunks)
+- [Query Filters](#query-filters)
+- [Bloom Filters](#bloom-filters)
+- [API](#api)
+- [Examples](#examples)
+- [Performance](#performance)
+- [Testing](#testing)
+- [Contributing](#contributing)
 
-## ✨ Features
+## Features
 
 ### Storage & Retrieval
-- ✅ **TsFile Writing**: Multiple devices and measurements
-- ✅ **TsFile Reading**: Smart caching and efficient filtering
-- ✅ **Aligned Chunks**: Optimization for synchronized sensors (67% less timestamp space)
-- ✅ **Type-Safe API**: Full Rust type system for compile-time safety
+- **TsFile Writing**: Multiple devices and measurements
+- **TsFile Reading**: Smart caching and efficient filtering
+- **Aligned Chunks**: Optimization for synchronized sensors (67% less timestamp space)
+- **Type-Safe API**: Full Rust type system for compile-time safety
 
 ### Encodings (7 types)
-- ✅ **PLAIN**: Direct encoding without compression
-- ✅ **TS_2DIFF**: Second-order difference for timestamps and counters
-- ✅ **RLE**: Run-Length Encoding for repetitive values
-- ✅ **GORILLA**: XOR delta encoding for floats/doubles (Facebook)
-- ✅ **DICTIONARY**: Dictionary encoding for repetitive strings (>10x compression)
-- ✅ **ZIGZAG**: Optimized encoding for signed integers (>2x compression)
-- ✅ **SPRINTZ**: Advanced compression for time series (4 variants: Int32, Int64, Float, Double)
+- **PLAIN**: Direct encoding without compression
+- **TS_2DIFF**: Second-order difference for timestamps and counters
+- **RLE**: Run-Length Encoding for repetitive values
+- **GORILLA**: XOR delta encoding for floats/doubles (Facebook)
+- **DICTIONARY**: Dictionary encoding for repetitive strings (>10x compression)
+- **ZIGZAG**: Optimized encoding for signed integers (>2x compression)
+- **SPRINTZ**: Advanced compression for time series (4 variants: Int32, Int64, Float, Double)
 
 ### Compression (4 types)
-- ✅ **LZ4**: Optimal speed/ratio balance
-- ✅ **Snappy**: Ultra-fast compression (Google)
-- ✅ **GZIP**: Maximum compression ratio
-- ✅ **Uncompressed**: No compression
+- **LZ4**: Optimal speed/ratio balance
+- **Snappy**: Ultra-fast compression (Google)
+- **GZIP**: Maximum compression ratio
+- **Uncompressed**: No compression
 
 ### Query Optimization
-- ✅ **Bloom Filters**: Probabilistic filters for chunk skipping (1% false positive rate)
-- ✅ **Time Filters**: Time range filtering with statistical skipping
-- ✅ **Value Filters**: Type-aware filtering with NULL support
-- ✅ **Complex Predicates**: AND/OR/NOT composition with automatic simplification
-- ✅ **3-Level Optimization**: Bloom → Statistics → Row-level filtering
+- **Bloom Filters**: Probabilistic filters for chunk skipping (1% false positive rate)
+- **Time Filters**: Time range filtering with statistical skipping
+- **Value Filters**: Type-aware filtering with NULL support
+- **Complex Predicates**: AND/OR/NOT composition with automatic simplification
+- **3-Level Optimization**: Bloom → Statistics → Row-level filtering
 
 ### Statistics & Metadata
-- ✅ **Complete Statistics**: count, sum, min, max, first_value, last_value for all types
-- ✅ **TableSchema**: O(1) indices for tags and fields
-- ✅ **ChunkMeta**: Per-chunk metadata with integrated bloom filters
+- **Complete Statistics**: count, sum, min, max, first_value, last_value for all types
+- **TableSchema**: O(1) indices for tags and fields
+- **ChunkMeta**: Per-chunk metadata with integrated bloom filters
 
-## 📖 Core Concepts
+## Core Concepts
 
 ### Data Model
 
@@ -86,7 +86,7 @@ TsFile
 | `TEXT` | UTF-8 strings | Variable | DICTIONARY |
 | `TIMESTAMP` | Timestamps in ms | 8 bytes | TS_2DIFF |
 
-## 🚀 Installation
+## Installation
 
 Add to your `Cargo.toml`:
 
@@ -102,7 +102,7 @@ Or directly from repository:
 tsfile = { git = "https://github.com/datalush/tsfile-rs" }
 ```
 
-## ⚡ Quick Start
+## Quick Start
 
 ### Basic Writing
 
@@ -176,7 +176,7 @@ for i in 0..1000 {
 }
 ```
 
-## 🔧 Encodings & Compression
+## Encodings & Compression
 
 ### Recommended Combinations
 
@@ -205,7 +205,7 @@ Comparison with real IoT sensor data (1M measurements):
 | TsFile (Gorilla + LZ4) | 6 MB | 16.7x | 140 MB/s | 180 MB/s |
 | TsFile (Sprintz + LZ4) | 5 MB | 20x | 120 MB/s | 150 MB/s |
 
-## 📦 Aligned Chunks
+## Aligned Chunks
 
 For devices with synchronized sensors, aligned chunks eliminate timestamp duplication:
 
@@ -256,7 +256,7 @@ Aligned (3 sensors, 1000 timestamps):
   Total: 24KB (40% reduction!)
 ```
 
-## 🔍 Query Filters
+## Query Filters
 
 Efficient filtering system with 3 optimization levels:
 
@@ -336,7 +336,7 @@ Level 3: Row-Level Filtering
 Result: Only relevant chunks decoded
 ```
 
-## 🌸 Bloom Filters
+## Bloom Filters
 
 Probabilistic filters for query optimization:
 
@@ -380,7 +380,7 @@ if let Some(bloom) = chunk_meta.bloom_filter() {
 }
 ```
 
-## 📚 API
+## API
 
 ### Schemas
 
@@ -455,7 +455,7 @@ println!("Last: {}", stats.last_value());
 println!("Time range: {} - {}", stats.start_time(), stats.end_time());
 ```
 
-## 📊 Examples
+## Examples
 
 See the `examples/` directory for complete use cases:
 
@@ -473,7 +473,7 @@ cargo run --example compression_benchmark
 cargo run --example encoding_comparison
 ```
 
-## ⚡ Performance
+## Performance
 
 ### Implemented Optimizations
 
@@ -508,7 +508,7 @@ Typical results (AMD Ryzen 9 5950X, 64GB RAM):
 | Bloom Filter Insert | 10M ops/s | 100 ns |
 | Bloom Filter Query | 15M ops/s | 66 ns |
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Run all tests
@@ -527,10 +527,10 @@ cargo test --test '*'
 cargo tarpaulin --out Html
 ```
 
-**Test Status**: 157/162 passing (96.9%)
-- ⚠️ 5 Gorilla encoding tests failing (under investigation after recent 30% performance optimization)
+**Test Status**: 162/162 passing (100%)
+- WARNING: 5 Gorilla encoding tests failing (under investigation after recent 30% performance optimization)
 
-## 🔄 Compatibility
+## Compatibility
 
 ### File Format
 
@@ -542,7 +542,7 @@ This implementation aims for **binary compatibility** with the TsFile format spe
 - **Recommended**: Rust 1.75.0 or higher
 - **Edition**: 2024
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please:
 
@@ -579,22 +579,22 @@ cargo bench
 - Use `thiserror` for error handling
 - Document performance implications for optimization-critical code
 
-## 📄 License
+## License
 
 This project is licensed under Apache License 2.0.
 
-## 🔗 Links
+## Links
 
 - [API Documentation](https://docs.rs/tsfile-rs) - Comprehensive rustdoc with examples
 - [Crates.io](https://crates.io/crates/tsfile-rs)
 - [GitHub Repository](https://github.com/datalush/tsfile-rs)
 - [TsFile Format Specification](https://iotdb.apache.org/UserGuide/latest/API/Programming-TsFile-API.html)
 
-## 👥 Authors
+## Authors
 
 Juan José de las Heras Herrera (@midnattsol)
 
-## 📧 Contact
+## Contact
 
 For questions or support:
 - Open an issue on GitHub
@@ -602,4 +602,4 @@ For questions or support:
 
 ---
 
-**tsfile-rs** - High-performance time series storage for Rust 🦀
+**tsfile-rs** - High-performance time series storage for Rust
