@@ -398,12 +398,10 @@ impl GorillaDecoder {
     ///
     /// Loads up to 8 bytes (64 bits) at once to reduce read overhead, providing
     /// a significant performance improvement over reading individual bytes.
-    /// OPT-3: Uses 56-bit threshold (Giesen's Variant 4) to maintain buffer
-    /// in 56-63 range for better instruction-level parallelism.
     #[inline]
     fn refill_buffer(&mut self, input: &[u8]) -> Result<()> {
-        // Only refill if we have less than 56 bits available
-        if self.bits_available >= 56 {
+        // Only refill if we have less than 8 bits available
+        if self.bits_available >= 8 {
             return Ok(());
         }
 
