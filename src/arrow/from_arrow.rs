@@ -21,7 +21,7 @@
 
 use crate::arrow::schema_mapping::ArrowSchemaMapping;
 use crate::arrow::types::ArrowConversionConfig;
-use crate::common::{MeasurementSchema, TsRecord, TsValue};
+use crate::common::{ColumnCategory, MeasurementSchema, Tablet, TsRecord, TsValue};
 use crate::error::{Result, TsFileError};
 use crate::writer::TsFileWriter;
 use arrow::array::*;
@@ -79,7 +79,7 @@ impl ArrowToTsFileConverter {
         }
     }
 
-    /// Write an Arrow RecordBatch to TsFile
+    /// Write an Arrow RecordBatch to TsFile (optimized columnar processing)
     pub fn write_batch(&mut self, batch: &RecordBatch) -> Result<()> {
         log::debug!("ArrowToTsFileConverter::write_batch - Processing {} rows", batch.num_rows());
 
@@ -89,26 +89,84 @@ impl ArrowToTsFileConverter {
             self.schema_initialized = true;
         }
 
+        let num_rows = batch.num_rows();
+        let arrow_schema = batch.schema();
+
         // Extract device and timestamp columns
         let device_array = self.get_device_array(batch)?;
         let timestamp_array = self.get_timestamp_array(batch)?;
 
-        // Group rows by device
-        let grouped_rows = self.group_by_device(batch, &device_array, &timestamp_array)?;
-
-        log::debug!("  Grouped into {} devices", grouped_rows.len());
-
-        // Write grouped data to TsFile
-        for (device_id, rows) in grouped_rows {
-            log::debug!("  Device '{}': {} rows", device_id, rows.len());
-
-            for (timestamp, values) in rows {
-                let mut record = TsRecord::new(timestamp, &device_id);
-                for (measurement_name, value) in values {
-                    record = record.with_value(measurement_name, value);
-                }
-                self.writer.write_record(record)?;
+        // Collect measurement columns metadata (avoid re-extracting in loops)
+        let mut measurement_cols: Vec<(String, Arc<dyn arrow::array::Array>, DataType)> = Vec::new();
+        for field in arrow_schema.fields() {
+            let field_name = field.name();
+            if field_name != &self.device_column && field_name != &self.timestamp_column {
+                let column = batch.column_by_name(field_name).unwrap().clone();
+                measurement_cols.push((field_name.clone(), column, field.data_type().clone()));
             }
+        }
+
+        // Group row indices by device (no data copying yet)
+        let mut device_indices: HashMap<String, Vec<usize>> = HashMap::new();
+        for row_idx in 0..num_rows {
+            if device_array.is_null(row_idx) {
+                continue;
+            }
+            let device_id = device_array.value(row_idx).to_string();
+            device_indices.entry(device_id).or_insert_with(Vec::new).push(row_idx);
+        }
+
+        log::debug!("  Grouped into {} devices", device_indices.len());
+
+        // Process each device with direct columnar access
+        for (device_id, indices) in device_indices {
+            if indices.is_empty() {
+                continue;
+            }
+
+            log::debug!("  Device '{}': {} rows (using Tablet)", device_id, indices.len());
+
+            // Build schemas from first row only once
+            let mut schemas = Vec::new();
+            for (field_name, _column, data_type) in &measurement_cols {
+                let ts_data_type = crate::arrow::schema_mapping::arrow_type_to_tsfile(data_type)?;
+                let encoding = match ts_data_type {
+                    crate::common::TSDataType::Boolean => self.config.default_encoding_bool,
+                    crate::common::TSDataType::Int32 => self.config.default_encoding_i32,
+                    crate::common::TSDataType::Int64 => self.config.default_encoding_i64,
+                    crate::common::TSDataType::Float => self.config.default_encoding_f32,
+                    crate::common::TSDataType::Double => self.config.default_encoding_f64,
+                    crate::common::TSDataType::Text => self.config.default_encoding_string,
+                    _ => crate::common::TSEncoding::Plain,
+                };
+                schemas.push(MeasurementSchema::new(
+                    field_name.clone(),
+                    ts_data_type,
+                    encoding,
+                    self.config.default_compression,
+                ));
+            }
+
+            // Create tablet
+            let column_categories = vec![ColumnCategory::Field; schemas.len()];
+            let mut tablet = Tablet::new(&device_id, schemas, column_categories, indices.len());
+
+            // Extract data for this device using indices (columnar access)
+            for &row_idx in &indices {
+                let timestamp = timestamp_array[row_idx];
+
+                // Extract values for all measurements
+                let mut values = Vec::with_capacity(measurement_cols.len());
+                for (_, column, data_type) in &measurement_cols {
+                    let value = self.extract_value_fast(column, row_idx, data_type)?;
+                    values.push(value);
+                }
+
+                tablet.add_row(timestamp, values)?;
+            }
+
+            // Write entire tablet at once
+            self.writer.write_tablet(&tablet)?;
         }
 
         Ok(())
@@ -231,63 +289,54 @@ impl ArrowToTsFileConverter {
         }
     }
 
-    /// Group rows by device ID
-    fn group_by_device(
-        &mut self,
-        batch: &RecordBatch,
-        device_array: &StringArray,
-        timestamp_array: &[i64],
-    ) -> Result<HashMap<String, Vec<(i64, Vec<(String, TsValue)>)>>> {
-        let mut grouped: HashMap<String, Vec<(i64, Vec<(String, TsValue)>)>> = HashMap::new();
-
-        let arrow_schema = batch.schema();
-
-        // Process each row
-        for row_idx in 0..batch.num_rows() {
-            let device_id = if device_array.is_null(row_idx) {
-                continue; // Skip rows with null device ID
-            } else {
-                device_array.value(row_idx).to_string()
-            };
-
-            let timestamp = timestamp_array[row_idx];
-
-            // Extract values for all measurement columns
-            let mut values = Vec::new();
-
-            for field in arrow_schema.fields() {
-                let field_name = field.name();
-
-                // Skip device and timestamp columns
-                if field_name == &self.device_column || field_name == &self.timestamp_column {
-                    continue;
-                }
-
-                // Get column array
-                let column = batch.column_by_name(field_name).unwrap();
-
-                // Convert to TsValue
-                if let Some(ts_value) = self.extract_value(column, row_idx, field.data_type())? {
-                    values.push((field_name.clone(), ts_value));
-
-                    // Register measurement schema if not already registered
-                    if !self.writer.has_measurement(&device_id, field_name) {
-                        let schema = self.create_measurement_schema(field_name, field.data_type())?;
-                        self.writer.register_timeseries(&device_id, schema)?;
-                    }
-                }
-            }
-
-            grouped
-                .entry(device_id)
-                .or_insert_with(Vec::new)
-                .push((timestamp, values));
+    /// Extract TsValue from Arrow array at given index (optimized version)
+    fn extract_value_fast(
+        &self,
+        array: &Arc<dyn arrow::array::Array>,
+        index: usize,
+        data_type: &DataType,
+    ) -> Result<Option<TsValue>> {
+        if array.is_null(index) {
+            return Ok(None);
         }
 
-        Ok(grouped)
+        let value = match data_type {
+            DataType::Boolean => {
+                let arr = array.as_any().downcast_ref::<BooleanArray>().unwrap();
+                TsValue::Boolean(arr.value(index))
+            }
+            DataType::Int32 => {
+                let arr = array.as_any().downcast_ref::<Int32Array>().unwrap();
+                TsValue::Int32(arr.value(index))
+            }
+            DataType::Int64 => {
+                let arr = array.as_any().downcast_ref::<Int64Array>().unwrap();
+                TsValue::Int64(arr.value(index))
+            }
+            DataType::Float32 => {
+                let arr = array.as_any().downcast_ref::<Float32Array>().unwrap();
+                TsValue::Float(arr.value(index))
+            }
+            DataType::Float64 => {
+                let arr = array.as_any().downcast_ref::<Float64Array>().unwrap();
+                TsValue::Double(arr.value(index))
+            }
+            DataType::Utf8 => {
+                let arr = array.as_any().downcast_ref::<StringArray>().unwrap();
+                TsValue::Text(arr.value(index).to_string())
+            }
+            _ => {
+                return Err(TsFileError::NotImplemented(format!(
+                    "Unsupported Arrow data type: {:?}",
+                    data_type
+                )));
+            }
+        };
+
+        Ok(Some(value))
     }
 
-    /// Extract TsValue from Arrow array at given index
+    /// Extract TsValue from Arrow array at given index (legacy, kept for compatibility)
     fn extract_value(
         &self,
         array: &Arc<dyn arrow::array::Array>,
