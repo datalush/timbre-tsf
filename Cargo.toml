@@ -13,6 +13,9 @@ categories = ["database", "compression", "encoding"]
 # Error handling
 thiserror = "1.0"
 
+# Logging
+log = "0.4"
+
 # Compression
 lz4 = "1.28"
 snap = "1.1"  # Snappy
@@ -25,12 +28,23 @@ byteorder = "1.5"
 bitflags = "2.6"
 bit-vec = "0.6"
 
+# Arrow integration
+arrow = "56.0"
+arrow-array = "56.0"
+arrow-schema = "56.0"
+arrow-buffer = "56.0"
+parquet = "56.0"
+
+# Parallelism
+rayon = "1.8"
+
 # Optional: for better performance
 bumpalo = { version = "3.14", optional = true }
 
 [dev-dependencies]
 criterion = "0.5"
 tempfile = "3.8"
+env_logger = "0.11"
 
 [features]
 default = []
@@ -43,3 +57,7 @@ codegen-units = 1
 
 [profile.bench]
 inherits = "release"
+
+[[bench]]
+name = "parquet_vs_tsfile"
+harness = false

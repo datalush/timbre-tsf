@@ -33,9 +33,11 @@
 //! tablet.add_row(2000, vec![Some(TsValue::Float(26.0))]).unwrap();
 //! ```
 
-#![warn(missing_docs)]
-#![allow(dead_code)] // Temporalmente mientras completamos la implementación
+#![allow(missing_docs)]
+#![allow(dead_code)]
+#![allow(unused)]
 
+pub mod arrow;
 pub mod common;
 pub mod compress;
 pub mod encoding;

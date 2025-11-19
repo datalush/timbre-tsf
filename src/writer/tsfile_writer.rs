@@ -80,6 +80,14 @@ impl TsFileWriter {
         Ok(())
     }
 
+    /// Verifica si una medición ya está registrada para un dispositivo
+    pub fn has_measurement(&self, device_id: &str, measurement_name: &str) -> bool {
+        self.schemas
+            .get(device_id)
+            .map(|device_schemas| device_schemas.contains_key(measurement_name))
+            .unwrap_or(false)
+    }
+
     /// Escribe un registro (TsRecord)
     pub fn write_record(&mut self, record: TsRecord) -> Result<()> {
         let device_id = record.device_id.clone();
@@ -109,6 +117,10 @@ impl TsFileWriter {
 
             // Obtener o crear chunk writer
             let key = format!("{}:{}", device_id, point.measurement_name);
+            if !self.chunk_writers.contains_key(&key) {
+                log::debug!("Creating ChunkWriter for {} ({}): encoding={:?}, compression={:?}",
+                    point.measurement_name, device_id, schema.encoding, schema.compression);
+            }
             let chunk_writer = self.chunk_writers.entry(key.clone()).or_insert_with(|| {
                 ChunkWriter::with_page_size(
                     point.measurement_name.clone(),

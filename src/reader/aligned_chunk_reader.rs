@@ -305,7 +305,7 @@ impl AlignedChunkReader {
     }
 
     /// Iterator over all rows
-    pub fn iter_rows(&self) -> AlignedChunkIterator {
+    pub fn iter_rows(&self) -> AlignedChunkIterator<'_> {
         AlignedChunkIterator {
             reader: self,
             index: 0,

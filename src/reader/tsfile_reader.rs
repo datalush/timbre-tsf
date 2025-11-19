@@ -72,7 +72,7 @@ impl TsFileReader {
         &mut self,
         device_id: &str,
         measurement_name: &str,
-    ) -> Result<impl Iterator<Item = (i64, &DecodedValueData)>> {
+    ) -> Result<impl Iterator<Item = (i64, DecodedValueData)>> {
         let chunk = self.read(device_id, measurement_name)?;
         Ok(chunk.iter())
     }
@@ -83,7 +83,7 @@ impl TsFileReader {
         device_id: &str,
         measurement_name: &str,
         index: usize,
-    ) -> Result<Option<(i64, &DecodedValueData)>> {
+    ) -> Result<Option<(i64, DecodedValueData)>> {
         let chunk = self.read(device_id, measurement_name)?;
         Ok(chunk.get(index))
     }
@@ -191,7 +191,7 @@ mod tests {
             .unwrap();
         assert_eq!(ts, 1500);
         if let DecodedValueData::Float(v) = value {
-            assert_eq!(*v, 30.0);
+            assert_eq!(v, 30.0);
         } else {
             panic!("Expected Float value");
         }

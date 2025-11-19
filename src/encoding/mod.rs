@@ -27,6 +27,14 @@ pub trait Encoder: Send + Sync {
     fn encode_string(&mut self, value: &str, out: &mut Vec<u8>) -> Result<()>;
     fn flush(&mut self, out: &mut Vec<u8>) -> Result<()>;
     fn encoding_type(&self) -> TSEncoding;
+
+    /// Returns the size of data buffered internally by this encoder.
+    /// For encoders that write directly to `out` (like PlainEncoder), this returns 0.
+    /// For encoders that use internal buffers (like GorillaEncoder), this returns
+    /// the size of buffered data that hasn't been flushed yet.
+    fn buffered_size(&self) -> usize {
+        0 // Default: no internal buffering
+    }
 }
 
 /// Trait para decoders

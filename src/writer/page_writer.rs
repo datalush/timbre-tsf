@@ -21,6 +21,11 @@ pub struct PageWriter {
 
     statistic: Box<dyn Statistic>,
     value_count: i32,
+
+    /// Cached size to avoid recalculating on every call (optimization)
+    cached_size: usize,
+    /// Flag to indicate if cached_size needs recalculation
+    size_dirty: bool,
 }
 
 impl PageWriter {
@@ -46,6 +51,8 @@ impl PageWriter {
             value_buffer: Vec::new(),
             statistic,
             value_count: 0,
+            cached_size: 0,
+            size_dirty: true,
         }
     }
 
@@ -57,6 +64,7 @@ impl PageWriter {
             .encode_bool(value, &mut self.value_buffer)?;
         self.statistic.update_bool(timestamp, value);
         self.value_count += 1;
+        self.size_dirty = true; // Mark size as needing recalculation
         Ok(())
     }
 
@@ -68,6 +76,7 @@ impl PageWriter {
             .encode_i32(value, &mut self.value_buffer)?;
         self.statistic.update_i32(timestamp, value);
         self.value_count += 1;
+        self.size_dirty = true;
         Ok(())
     }
 
@@ -79,6 +88,7 @@ impl PageWriter {
             .encode_i64(value, &mut self.value_buffer)?;
         self.statistic.update_i64(timestamp, value);
         self.value_count += 1;
+        self.size_dirty = true;
         Ok(())
     }
 
@@ -90,6 +100,7 @@ impl PageWriter {
             .encode_f32(value, &mut self.value_buffer)?;
         self.statistic.update_f32(timestamp, value);
         self.value_count += 1;
+        self.size_dirty = true;
         Ok(())
     }
 
@@ -101,6 +112,7 @@ impl PageWriter {
             .encode_f64(value, &mut self.value_buffer)?;
         self.statistic.update_f64(timestamp, value);
         self.value_count += 1;
+        self.size_dirty = true;
         Ok(())
     }
 
@@ -112,6 +124,7 @@ impl PageWriter {
             .encode_string(value, &mut self.value_buffer)?;
         self.statistic.update_string(timestamp, value);
         self.value_count += 1;
+        self.size_dirty = true;
         Ok(())
     }
 
@@ -168,6 +181,8 @@ impl PageWriter {
         self.value_buffer.clear();
         self.value_count = 0;
         self.statistic = create_statistic(self.data_type);
+        self.cached_size = 0;
+        self.size_dirty = true; // Mark for recalculation
 
         // Recrear encoders
         self.time_encoder = create_encoder(TSEncoding::Ts2Diff, TSDataType::Int64);
@@ -175,8 +190,18 @@ impl PageWriter {
     }
 
     /// Tamaño actual de los buffers (sin comprimir)
-    pub fn estimated_size(&self) -> usize {
-        self.time_buffer.len() + self.value_buffer.len()
+    /// Incluye datos en buffers explícitos Y datos buffereados internamente por encoders
+    /// Optimización: Solo recalcula cuando size_dirty==true (lazy evaluation)
+    #[inline]
+    pub fn estimated_size(&mut self) -> usize {
+        if self.size_dirty {
+            self.cached_size = self.time_buffer.len()
+                + self.value_buffer.len()
+                + self.time_encoder.buffered_size()
+                + self.value_encoder.buffered_size();
+            self.size_dirty = false;
+        }
+        self.cached_size
     }
 }
 
