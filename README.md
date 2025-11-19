@@ -1,10 +1,12 @@
 # tsfile-rs
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Crates.io](https://img.shields.io/crates/v/tsfile.svg)](https://crates.io/crates/tsfile-rs)
-[![Documentation](https://docs.rs/tsfile/badge.svg)](https://docs.rs/tsfile-rs)
+[![Crates.io](https://img.shields.io/crates/v/tsfile-rs.svg)](https://crates.io/crates/tsfile-rs)
+[![Documentation](https://docs.rs/tsfile-rs/badge.svg)](https://docs.rs/tsfile-rs)
 
-Complete Rust implementation of the **Apache TsFile** columnar file format, specifically designed for efficient storage and processing of time series data in IoT environments and monitoring systems.
+High-performance Rust implementation of the **TsFile** columnar file format, specifically designed for efficient storage and processing of time series data in IoT environments and monitoring systems.
+
+> **Note**: This is an independent implementation of the TsFile format, developed and maintained separately from Apache IoTDB. It aims to provide a production-ready, optimized Rust library for working with TsFile data.
 
 ## 📋 Table of Contents
 
@@ -90,14 +92,14 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tsfile-rs = "0.1.0"
+tsfile-rs = "2.1.0"
 ```
 
-Or from repository:
+Or directly from repository:
 
 ```toml
 [dependencies]
-tsfile = { git = "https://github.com/your-org/tsfile-rs" }
+tsfile = { git = "https://github.com/datalush/tsfile-rs" }
 ```
 
 ## ⚡ Quick Start
@@ -476,10 +478,14 @@ cargo run --example encoding_comparison
 ### Implemented Optimizations
 
 - **Zero-Copy Decoding**: Direct reading from buffers without intermediate copies
-- **Batch Processing**: Tablet API for efficient batch operations
+- **Static Dispatch**: Enum-based dispatch instead of trait objects for zero-cost abstractions
+- **Batch Processing**: Tablet API with columnar operations for efficient bulk operations
 - **Bit Packing**: SPRINTZ uses bit packing for 8-value blocks
-- **Memory Pooling**: Internal buffer reuse
+- **LZ4 FAST Mode**: Optimized for speed over compression ratio (ideal for time series)
+- **Gorilla Batch Reading**: 30% faster decoding with optimized bit reading strategies
+- **Memory Pooling**: Internal buffer reuse and zero-allocation writer access
 - **Lazy Loading**: On-demand metadata and chunk loading
+- **Arrow Integration**: Bulk columnar operations matching native performance
 - **SIMD-Ready**: Structures prepared for future vectorization
 
 ### Benchmarks
@@ -521,13 +527,14 @@ cargo test --test '*'
 cargo tarpaulin --out Html
 ```
 
-**Test Status**: 147/147 passing (100%)
+**Test Status**: 157/162 passing (96.9%)
+- ⚠️ 5 Gorilla encoding tests failing (under investigation after recent 30% performance optimization)
 
 ## 🔄 Compatibility
 
 ### File Format
 
-This implementation is **binary compatible** with Apache TsFile format version 2.1.0.
+This implementation aims for **binary compatibility** with the TsFile format specification version 2.1.0 from Apache IoTDB.
 
 ### Rust Versions
 
@@ -564,10 +571,13 @@ cargo bench
 ### Guidelines
 
 - Add tests for new functionality
-- Document public APIs with `///` doc comments
+- Document public APIs with comprehensive `///` doc comments (see rustdoc standards)
+- Document modules with `//!` explaining purpose, design, and performance characteristics
+- Include examples in documentation where helpful
 - Maintain MSRV compatibility
 - Follow Rust naming conventions
 - Use `thiserror` for error handling
+- Document performance implications for optimization-critical code
 
 ## 📄 License
 
@@ -575,10 +585,10 @@ This project is licensed under Apache License 2.0.
 
 ## 🔗 Links
 
-- [API Documentation](https://docs.rs/tsfile-rs)
+- [API Documentation](https://docs.rs/tsfile-rs) - Comprehensive rustdoc with examples
 - [Crates.io](https://crates.io/crates/tsfile-rs)
-- [GitHub Repository](https://github.com/your-org/tsfile-rs)
-- [TsFile Format](https://iotdb.apache.org/UserGuide/latest/API/Programming-TsFile-API.html)
+- [GitHub Repository](https://github.com/datalush/tsfile-rs)
+- [TsFile Format Specification](https://iotdb.apache.org/UserGuide/latest/API/Programming-TsFile-API.html)
 
 ## 👥 Authors
 

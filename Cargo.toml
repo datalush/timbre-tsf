@@ -2,12 +2,13 @@
 name = "tsfile"
 version = "2.1.0"
 edition = "2024"
-authors = ["Apache TsFile Contributors"]
-description = "Rust implementation of Apache TsFile - a columnar storage file format for time series data"
+authors = ["Juan José de las Heras Herrera"]
+description = "High-performance Rust implementation of the TsFile columnar storage format for time series data"
 license = "Apache-2.0"
-repository = "https://github.com/apache/tsfile"
+repository = "https://github.com/datalush/tsfile-rs"
 keywords = ["tsfile", "timeseries", "iot", "columnar", "storage"]
 categories = ["database", "compression", "encoding"]
+readme = "README.md"
 
 [dependencies]
 # Error handling

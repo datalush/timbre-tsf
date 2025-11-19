@@ -181,8 +181,8 @@ fn main() -> tsfile::error::Result<()> {
 
         for (_, value) in pressure_chunk.iter() {
             if let DecodedValueData::Double(p) = value {
-                min_pressure = min_pressure.min(*p);
-                max_pressure = max_pressure.max(*p);
+                min_pressure = min_pressure.min(p);
+                max_pressure = max_pressure.max(p);
                 pressure_sum += p;
             }
         }
