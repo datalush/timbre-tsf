@@ -5,7 +5,7 @@ use crate::writer::ChunkWriter;
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{Seek, SeekFrom, Write};
+use std::io::{BufWriter, Seek, SeekFrom, Write};
 use std::path::Path;
 
 /// Magic string para TsFile
@@ -15,7 +15,7 @@ pub const VERSION: u8 = 3;
 
 /// Low-level TsFile writer que maneja la estructura física del archivo
 pub struct TsFileIOWriter {
-    file: File,
+    file: BufWriter<File>,
     device_chunk_groups: HashMap<String, Vec<ChunkMeta>>,
     current_position: u64,
 }
@@ -23,7 +23,12 @@ pub struct TsFileIOWriter {
 impl TsFileIOWriter {
     /// Crea un nuevo TsFileIOWriter
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let mut file = File::create(path)?;
+        let file = File::create(path)?;
+
+        // OPT-A: Wrap file in BufWriter with 256KB buffer (vs 8KB default)
+        // Reduces system calls from thousands to dozens
+        const BUFFER_SIZE: usize = 256 * 1024; // 256KB
+        let mut file = BufWriter::with_capacity(BUFFER_SIZE, file);
 
         // Escribir magic string y versión
         file.write_all(MAGIC_STRING)?;
