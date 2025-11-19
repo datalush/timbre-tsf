@@ -2,7 +2,7 @@ use crate::common::statistic::{Statistic, create_statistic};
 use crate::common::tablet::BitMap;
 use crate::common::{CompressionType, TSDataType, TSEncoding, TsValue};
 use crate::compress::{Compressor, create_compressor};
-use crate::encoding::{Encoder, create_encoder};
+use crate::encoding::{Encoder, create_encoder_boxed};
 use crate::error::{Result, TsFileError};
 use crate::file::{ChunkHeader, ChunkType, PageData, PageHeader};
 use std::io::Write;
@@ -30,7 +30,7 @@ impl ValueColumnWriter {
         compression_type: CompressionType,
         max_size: usize,
     ) -> Self {
-        let encoder = create_encoder(encoding, data_type);
+        let encoder = create_encoder_boxed(encoding, data_type);
         let compressor = create_compressor(compression_type);
         let statistic = create_statistic(data_type);
         let bitmap = BitMap::new(max_size);
@@ -165,7 +165,7 @@ impl ValueColumnWriter {
         self.value_count = 0;
         self.bitmap = BitMap::new(self.max_size);
         self.statistic = create_statistic(self.data_type);
-        self.encoder = create_encoder(self.encoding, self.data_type);
+        self.encoder = create_encoder_boxed(self.encoding, self.data_type);
     }
 }
 
@@ -213,7 +213,7 @@ impl AlignedChunkWriter {
         schemas: Vec<(String, TSDataType, TSEncoding, CompressionType)>,
         max_page_size: usize,
     ) -> Self {
-        let time_encoder = create_encoder(TSEncoding::Ts2Diff, TSDataType::Int64);
+        let time_encoder = create_encoder_boxed(TSEncoding::Ts2Diff, TSDataType::Int64);
         let time_compressor = create_compressor(CompressionType::Uncompressed);
         let time_statistic = create_statistic(TSDataType::Int64);
 
@@ -310,7 +310,7 @@ impl AlignedChunkWriter {
         self.value_count = 0;
         self.current_page_size = 0;
         self.time_statistic = create_statistic(TSDataType::Int64);
-        self.time_encoder = create_encoder(TSEncoding::Ts2Diff, TSDataType::Int64);
+        self.time_encoder = create_encoder_boxed(TSEncoding::Ts2Diff, TSDataType::Int64);
 
         Ok(())
     }

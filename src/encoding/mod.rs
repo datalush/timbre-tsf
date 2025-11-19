@@ -37,6 +37,138 @@ pub trait Encoder: Send + Sync {
     }
 }
 
+/// OPT-2: Enum-based encoder for static dispatch (eliminates virtual calls)
+/// BEFORE: Box<dyn Encoder> → 3 virtual calls per value (15-20 cycles overhead)
+/// AFTER: EncoderImpl enum → direct dispatch via match (0 overhead + inlining)
+pub enum EncoderImpl {
+    Plain(PlainEncoder),
+    Dictionary(DictionaryEncoder),
+    Gorilla(GorillaEncoder),
+    Ts2Diff(Ts2DiffEncoder),
+    Rle(RleEncoder),
+    Zigzag(ZigzagEncoder),
+    Sprintz(SprintzEncoder),
+}
+
+impl EncoderImpl {
+    #[inline]
+    pub fn encode_bool(&mut self, value: bool, out: &mut Vec<u8>) -> Result<()> {
+        match self {
+            Self::Plain(e) => e.encode_bool(value, out),
+            Self::Dictionary(e) => e.encode_bool(value, out),
+            Self::Gorilla(e) => e.encode_bool(value, out),
+            Self::Ts2Diff(e) => e.encode_bool(value, out),
+            Self::Rle(e) => e.encode_bool(value, out),
+            Self::Zigzag(e) => e.encode_bool(value, out),
+            Self::Sprintz(e) => e.encode_bool(value, out),
+        }
+    }
+
+    #[inline]
+    pub fn encode_i32(&mut self, value: i32, out: &mut Vec<u8>) -> Result<()> {
+        match self {
+            Self::Plain(e) => e.encode_i32(value, out),
+            Self::Dictionary(e) => e.encode_i32(value, out),
+            Self::Gorilla(e) => e.encode_i32(value, out),
+            Self::Ts2Diff(e) => e.encode_i32(value, out),
+            Self::Rle(e) => e.encode_i32(value, out),
+            Self::Zigzag(e) => e.encode_i32(value, out),
+            Self::Sprintz(e) => e.encode_i32(value, out),
+        }
+    }
+
+    #[inline]
+    pub fn encode_i64(&mut self, value: i64, out: &mut Vec<u8>) -> Result<()> {
+        match self {
+            Self::Plain(e) => e.encode_i64(value, out),
+            Self::Dictionary(e) => e.encode_i64(value, out),
+            Self::Gorilla(e) => e.encode_i64(value, out),
+            Self::Ts2Diff(e) => e.encode_i64(value, out),
+            Self::Rle(e) => e.encode_i64(value, out),
+            Self::Zigzag(e) => e.encode_i64(value, out),
+            Self::Sprintz(e) => e.encode_i64(value, out),
+        }
+    }
+
+    #[inline]
+    pub fn encode_f32(&mut self, value: f32, out: &mut Vec<u8>) -> Result<()> {
+        match self {
+            Self::Plain(e) => e.encode_f32(value, out),
+            Self::Dictionary(e) => e.encode_f32(value, out),
+            Self::Gorilla(e) => e.encode_f32(value, out),
+            Self::Ts2Diff(e) => e.encode_f32(value, out),
+            Self::Rle(e) => e.encode_f32(value, out),
+            Self::Zigzag(e) => e.encode_f32(value, out),
+            Self::Sprintz(e) => e.encode_f32(value, out),
+        }
+    }
+
+    #[inline]
+    pub fn encode_f64(&mut self, value: f64, out: &mut Vec<u8>) -> Result<()> {
+        match self {
+            Self::Plain(e) => e.encode_f64(value, out),
+            Self::Dictionary(e) => e.encode_f64(value, out),
+            Self::Gorilla(e) => e.encode_f64(value, out),
+            Self::Ts2Diff(e) => e.encode_f64(value, out),
+            Self::Rle(e) => e.encode_f64(value, out),
+            Self::Zigzag(e) => e.encode_f64(value, out),
+            Self::Sprintz(e) => e.encode_f64(value, out),
+        }
+    }
+
+    #[inline]
+    pub fn encode_string(&mut self, value: &str, out: &mut Vec<u8>) -> Result<()> {
+        match self {
+            Self::Plain(e) => e.encode_string(value, out),
+            Self::Dictionary(e) => e.encode_string(value, out),
+            Self::Gorilla(e) => e.encode_string(value, out),
+            Self::Ts2Diff(e) => e.encode_string(value, out),
+            Self::Rle(e) => e.encode_string(value, out),
+            Self::Zigzag(e) => e.encode_string(value, out),
+            Self::Sprintz(e) => e.encode_string(value, out),
+        }
+    }
+
+    #[inline]
+    pub fn flush(&mut self, out: &mut Vec<u8>) -> Result<()> {
+        match self {
+            Self::Plain(e) => e.flush(out),
+            Self::Dictionary(e) => e.flush(out),
+            Self::Gorilla(e) => e.flush(out),
+            Self::Ts2Diff(e) => e.flush(out),
+            Self::Rle(e) => e.flush(out),
+            Self::Zigzag(e) => e.flush(out),
+            Self::Sprintz(e) => e.flush(out),
+        }
+    }
+
+    #[inline]
+    pub fn buffered_size(&self) -> usize {
+        match self {
+            Self::Plain(e) => e.buffered_size(),
+            Self::Dictionary(e) => e.buffered_size(),
+            Self::Gorilla(e) => e.buffered_size(),
+            Self::Ts2Diff(e) => e.buffered_size(),
+            Self::Rle(e) => e.buffered_size(),
+            Self::Zigzag(e) => e.buffered_size(),
+            Self::Sprintz(e) => e.buffered_size(),
+        }
+    }
+
+    #[inline]
+    pub fn encoding_type(&self) -> TSEncoding {
+        match self {
+            Self::Plain(e) => e.encoding_type(),
+            Self::Dictionary(e) => e.encoding_type(),
+            Self::Gorilla(e) => e.encoding_type(),
+            Self::Ts2Diff(e) => e.encoding_type(),
+            Self::Rle(e) => e.encoding_type(),
+            Self::Zigzag(e) => e.encoding_type(),
+            Self::Sprintz(e) => e.encoding_type(),
+        }
+    }
+}
+
 /// Trait para decoders
 pub trait Decoder: Send + Sync {
     fn read_bool(&mut self, input: &[u8], pos: &mut usize) -> Result<bool>;
@@ -49,8 +181,8 @@ pub trait Decoder: Send + Sync {
     fn encoding_type(&self) -> TSEncoding;
 }
 
-/// Factory para crear encoders
-pub fn create_encoder(encoding: TSEncoding, data_type: TSDataType) -> Box<dyn Encoder> {
+/// Factory para crear encoders (legacy - returns Box<dyn Encoder>)
+pub fn create_encoder_boxed(encoding: TSEncoding, data_type: TSDataType) -> Box<dyn Encoder> {
     match encoding {
         TSEncoding::Plain => Box::new(PlainEncoder::new(data_type)),
         TSEncoding::Dictionary => Box::new(DictionaryEncoder::new(data_type)),
@@ -60,6 +192,20 @@ pub fn create_encoder(encoding: TSEncoding, data_type: TSDataType) -> Box<dyn En
         TSEncoding::Zigzag => Box::new(ZigzagEncoder::new(data_type)),
         TSEncoding::Sprintz => Box::new(SprintzEncoder::new(data_type)),
         _ => Box::new(PlainEncoder::new(data_type)), // Fallback
+    }
+}
+
+/// OPT-2: Factory para crear encoders con static dispatch
+pub fn create_encoder(encoding: TSEncoding, data_type: TSDataType) -> EncoderImpl {
+    match encoding {
+        TSEncoding::Plain => EncoderImpl::Plain(PlainEncoder::new(data_type)),
+        TSEncoding::Dictionary => EncoderImpl::Dictionary(DictionaryEncoder::new(data_type)),
+        TSEncoding::Gorilla => EncoderImpl::Gorilla(GorillaEncoder::new(data_type)),
+        TSEncoding::Ts2Diff => EncoderImpl::Ts2Diff(Ts2DiffEncoder::new(data_type)),
+        TSEncoding::Rle => EncoderImpl::Rle(RleEncoder::new(data_type)),
+        TSEncoding::Zigzag => EncoderImpl::Zigzag(ZigzagEncoder::new(data_type)),
+        TSEncoding::Sprintz => EncoderImpl::Sprintz(SprintzEncoder::new(data_type)),
+        _ => EncoderImpl::Plain(PlainEncoder::new(data_type)), // Fallback
     }
 }
 

@@ -5,6 +5,8 @@ use crate::encoding::{Encoder, create_encoder};
 use crate::error::Result;
 use crate::file::{PageData, PageHeader};
 
+use crate::encoding::EncoderImpl;
+
 /// Writer para páginas individuales
 /// Responsable de encoding y compresión de datos
 pub struct PageWriter {
@@ -12,8 +14,9 @@ pub struct PageWriter {
     encoding: TSEncoding,
     compression_type: CompressionType,
 
-    time_encoder: Box<dyn Encoder>,
-    value_encoder: Box<dyn Encoder>,
+    // OPT-2: EncoderImpl en lugar de Box<dyn Encoder> para static dispatch
+    time_encoder: EncoderImpl,
+    value_encoder: EncoderImpl,
     compressor: Box<dyn Compressor>,
 
     time_buffer: Vec<u8>,
