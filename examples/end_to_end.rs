@@ -126,45 +126,51 @@ fn main() -> tsfile::error::Result<()> {
 
         // Leer y mostrar datos del weather_station
         println!("🌡️  Weather Station:");
-        let temp_chunk = reader.read("weather_station", "temperature")?;
-        println!("  • Temperatura: {} lecturas", temp_chunk.len());
-        println!("  • Primera: {:?}", temp_chunk.get(0));
-        println!("  • Última: {:?}", temp_chunk.get(temp_chunk.len() - 1));
+        {
+            let temp_chunk = reader.read("weather_station", "temperature")?;
+            println!("  • Temperatura: {} lecturas", temp_chunk.len());
+            println!("  • Primera: {:?}", temp_chunk.get(0));
+            println!("  • Última: {:?}", temp_chunk.get(temp_chunk.len() - 1));
 
-        // Calcular temperatura promedio
-        let mut temp_sum = 0.0;
-        let mut temp_count = 0;
-        for (_, value) in temp_chunk.iter() {
-            if let DecodedValueData::Float(v) = value {
-                temp_sum += v;
-                temp_count += 1;
+            // Calcular temperatura promedio
+            let mut temp_sum = 0.0;
+            let mut temp_count = 0;
+            for (_, value) in temp_chunk.iter() {
+                if let DecodedValueData::Float(v) = value {
+                    temp_sum += v;
+                    temp_count += 1;
+                }
             }
+            println!("  • Promedio: {:.2}°C", temp_sum / temp_count as f32);
         }
-        println!("  • Promedio: {:.2}°C", temp_sum / temp_count as f32);
 
         // Filtrar datos por rango de tiempo (primera hora)
         println!("\n⏱️  Filtro de tiempo (primera hora):");
-        let filtered = reader.read_time_range(
-            "weather_station",
-            "temperature",
-            base_time,
-            base_time + 3600_000,
-        )?;
-        println!("  • Lecturas en primera hora: {}", filtered.len());
+        {
+            let filtered = reader.read_time_range(
+                "weather_station",
+                "temperature",
+                base_time,
+                base_time + 3600_000,
+            )?;
+            println!("  • Lecturas en primera hora: {}", filtered.len());
+        }
 
         // Mostrar datos de energía
         println!("\n⚡ Power Meter:");
-        let energy_chunk = reader.read("power_meter", "energy_kwh")?;
-        println!("  • Lecturas: {}", energy_chunk.len());
+        {
+            let energy_chunk = reader.read("power_meter", "energy_kwh")?;
+            println!("  • Lecturas: {}", energy_chunk.len());
 
-        if let Some((first_ts, first_val)) = energy_chunk.get(0) {
-            if let DecodedValueData::Int64(first_energy) = first_val {
-                if let Some((last_ts, last_val)) = energy_chunk.get(energy_chunk.len() - 1) {
-                    if let DecodedValueData::Int64(last_energy) = last_val {
-                        println!("  • Consumo inicial: {} kWh", first_energy);
-                        println!("  • Consumo final: {} kWh", last_energy);
-                        println!("  • Consumo total: {} kWh", last_energy - first_energy);
-                        println!("  • Período: {} horas", (last_ts - first_ts) / 3600_000);
+            if let Some((first_ts, first_val)) = energy_chunk.get(0) {
+                if let DecodedValueData::Int64(first_energy) = first_val {
+                    if let Some((last_ts, last_val)) = energy_chunk.get(energy_chunk.len() - 1) {
+                        if let DecodedValueData::Int64(last_energy) = last_val {
+                            println!("  • Consumo inicial: {} kWh", first_energy);
+                            println!("  • Consumo final: {} kWh", last_energy);
+                            println!("  • Consumo total: {} kWh", last_energy - first_energy);
+                            println!("  • Período: {} horas", (last_ts - first_ts) / 3600_000);
+                        }
                     }
                 }
             }
@@ -172,33 +178,38 @@ fn main() -> tsfile::error::Result<()> {
 
         // Mostrar estadísticas de presión
         println!("\n🌡️  Pressure Sensor:");
-        let pressure_chunk = reader.read("pressure_sensor", "pressure_hpa")?;
-        println!("  • Lecturas: {}", pressure_chunk.len());
+        {
+            let pressure_chunk = reader.read("pressure_sensor", "pressure_hpa")?;
+            println!("  • Lecturas: {}", pressure_chunk.len());
 
-        let mut min_pressure = f64::MAX;
-        let mut max_pressure = f64::MIN;
-        let mut pressure_sum = 0.0;
+            let mut min_pressure = f64::MAX;
+            let mut max_pressure = f64::MIN;
+            let mut pressure_sum = 0.0;
 
-        for (_, value) in pressure_chunk.iter() {
-            if let DecodedValueData::Double(p) = value {
-                min_pressure = min_pressure.min(p);
-                max_pressure = max_pressure.max(p);
-                pressure_sum += p;
+            for (_, value) in pressure_chunk.iter() {
+                if let DecodedValueData::Double(p) = value {
+                    min_pressure = min_pressure.min(p);
+                    max_pressure = max_pressure.max(p);
+                    pressure_sum += p;
+                }
             }
-        }
 
-        println!("  • Mínima: {:.2} hPa", min_pressure);
-        println!("  • Máxima: {:.2} hPa", max_pressure);
-        println!(
-            "  • Promedio: {:.2} hPa",
-            pressure_sum / pressure_chunk.len() as f64
-        );
+            println!("  • Mínima: {:.2} hPa", min_pressure);
+            println!("  • Máxima: {:.2} hPa", max_pressure);
+            println!(
+                "  • Promedio: {:.2} hPa",
+                pressure_sum / pressure_chunk.len() as f64
+            );
+        }
 
         // Iterar sobre algunas lecturas
         println!("\n📊 Primeras 5 lecturas de temperatura:");
-        for (i, (ts, value)) in temp_chunk.iter().take(5).enumerate() {
-            if let DecodedValueData::Float(v) = value {
-                println!("  [{}] Timestamp: {}, Temperatura: {:.1}°C", i, ts, v);
+        {
+            let temp_chunk = reader.read("weather_station", "temperature")?;
+            for (i, (ts, value)) in temp_chunk.iter().take(5).enumerate() {
+                if let DecodedValueData::Float(v) = value {
+                    println!("  [{}] Timestamp: {}, Temperatura: {:.1}°C", i, ts, v);
+                }
             }
         }
     }

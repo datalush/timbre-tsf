@@ -398,29 +398,34 @@ impl GorillaDecoder {
     ///
     /// Loads up to 8 bytes (64 bits) at once to reduce read overhead, providing
     /// a significant performance improvement over reading individual bytes.
+    ///
+    /// Buffer layout: bits are packed at MSB (most significant bits)
+    /// [XXXXXXXX YYYYYYYY 00000000 ...] where X,Y are valid bits
     #[inline]
     fn refill_buffer(&mut self, input: &[u8]) -> Result<()> {
-        // Only refill if we have less than 8 bits available
-        if self.bits_available >= 8 {
-            return Ok(());
-        }
-
         // Read up to 8 bytes from current position
         let bytes_available = input.len().saturating_sub(self.byte_pos);
         if bytes_available == 0 {
-            return Err(TsFileError::UnexpectedEof);
+            return Ok(()); // No more bytes available
         }
 
-        // Read as many bytes as possible (up to 8)
-        let bytes_to_read = bytes_available.min(8);
+        // Calculate how many bytes we can read (up to 8, limited by buffer capacity)
+        let max_bytes_to_read = (64 - self.bits_available as usize) / 8;
+        let bytes_to_read = bytes_available.min(max_bytes_to_read).min(8);
 
-        // Shift existing bits to make room
-        self.bit_buffer <<= bytes_to_read * 8;
+        if bytes_to_read == 0 {
+            return Ok(()); // Buffer is full
+        }
+
+        let initial_bits = self.bits_available;
 
         // Load new bytes into buffer
+        // New bytes go right after existing bits (MSB to LSB)
         for i in 0..bytes_to_read {
             let byte = input[self.byte_pos + i];
-            self.bit_buffer |= (byte as u64) << ((bytes_to_read - 1 - i) * 8);
+            // Calculate shift: place first byte at (56-initial_bits), second at (48-initial_bits), etc.
+            let shift_amount = 56u8.saturating_sub(initial_bits + (i * 8) as u8);
+            self.bit_buffer |= (byte as u64) << shift_amount;
         }
 
         self.byte_pos += bytes_to_read;
@@ -439,17 +444,26 @@ impl GorillaDecoder {
             return Ok(0);
         }
 
-        // Refill buffer if needed
-        if self.bits_available < num_bits {
+        // Refill buffer if needed (may need multiple refills for large reads)
+        while self.bits_available < num_bits {
             self.refill_buffer(input)?;
+
+            // Check if we can't refill anymore (end of input)
+            if self.byte_pos >= input.len() && self.bits_available < num_bits {
+                return Err(TsFileError::UnexpectedEof);
+            }
         }
 
         // Extract bits from buffer
         let shift = 64 - num_bits;
         let result = self.bit_buffer >> shift;
 
-        // Update buffer state
-        self.bit_buffer <<= num_bits;
+        // Update buffer state (protect against shift overflow when num_bits == 64)
+        if num_bits < 64 {
+            self.bit_buffer <<= num_bits;
+        } else {
+            self.bit_buffer = 0;
+        }
         self.bits_available -= num_bits;
 
         Ok(result)
