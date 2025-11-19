@@ -1,7 +1,7 @@
 use crate::common::tablet::BitMap;
 use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::compress::create_compressor;
-use crate::encoding::{Decoder, create_decoder};
+use crate::encoding::{DecoderImpl, create_decoder};
 use crate::error::{Result, TsFileError};
 use crate::file::{ChunkHeader, ChunkType, PageHeader};
 use crate::reader::{DecodedValue, DecodedValues};
@@ -199,7 +199,7 @@ impl AlignedChunkReader {
 
     fn decode_values(
         &self,
-        decoder: &mut Box<dyn Decoder>,
+        decoder: &mut DecoderImpl,
         data: &[u8],
         pos: &mut usize,
         count: usize,

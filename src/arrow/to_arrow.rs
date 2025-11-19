@@ -198,7 +198,10 @@ impl TsFileRecordBatchReader {
 
         // Replace placeholder arrays with real data
         arrays[0] = Arc::new(TimestampMillisecondArray::from(timestamps));
-        arrays[1] = Arc::new(StringArray::from(vec![device_id.as_str(); num_rows]));
+        // OPT-READ-3: Use from_iter_values with repeat() - avoids allocating vec
+        arrays[1] = Arc::new(StringArray::from_iter_values(
+            std::iter::repeat(device_id.as_str()).take(num_rows)
+        ));
 
         // Create RecordBatch
         let batch = RecordBatch::try_new(self.arrow_schema.clone(), arrays).map_err(|e| {
@@ -209,7 +212,8 @@ impl TsFileRecordBatchReader {
     }
 
     /// Convert DecodedValues directly to Arrow array (zero-copy)
-    /// This eliminates the intermediate Vec<Option<DecodedValueData>> boxing
+    /// OPT-READ-2: Eliminates intermediate Vec<&str> for strings
+    /// Uses StringArray::from_iter_values which is more efficient
     fn decoded_values_to_arrow(
         &self,
         values: DecodedValues,
@@ -221,8 +225,8 @@ impl TsFileRecordBatchReader {
             DecodedValues::Float(vec) => Arc::new(Float32Array::from(vec)),
             DecodedValues::Double(vec) => Arc::new(Float64Array::from(vec)),
             DecodedValues::Text(vec) => {
-                let refs: Vec<&str> = vec.iter().map(|s| s.as_str()).collect();
-                Arc::new(StringArray::from(refs))
+                // OPT-READ-2: Use from_iter_values instead of collecting to Vec<&str>
+                Arc::new(StringArray::from_iter_values(vec.iter().map(|s| s.as_str())))
             }
         };
 

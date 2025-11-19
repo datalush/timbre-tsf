@@ -181,6 +181,124 @@ pub trait Decoder: Send + Sync {
     fn encoding_type(&self) -> TSEncoding;
 }
 
+/// OPT-READ-5: Enum-based decoder for static dispatch (eliminates virtual calls in hot decode path)
+/// CRITICAL for read performance - decoders are called millions of times per read
+pub enum DecoderImpl {
+    Plain(PlainDecoder),
+    Dictionary(DictionaryDecoder),
+    Gorilla(GorillaDecoder),
+    Ts2Diff(Ts2DiffDecoder),
+    Rle(RleDecoder),
+    Zigzag(ZigzagDecoder),
+    Sprintz(SprintzDecoder),
+}
+
+impl DecoderImpl {
+    #[inline(always)]
+    pub fn read_bool(&mut self, input: &[u8], pos: &mut usize) -> Result<bool> {
+        match self {
+            Self::Plain(d) => d.read_bool(input, pos),
+            Self::Dictionary(d) => d.read_bool(input, pos),
+            Self::Gorilla(d) => d.read_bool(input, pos),
+            Self::Ts2Diff(d) => d.read_bool(input, pos),
+            Self::Rle(d) => d.read_bool(input, pos),
+            Self::Zigzag(d) => d.read_bool(input, pos),
+            Self::Sprintz(d) => d.read_bool(input, pos),
+        }
+    }
+
+    #[inline(always)]
+    pub fn read_i32(&mut self, input: &[u8], pos: &mut usize) -> Result<i32> {
+        match self {
+            Self::Plain(d) => d.read_i32(input, pos),
+            Self::Dictionary(d) => d.read_i32(input, pos),
+            Self::Gorilla(d) => d.read_i32(input, pos),
+            Self::Ts2Diff(d) => d.read_i32(input, pos),
+            Self::Rle(d) => d.read_i32(input, pos),
+            Self::Zigzag(d) => d.read_i32(input, pos),
+            Self::Sprintz(d) => d.read_i32(input, pos),
+        }
+    }
+
+    #[inline(always)]
+    pub fn read_i64(&mut self, input: &[u8], pos: &mut usize) -> Result<i64> {
+        match self {
+            Self::Plain(d) => d.read_i64(input, pos),
+            Self::Dictionary(d) => d.read_i64(input, pos),
+            Self::Gorilla(d) => d.read_i64(input, pos),
+            Self::Ts2Diff(d) => d.read_i64(input, pos),
+            Self::Rle(d) => d.read_i64(input, pos),
+            Self::Zigzag(d) => d.read_i64(input, pos),
+            Self::Sprintz(d) => d.read_i64(input, pos),
+        }
+    }
+
+    #[inline(always)]
+    pub fn read_f32(&mut self, input: &[u8], pos: &mut usize) -> Result<f32> {
+        match self {
+            Self::Plain(d) => d.read_f32(input, pos),
+            Self::Dictionary(d) => d.read_f32(input, pos),
+            Self::Gorilla(d) => d.read_f32(input, pos),
+            Self::Ts2Diff(d) => d.read_f32(input, pos),
+            Self::Rle(d) => d.read_f32(input, pos),
+            Self::Zigzag(d) => d.read_f32(input, pos),
+            Self::Sprintz(d) => d.read_f32(input, pos),
+        }
+    }
+
+    #[inline(always)]
+    pub fn read_f64(&mut self, input: &[u8], pos: &mut usize) -> Result<f64> {
+        match self {
+            Self::Plain(d) => d.read_f64(input, pos),
+            Self::Dictionary(d) => d.read_f64(input, pos),
+            Self::Gorilla(d) => d.read_f64(input, pos),
+            Self::Ts2Diff(d) => d.read_f64(input, pos),
+            Self::Rle(d) => d.read_f64(input, pos),
+            Self::Zigzag(d) => d.read_f64(input, pos),
+            Self::Sprintz(d) => d.read_f64(input, pos),
+        }
+    }
+
+    #[inline(always)]
+    pub fn read_string(&mut self, input: &[u8], pos: &mut usize) -> Result<String> {
+        match self {
+            Self::Plain(d) => d.read_string(input, pos),
+            Self::Dictionary(d) => d.read_string(input, pos),
+            Self::Gorilla(d) => d.read_string(input, pos),
+            Self::Ts2Diff(d) => d.read_string(input, pos),
+            Self::Rle(d) => d.read_string(input, pos),
+            Self::Zigzag(d) => d.read_string(input, pos),
+            Self::Sprintz(d) => d.read_string(input, pos),
+        }
+    }
+
+    #[inline]
+    pub fn has_remaining(&self, input: &[u8], pos: usize) -> bool {
+        match self {
+            Self::Plain(d) => d.has_remaining(input, pos),
+            Self::Dictionary(d) => d.has_remaining(input, pos),
+            Self::Gorilla(d) => d.has_remaining(input, pos),
+            Self::Ts2Diff(d) => d.has_remaining(input, pos),
+            Self::Rle(d) => d.has_remaining(input, pos),
+            Self::Zigzag(d) => d.has_remaining(input, pos),
+            Self::Sprintz(d) => d.has_remaining(input, pos),
+        }
+    }
+
+    #[inline]
+    pub fn encoding_type(&self) -> TSEncoding {
+        match self {
+            Self::Plain(d) => d.encoding_type(),
+            Self::Dictionary(d) => d.encoding_type(),
+            Self::Gorilla(d) => d.encoding_type(),
+            Self::Ts2Diff(d) => d.encoding_type(),
+            Self::Rle(d) => d.encoding_type(),
+            Self::Zigzag(d) => d.encoding_type(),
+            Self::Sprintz(d) => d.encoding_type(),
+        }
+    }
+}
+
 /// Factory para crear encoders (legacy - returns Box<dyn Encoder>)
 pub fn create_encoder_boxed(encoding: TSEncoding, data_type: TSDataType) -> Box<dyn Encoder> {
     match encoding {
@@ -209,8 +327,8 @@ pub fn create_encoder(encoding: TSEncoding, data_type: TSDataType) -> EncoderImp
     }
 }
 
-/// Factory para crear decoders
-pub fn create_decoder(encoding: TSEncoding, data_type: TSDataType) -> Box<dyn Decoder> {
+/// Factory para crear decoders (legacy - returns Box<dyn Decoder>)
+pub fn create_decoder_boxed(encoding: TSEncoding, data_type: TSDataType) -> Box<dyn Decoder> {
     match encoding {
         TSEncoding::Plain => Box::new(PlainDecoder::new(data_type)),
         TSEncoding::Dictionary => Box::new(DictionaryDecoder::new(data_type)),
@@ -220,5 +338,19 @@ pub fn create_decoder(encoding: TSEncoding, data_type: TSDataType) -> Box<dyn De
         TSEncoding::Zigzag => Box::new(ZigzagDecoder::new(data_type)),
         TSEncoding::Sprintz => Box::new(SprintzDecoder::new(data_type)),
         _ => Box::new(PlainDecoder::new(data_type)), // Fallback
+    }
+}
+
+/// OPT-READ-5: Factory for static dispatch decoders (preferred for performance)
+pub fn create_decoder(encoding: TSEncoding, data_type: TSDataType) -> DecoderImpl {
+    match encoding {
+        TSEncoding::Plain => DecoderImpl::Plain(PlainDecoder::new(data_type)),
+        TSEncoding::Dictionary => DecoderImpl::Dictionary(DictionaryDecoder::new(data_type)),
+        TSEncoding::Gorilla => DecoderImpl::Gorilla(GorillaDecoder::new(data_type)),
+        TSEncoding::Ts2Diff => DecoderImpl::Ts2Diff(Ts2DiffDecoder::new(data_type)),
+        TSEncoding::Rle => DecoderImpl::Rle(RleDecoder::new(data_type)),
+        TSEncoding::Zigzag => DecoderImpl::Zigzag(ZigzagDecoder::new(data_type)),
+        TSEncoding::Sprintz => DecoderImpl::Sprintz(SprintzDecoder::new(data_type)),
+        _ => DecoderImpl::Plain(PlainDecoder::new(data_type)), // Fallback
     }
 }
