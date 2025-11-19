@@ -1,11 +1,74 @@
-/// Sprintz encoding module
-///
-/// Sprintz is a lossless compression algorithm specifically designed for time series data.
-/// It combines:
-/// - Delta encoding or FIRE prediction
-/// - Zigzag encoding for signed values
-/// - Bit packing to minimal width
-/// - Block-based compression (8 values per block)
+//! Sprintz encoding implementation
+//!
+//! Sprintz is a state-of-the-art lossless compression algorithm specifically
+//! designed for integer and floating-point time series data. It achieves high
+//! compression ratios through a combination of predictive coding, adaptive learning,
+//! and efficient bit packing.
+//!
+//! # Algorithm Overview
+//!
+//! Sprintz operates in blocks of 8 values and uses a multi-stage approach:
+//!
+//! 1. **Prediction**: Choose between delta encoding or FIRE (Finite Impulse Response)
+//! 2. **Residual encoding**: Compute prediction errors
+//! 3. **Zigzag encoding**: Map signed residuals to unsigned values
+//! 4. **Bit packing**: Pack values using the minimum bits required
+//!
+//! # FIRE Predictor
+//!
+//! The FIRE (Finite Impulse Response) predictor is an adaptive algorithm that learns
+//! patterns in the data stream. Unlike simple delta encoding, FIRE maintains an
+//! accumulator and adjusts its predictions based on observed errors, making it
+//! effective for data with trends and patterns.
+//!
+//! # Performance Characteristics
+//!
+//! - **Encoding**: O(1) per value with block buffering
+//! - **Decoding**: O(1) per value with block unpacking
+//! - **Compression**: Excellent for regular patterns (better than Gorilla for integers)
+//! - **Block size**: 8 values (optimal for SIMD operations and cache efficiency)
+//!
+//! # Compression Ratio
+//!
+//! - **Regular sequences**: 1-2 bits per value
+//! - **Slowly changing data**: 2-4 bits per value
+//! - **Random data**: Falls back to near-plain encoding
+//!
+//! # Data Type Support
+//!
+//! Sprintz provides specialized implementations for:
+//! - `Int32`: 32-bit signed integers
+//! - `Int64`: 64-bit signed integers
+//! - `Float`: 32-bit IEEE 754 floating-point (via bit casting)
+//! - `Double`: 64-bit IEEE 754 floating-point (via bit casting)
+//!
+//! # Example
+//!
+//! ```
+//! use tsfile_rs::encoding::sprintz::{SprintzEncoder, SprintzDecoder};
+//! use tsfile_rs::encoding::{Encoder, Decoder};
+//! use tsfile_rs::common::TSDataType;
+//!
+//! let mut encoder = SprintzEncoder::new(TSDataType::Int32);
+//! let mut buffer = Vec::new();
+//!
+//! // Encode a sequence with regular pattern
+//! for i in 0..100 {
+//!     encoder.encode_i32(i * 10, &mut buffer).unwrap();
+//! }
+//! encoder.flush(&mut buffer).unwrap();
+//!
+//! let mut decoder = SprintzDecoder::new(TSDataType::Int32);
+//! let mut pos = 0;
+//! for i in 0..100 {
+//!     assert_eq!(decoder.read_i32(&buffer, &mut pos).unwrap(), i * 10);
+//! }
+//! ```
+//!
+//! # References
+//!
+//! - Blalock & Guttag, "Sprintz: Time Series Compression for the Internet of Things", 2018
+
 mod base;
 mod double;
 mod float;
@@ -22,7 +85,11 @@ use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
 use crate::error::{Result, TsFileError};
 
-/// Sprintz Encoder wrapper that implements the Encoder trait
+/// Sprintz encoder wrapper that dispatches to type-specific implementations
+///
+/// This wrapper implements the generic `Encoder` trait and delegates to
+/// specialized encoders based on the data type. This design allows for
+/// type-specific optimizations while maintaining a unified interface.
 pub struct SprintzEncoder {
     data_type: TSDataType,
     int32_encoder: Option<Int32SprintzEncoder>,
@@ -32,6 +99,7 @@ pub struct SprintzEncoder {
 }
 
 impl SprintzEncoder {
+    /// Creates a new Sprintz encoder for the specified data type
     pub fn new(data_type: TSDataType) -> Self {
         let (int32_encoder, int64_encoder, float_encoder, double_encoder) = match data_type {
             TSDataType::Int32 => (Some(Int32SprintzEncoder::new()), None, None, None),
@@ -123,7 +191,10 @@ impl Encoder for SprintzEncoder {
     }
 }
 
-/// Sprintz Decoder wrapper that implements the Decoder trait
+/// Sprintz decoder wrapper that dispatches to type-specific implementations
+///
+/// This wrapper implements the generic `Decoder` trait and delegates to
+/// specialized decoders based on the data type, mirroring the encoder structure.
 pub struct SprintzDecoder {
     data_type: TSDataType,
     int32_decoder: Option<Int32SprintzDecoder>,
@@ -133,6 +204,7 @@ pub struct SprintzDecoder {
 }
 
 impl SprintzDecoder {
+    /// Creates a new Sprintz decoder for the specified data type
     pub fn new(data_type: TSDataType) -> Self {
         let (int32_decoder, int64_decoder, float_decoder, double_decoder) = match data_type {
             TSDataType::Int32 => (Some(Int32SprintzDecoder::new()), None, None, None),

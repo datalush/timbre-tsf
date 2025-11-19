@@ -1,17 +1,85 @@
+//! Second-order difference encoding (TS2DIFF) for time series data
+//!
+//! TS2DIFF compresses time series by encoding the delta-of-deltas rather than
+//! the values themselves. This is highly effective for data with consistent
+//! trends or regular sampling intervals.
+//!
+//! # Encoding Strategy
+//!
+//! For a sequence of values `[v0, v1, v2, v3, ...]`:
+//!
+//! 1. Store first value `v0` directly
+//! 2. Store first delta `d1 = v1 - v0`
+//! 3. For subsequent values, store delta-of-delta: `dd = (vi - vi-1) - (vi-1 - vi-2)`
+//!
+//! # Format Specification
+//!
+//! - **First value**: 8 bytes (i64, little-endian)
+//! - **First delta**: 8 bytes (i64, little-endian)
+//! - **Subsequent delta-of-deltas**: 8 bytes each (i64, little-endian)
+//!
+//! # Performance Characteristics
+//!
+//! - **Encoding**: O(1) per value
+//! - **Decoding**: O(1) per value
+//! - **Compression ratio**: Excellent for regular patterns (often near-zero deltas)
+//! - **Worst case**: Equal size to plain encoding for random data
+//! - **Best case**: Near-zero storage for linear trends
+//!
+//! # Ideal Use Cases
+//!
+//! - Monotonically increasing timestamps with regular intervals
+//! - Sensor data with consistent trends
+//! - Counter values that increment steadily
+//! - Temperature/pressure readings with slow, smooth changes
+//!
+//! # Example
+//!
+//! ```
+//! use tsfile_rs::encoding::ts2diff::{Ts2DiffEncoder, Ts2DiffDecoder};
+//! use tsfile_rs::encoding::{Encoder, Decoder};
+//! use tsfile_rs::common::TSDataType;
+//!
+//! let mut encoder = Ts2DiffEncoder::new(TSDataType::Int64);
+//! let mut buffer = Vec::new();
+//!
+//! // Regular sequence: 1000, 1010, 1020, 1030 (constant delta of 10)
+//! let values = vec![1000i64, 1010, 1020, 1030];
+//! for &v in &values {
+//!     encoder.encode_i64(v, &mut buffer).unwrap();
+//! }
+//! encoder.flush(&mut buffer).unwrap();
+//!
+//! // Delta-of-deltas are all zero after the first two values
+//! let mut decoder = Ts2DiffDecoder::new(TSDataType::Int64);
+//! let mut pos = 0;
+//! for &expected in &values {
+//!     assert_eq!(decoder.read_i64(&buffer, &mut pos).unwrap(), expected);
+//! }
+//! ```
+
 use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
 use crate::error::{Result, TsFileError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-/// Encoder TS2DIFF (second-order difference) para series temporales
+/// Second-order difference encoder for time series with regular patterns
+///
+/// Stores the first value and first delta explicitly, then encodes each
+/// subsequent value as the difference from the expected value based on
+/// the previous delta.
 pub struct Ts2DiffEncoder {
     data_type: TSDataType,
+    /// The first value in the sequence (stored unmodified)
     first_value: Option<i64>,
+    /// The most recent value encoded
     previous_value: i64,
+    /// The delta between the two most recent values
     previous_delta: i64,
 }
 
 impl Ts2DiffEncoder {
+    /// Creates a new TS2DIFF encoder for the specified data type
     pub fn new(data_type: TSDataType) -> Self {
         Self {
             data_type,
@@ -21,6 +89,10 @@ impl Ts2DiffEncoder {
         }
     }
 
+    /// Encodes a value using second-order differencing
+    ///
+    /// The first value is stored directly, the second value's delta is stored,
+    /// and all subsequent values are encoded as delta-of-delta.
     fn encode_value(&mut self, value: i64, out: &mut Vec<u8>) -> Result<()> {
         if self.first_value.is_none() {
             self.first_value = Some(value);
@@ -85,15 +157,22 @@ impl Encoder for Ts2DiffEncoder {
     }
 }
 
-/// Decoder TS2DIFF
+/// Second-order difference decoder for time series
+///
+/// Reconstructs original values by applying delta-of-delta operations,
+/// maintaining the previous value and delta to compute each new value.
 pub struct Ts2DiffDecoder {
     data_type: TSDataType,
+    /// The first value in the sequence
     first_value: Option<i64>,
+    /// The most recently decoded value
     previous_value: i64,
+    /// The delta between the two most recent values
     previous_delta: i64,
 }
 
 impl Ts2DiffDecoder {
+    /// Creates a new TS2DIFF decoder for the specified data type
     pub fn new(data_type: TSDataType) -> Self {
         Self {
             data_type,
@@ -103,6 +182,10 @@ impl Ts2DiffDecoder {
         }
     }
 
+    /// Decodes a value using second-order differencing
+    ///
+    /// Reads the first value directly, then the first delta, and reconstructs
+    /// all subsequent values by adding the computed delta to the previous value.
     fn decode_value(&mut self, input: &[u8], pos: &mut usize) -> Result<i64> {
         if self.first_value.is_none() {
             let value = (&input[*pos..]).read_i64::<LittleEndian>()?;

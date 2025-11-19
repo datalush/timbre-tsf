@@ -1,14 +1,59 @@
+//! Plain encoding implementation
+//!
+//! Plain encoding stores values in their native binary format without compression.
+//! This is the simplest and fastest encoding method, providing O(1) encoding and
+//! decoding performance.
+//!
+//! # Format Specification
+//!
+//! - **Boolean**: 1 byte (0 or 1)
+//! - **Int32**: 4 bytes (little-endian)
+//! - **Int64**: 8 bytes (little-endian)
+//! - **Float**: 4 bytes (IEEE 754 single precision, little-endian)
+//! - **Double**: 8 bytes (IEEE 754 double precision, little-endian)
+//! - **String**: 4-byte length prefix + UTF-8 bytes
+//!
+//! # Performance Characteristics
+//!
+//! - **Encoding**: O(1) per value, minimal CPU overhead
+//! - **Decoding**: O(1) per value, direct memory copy
+//! - **Compression**: None, largest storage footprint
+//! - **Use case**: Best for random-access patterns or already compressed data
+//!
+//! # Example
+//!
+//! ```
+//! use tsfile_rs::encoding::plain::{PlainEncoder, PlainDecoder};
+//! use tsfile_rs::encoding::{Encoder, Decoder};
+//! use tsfile_rs::common::TSDataType;
+//!
+//! let mut encoder = PlainEncoder::new(TSDataType::Int32);
+//! let mut buffer = Vec::new();
+//!
+//! encoder.encode_i32(42, &mut buffer).unwrap();
+//! encoder.flush(&mut buffer).unwrap();
+//!
+//! let mut decoder = PlainDecoder::new(TSDataType::Int32);
+//! let mut pos = 0;
+//! assert_eq!(decoder.read_i32(&buffer, &mut pos).unwrap(), 42);
+//! ```
+
 use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
 use crate::error::{Result, TsFileError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-/// Encoder sin compresión (plain encoding)
+/// Plain encoder that stores values in their native binary representation
+///
+/// This encoder performs no compression and is stateless, making it suitable
+/// for scenarios where data is already compressed at a higher level or where
+/// random access patterns make compression ineffective.
 pub struct PlainEncoder {
     data_type: TSDataType,
 }
 
 impl PlainEncoder {
+    /// Creates a new plain encoder for the specified data type
     pub fn new(data_type: TSDataType) -> Self {
         Self { data_type }
     }
@@ -56,12 +101,16 @@ impl Encoder for PlainEncoder {
     }
 }
 
-/// Decoder para plain encoding
+/// Plain decoder that reads values from their native binary representation
+///
+/// The decoder maintains a position pointer and performs direct reads from
+/// the input buffer with bounds checking.
 pub struct PlainDecoder {
     data_type: TSDataType,
 }
 
 impl PlainDecoder {
+    /// Creates a new plain decoder for the specified data type
     pub fn new(data_type: TSDataType) -> Self {
         Self { data_type }
     }

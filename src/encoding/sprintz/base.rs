@@ -1,16 +1,37 @@
-/// Base utilities for Sprintz compression
-///
-/// Provides:
-/// - Bit packing/unpacking
-/// - Zigzag encoding/decoding
-/// - FIRE (Finite Impulse Response) predictor
-/// - Delta encoding utilities
+//! Base utilities for Sprintz compression
+//!
+//! This module provides the core building blocks for Sprintz encoding:
+//! - **Bit packing/unpacking**: Pack values into minimal bit width
+//! - **Zigzag encoding/decoding**: Map signed to unsigned integers efficiently
+//! - **FIRE predictor**: Adaptive prediction for time series patterns
+//! - **Block operations**: Process 8 values at a time for cache efficiency
+//!
+//! # Block Size
+//!
+//! Sprintz uses a fixed block size of 8 values, which provides:
+//! - Good cache locality
+//! - Potential for SIMD vectorization
+//! - Reasonable compression granularity
+//! - Low metadata overhead
+
+/// Block size for Sprintz compression (8 values per block)
 const BLOCK_SIZE: usize = 8;
 
-/// Pack 8 int32 values into minimal bits
+/// Packs 8 int32 values into the minimum number of bits required
 ///
-/// This packs 8 values with the given bit width into a byte array.
-/// The algorithm fills a 32-bit buffer and writes out bytes as they become full.
+/// This function tightly packs 8 values using a specified bit width, filling
+/// a 32-bit buffer and writing bytes as they become complete. This minimizes
+/// storage while maintaining fast random access within blocks.
+///
+/// # Arguments
+///
+/// * `values` - Slice of exactly 8 i32 values to pack
+/// * `bit_width` - Number of bits to use per value (0-32)
+/// * `buf` - Output buffer to append packed bytes
+///
+/// # Performance
+///
+/// Operates in O(1) time with respect to bit_width, using bit shifting operations.
 pub fn pack_8values_i32(values: &[i32], bit_width: u8, buf: &mut Vec<u8>) {
     if bit_width == 0 {
         // All values are zero, nothing to pack
@@ -59,7 +80,16 @@ pub fn pack_8values_i32(values: &[i32], bit_width: u8, buf: &mut Vec<u8>) {
     }
 }
 
-/// Unpack 8 int32 values from packed bits
+/// Unpacks 8 int32 values from bit-packed bytes
+///
+/// Reconstructs values that were packed with `pack_8values_i32`, reading
+/// the specified number of bits per value from the byte buffer.
+///
+/// # Arguments
+///
+/// * `buf` - Input buffer containing packed bytes
+/// * `bit_width` - Number of bits per value (must match packing width)
+/// * `values` - Output vector to append unpacked values
 pub fn unpack_8values_i32(buf: &[u8], bit_width: u8, values: &mut Vec<i32>) {
     if bit_width == 0 {
         // All zeros
@@ -104,7 +134,9 @@ pub fn unpack_8values_i32(buf: &[u8], bit_width: u8, values: &mut Vec<i32>) {
     }
 }
 
-/// Pack 8 int64 values into minimal bits
+/// Packs 8 int64 values into the minimum number of bits required
+///
+/// Similar to `pack_8values_i32` but handles 64-bit values, using a 64-bit buffer.
 pub fn pack_8values_i64(values: &[i64], bit_width: u8, buf: &mut Vec<u8>) {
     if bit_width == 0 {
         return;
@@ -148,7 +180,9 @@ pub fn pack_8values_i64(values: &[i64], bit_width: u8, buf: &mut Vec<u8>) {
     }
 }
 
-/// Unpack 8 int64 values from packed bits
+/// Unpacks 8 int64 values from bit-packed bytes
+///
+/// Similar to `unpack_8values_i32` but handles 64-bit values.
 pub fn unpack_8values_i64(buf: &[u8], bit_width: u8, values: &mut Vec<i64>) {
     if bit_width == 0 {
         values.extend_from_slice(&[0; 8]);
@@ -190,7 +224,10 @@ pub fn unpack_8values_i64(buf: &[u8], bit_width: u8, values: &mut Vec<i64>) {
     }
 }
 
-/// Calculate maximum bit width needed for an array of int32 values
+/// Calculates the maximum bit width needed for an array of int32 values
+///
+/// Determines the minimum number of bits required to represent the largest
+/// absolute value in the array. Returns 0 if all values are zero.
 pub fn get_max_bit_width_i32(values: &[i32]) -> u8 {
     let max_val = values.iter().map(|&v| v.abs()).max().unwrap_or(0);
     if max_val == 0 {
@@ -199,7 +236,10 @@ pub fn get_max_bit_width_i32(values: &[i32]) -> u8 {
     32 - (max_val.leading_zeros() as u8)
 }
 
-/// Calculate maximum bit width needed for an array of int64 values
+/// Calculates the maximum bit width needed for an array of int64 values
+///
+/// Determines the minimum number of bits required to represent the largest
+/// absolute value in the array. Returns 0 if all values are zero.
 pub fn get_max_bit_width_i64(values: &[i64]) -> u8 {
     let max_val = values.iter().map(|&v| v.abs()).max().unwrap_or(0);
     if max_val == 0 {
@@ -208,11 +248,19 @@ pub fn get_max_bit_width_i64(values: &[i64]) -> u8 {
     64 - (max_val.leading_zeros() as u8)
 }
 
-/// Zigzag encode int32 (custom Sprintz variant)
-/// Maps: 0 -> 0, -1 -> 1, 1 -> 2, -2 -> 3, 2 -> 4, ...
+/// Zigzag encodes a signed int32 to an unsigned representation
+///
+/// Maps signed integers to unsigned integers such that small absolute values
+/// result in small positive integers:
+/// - 0 → 0, -1 → 1, 1 → 2, -2 → 3, 2 → 4, ...
+///
+/// This is a custom Sprintz variant that matches the Apache IoTDB implementation.
+///
+/// # Performance
+///
+/// Inlined for zero-cost abstraction in hot paths.
 #[inline]
 pub fn zigzag_encode_i32(n: i32) -> i32 {
-    // This matches the C++ implementation
     if n <= 0 {
         n.saturating_mul(-2)
     } else {
@@ -220,11 +268,11 @@ pub fn zigzag_encode_i32(n: i32) -> i32 {
     }
 }
 
-/// Zigzag decode int32 (custom Sprintz variant)
+/// Zigzag decodes an unsigned int32 back to signed representation
+///
+/// Inverse of `zigzag_encode_i32`. Uses wrapping arithmetic to handle edge cases.
 #[inline]
 pub fn zigzag_decode_i32(n: i32) -> i32 {
-    // This matches the C++ implementation
-    // Use wrapping arithmetic to avoid overflow when n = i32::MAX
     if n % 2 == 0 {
         -(n / 2)
     } else {
@@ -232,7 +280,9 @@ pub fn zigzag_decode_i32(n: i32) -> i32 {
     }
 }
 
-/// Zigzag encode int64 (custom Sprintz variant)
+/// Zigzag encodes a signed int64 to an unsigned representation
+///
+/// 64-bit version of `zigzag_encode_i32`.
 #[inline]
 pub fn zigzag_encode_i64(n: i64) -> i64 {
     if n <= 0 {
@@ -242,10 +292,11 @@ pub fn zigzag_encode_i64(n: i64) -> i64 {
     }
 }
 
-/// Zigzag decode int64 (custom Sprintz variant)
+/// Zigzag decodes an unsigned int64 back to signed representation
+///
+/// Inverse of `zigzag_encode_i64`.
 #[inline]
 pub fn zigzag_decode_i64(n: i64) -> i64 {
-    // Use wrapping arithmetic to avoid overflow when n = i64::MAX
     if n % 2 == 0 {
         -(n / 2)
     } else {
@@ -253,19 +304,40 @@ pub fn zigzag_decode_i64(n: i64) -> i64 {
     }
 }
 
-/// FIRE (Finite Impulse Response) predictor for int32
+/// FIRE (Finite Impulse Response) predictor for int32 values
 ///
-/// This is an adaptive predictor that learns patterns in the data.
-/// It's more sophisticated than simple delta encoding.
+/// FIRE is an adaptive predictor that learns patterns in time series data.
+/// It maintains an accumulator that tracks the effectiveness of predictions
+/// and adjusts based on observed errors, making it more sophisticated than
+/// simple delta encoding.
+///
+/// # Algorithm
+///
+/// 1. Predict next value based on previous delta and learned coefficient (alpha)
+/// 2. Compute prediction error
+/// 3. Update accumulator based on error gradient
+/// 4. Update delta for next prediction
+///
+/// # Performance
+///
+/// Works best for data with consistent trends or periodic patterns. Falls back
+/// to near-delta encoding performance for random data.
 #[derive(Debug, Clone)]
 pub struct FireI32 {
+    /// Right-shift amount for computing alpha from accumulator
     learn_shift: i32,
+    /// Bit width for fixed-point multiplication
     bit_width: i32,
+    /// Learned coefficient accumulator
     accumulator: i32,
+    /// Previous delta value
     delta: i32,
 }
 
 impl FireI32 {
+    /// Creates a new FIRE predictor with the specified learning rate
+    ///
+    /// Higher learning rates adapt faster but may be less stable.
     pub fn new(learning_rate: i32) -> Self {
         Self {
             learn_shift: learning_rate,
@@ -275,17 +347,26 @@ impl FireI32 {
         }
     }
 
+    /// Resets the predictor state
     pub fn reset(&mut self) {
         self.accumulator = 0;
         self.delta = 0;
     }
 
+    /// Predicts the next value based on the previous value
     pub fn predict(&self, value: i32) -> i32 {
         let alpha = self.accumulator >> self.learn_shift;
         let diff = ((alpha as i64 * self.delta as i64) >> self.bit_width) as i32;
         value.wrapping_add(diff)
     }
 
+    /// Trains the predictor based on observed error
+    ///
+    /// # Arguments
+    ///
+    /// * `pre` - Previous value
+    /// * `val` - Current value
+    /// * `err` - Prediction error (actual - predicted)
     pub fn train(&mut self, pre: i32, val: i32, err: i32) {
         let gradient = if err > 0 {
             self.delta.wrapping_neg()
@@ -297,16 +378,23 @@ impl FireI32 {
     }
 }
 
-/// FIRE predictor for int64
+/// FIRE (Finite Impulse Response) predictor for int64 values
+///
+/// 64-bit version of `FireI32` with adjusted bit width for better precision.
 #[derive(Debug, Clone)]
 pub struct FireI64 {
+    /// Right-shift amount for computing alpha from accumulator
     learn_shift: i64,
+    /// Bit width for fixed-point multiplication
     bit_width: i64,
+    /// Learned coefficient accumulator
     accumulator: i64,
+    /// Previous delta value
     delta: i64,
 }
 
 impl FireI64 {
+    /// Creates a new FIRE predictor with the specified learning rate
     pub fn new(learning_rate: i64) -> Self {
         Self {
             learn_shift: learning_rate,
@@ -316,17 +404,20 @@ impl FireI64 {
         }
     }
 
+    /// Resets the predictor state
     pub fn reset(&mut self) {
         self.accumulator = 0;
         self.delta = 0;
     }
 
+    /// Predicts the next value based on the previous value
     pub fn predict(&self, value: i64) -> i64 {
         let alpha = self.accumulator >> self.learn_shift;
         let diff = (alpha.wrapping_mul(self.delta)) >> self.bit_width;
         value.wrapping_add(diff)
     }
 
+    /// Trains the predictor based on observed error
     pub fn train(&mut self, pre: i64, val: i64, err: i64) {
         let gradient = if err > 0 {
             self.delta.wrapping_neg()
@@ -338,15 +429,20 @@ impl FireI64 {
     }
 }
 
-/// Prediction method enum
+/// Prediction method for Sprintz encoding
+///
+/// Determines which prediction strategy to use during encoding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PredictMethod {
+    /// Simple delta encoding (value - previous_value)
     Delta,
+    /// Adaptive FIRE prediction (learns patterns)
     Fire,
 }
 
 impl Default for PredictMethod {
     fn default() -> Self {
+        // FIRE generally provides better compression for time series
         PredictMethod::Fire
     }
 }

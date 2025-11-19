@@ -1,26 +1,105 @@
+//! Core type definitions for TsFile data model.
+//!
+//! This module defines the fundamental enumerations that describe data types,
+//! encodings, compression methods, and value representations in the TsFile format.
+//!
+//! # Type System
+//!
+//! The TsFile type system consists of three orthogonal dimensions:
+//!
+//! 1. **Data Type** ([`TSDataType`]): The logical type of the data (Int32, Float, etc.)
+//! 2. **Encoding** ([`TSEncoding`]): How the data is transformed before compression
+//! 3. **Compression** ([`CompressionType`]): How the encoded data is compressed
+//!
+//! These three dimensions can be combined independently, though certain combinations
+//! are more efficient than others. See [`TSEncoding::recommended_for`] and
+//! [`CompressionType::recommended_for`] for recommended pairings.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use tsfile::common::*;
+//!
+//! // Get recommended encoding for a data type
+//! let encoding = TSEncoding::recommended_for(TSDataType::Float);
+//! assert_eq!(encoding, TSEncoding::Gorilla);
+//!
+//! // Check size of fixed-size types
+//! assert_eq!(TSDataType::Int32.size(), Some(4));
+//! assert_eq!(TSDataType::Text.size(), None); // variable size
+//!
+//! // Create and inspect values
+//! let value = TsValue::Float(25.5);
+//! assert_eq!(value.data_type(), TSDataType::Float);
+//! ```
+
 use std::fmt;
 
-/// Tipos de datos soportados en TsFile
+/// Time series data types supported by TsFile.
+///
+/// This enum represents all logical data types that can be stored in a TsFile.
+/// Each type has a fixed byte discriminator used in the binary format for
+/// serialization and deserialization.
+///
+/// # Fixed-Size vs Variable-Size Types
+///
+/// - **Fixed-size**: Boolean, Int32, Int64, Float, Double, Timestamp, Date
+/// - **Variable-size**: Text, String, Blob, Vector
+///
+/// Use [`TSDataType::size()`] to get the size of fixed-size types.
+///
+/// # Wire Format
+///
+/// Each variant has a corresponding `u8` discriminator that appears in the
+/// TsFile binary format. Use [`TSDataType::from_u8`] and [`TSDataType::to_u8`]
+/// for conversion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum TSDataType {
+    /// Boolean value (true/false), stored as 1 byte.
     Boolean = 0,
+    /// 32-bit signed integer, 4 bytes.
     Int32 = 1,
+    /// 64-bit signed integer, 8 bytes.
     Int64 = 2,
+    /// 32-bit IEEE 754 floating-point, 4 bytes.
     Float = 3,
+    /// 64-bit IEEE 754 floating-point, 8 bytes.
     Double = 4,
+    /// UTF-8 encoded text, variable length.
     Text = 5,
+    /// Vector type (multidimensional data), variable length.
     Vector = 6,
+    /// Unknown/unspecified type.
     Unknown = 7,
+    /// Timestamp in milliseconds since epoch, 8 bytes.
     Timestamp = 8,
+    /// Date value, 4 bytes.
     Date = 9,
+    /// Binary large object, variable length.
     Blob = 10,
+    /// String type (alternative to Text), variable length.
     String = 11,
+    /// Null value marker.
     Null = 254,
+    /// Invalid/unrecognized type marker.
     Invalid = 255,
 }
 
 impl TSDataType {
+    /// Converts a byte value to a [`TSDataType`].
+    ///
+    /// If the byte doesn't match any known type, returns [`TSDataType::Invalid`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tsfile::common::TSDataType;
+    ///
+    /// assert_eq!(TSDataType::from_u8(1), TSDataType::Int32);
+    /// assert_eq!(TSDataType::from_u8(3), TSDataType::Float);
+    /// assert_eq!(TSDataType::from_u8(99), TSDataType::Invalid);
+    /// ```
     pub fn from_u8(value: u8) -> Self {
         match value {
             0 => Self::Boolean,
@@ -40,10 +119,34 @@ impl TSDataType {
         }
     }
 
+    /// Converts this [`TSDataType`] to its byte representation.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tsfile::common::TSDataType;
+    ///
+    /// assert_eq!(TSDataType::Int32.to_u8(), 1);
+    /// assert_eq!(TSDataType::Double.to_u8(), 4);
+    /// ```
     pub fn to_u8(self) -> u8 {
         self as u8
     }
 
+    /// Returns the size in bytes for fixed-size types.
+    ///
+    /// For variable-size types (Text, String, Blob, Vector), returns `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tsfile::common::TSDataType;
+    ///
+    /// assert_eq!(TSDataType::Boolean.size(), Some(1));
+    /// assert_eq!(TSDataType::Int32.size(), Some(4));
+    /// assert_eq!(TSDataType::Double.size(), Some(8));
+    /// assert_eq!(TSDataType::Text.size(), None);
+    /// ```
     pub fn size(&self) -> Option<usize> {
         match self {
             Self::Boolean => Some(1),
@@ -75,26 +178,78 @@ impl fmt::Display for TSDataType {
     }
 }
 
-/// Métodos de encoding soportados
+/// Encoding methods supported by TsFile.
+///
+/// Encodings transform data before compression to improve compression ratios
+/// and query performance. Different encodings are optimized for different
+/// data characteristics:
+///
+/// - **Plain**: No transformation, direct storage
+/// - **RLE**: Run-length encoding for repetitive values
+/// - **TS_2DIFF**: Second-order delta encoding for timestamps and counters
+/// - **Gorilla**: XOR-based delta encoding for floating-point values
+/// - **Dictionary**: String deduplication via dictionary encoding
+/// - **Zigzag**: Signed integer optimization using zigzag encoding
+/// - **Sprintz**: Advanced time series compression with bit packing
+///
+/// # Performance Characteristics
+///
+/// | Encoding | Best For | Typical Ratio | Speed |
+/// |----------|----------|---------------|-------|
+/// | Plain | Random data | 1x | Fastest |
+/// | RLE | Repetitive values | 8-16x | Very Fast |
+/// | TS_2DIFF | Sequential values | 6-12x | Fast |
+/// | Gorilla | Floats with small deltas | 3-6x | Fast |
+/// | Dictionary | Repetitive strings | 10-50x | Medium |
+/// | Sprintz | Correlated time series | 4-8x | Medium |
+///
+/// # Examples
+///
+/// ```rust
+/// use tsfile::common::{TSDataType, TSEncoding};
+///
+/// // Get recommended encoding for a data type
+/// let encoding = TSEncoding::recommended_for(TSDataType::Float);
+/// assert_eq!(encoding, TSEncoding::Gorilla);
+///
+/// let encoding = TSEncoding::recommended_for(TSDataType::Boolean);
+/// assert_eq!(encoding, TSEncoding::Rle);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum TSEncoding {
+    /// Plain encoding with no transformation.
     Plain = 0,
+    /// Dictionary encoding for string deduplication.
     Dictionary = 1,
+    /// Run-length encoding for repetitive values.
     Rle = 2,
+    /// First-order delta encoding.
     Diff = 3,
+    /// Second-order delta encoding for timestamps/counters.
     Ts2Diff = 4,
+    /// Bitmap encoding.
     Bitmap = 5,
+    /// Gorilla encoding version 1 (deprecated).
     GorillaV1 = 6,
+    /// Regular encoding.
     Regular = 7,
+    /// Gorilla encoding - XOR delta for floats (Facebook).
     Gorilla = 8,
+    /// Zigzag encoding for signed integers.
     Zigzag = 9,
+    /// Frequency-based encoding.
     Freq = 10,
+    /// SPRINTZ encoding with bit packing for time series.
     Sprintz = 12,
+    /// Invalid/unrecognized encoding.
     Invalid = 255,
 }
 
 impl TSEncoding {
+    /// Converts a byte value to a [`TSEncoding`].
+    ///
+    /// If the byte doesn't match any known encoding, returns [`TSEncoding::Invalid`].
     pub fn from_u8(value: u8) -> Self {
         match value {
             0 => Self::Plain,
@@ -113,11 +268,35 @@ impl TSEncoding {
         }
     }
 
+    /// Converts this [`TSEncoding`] to its byte representation.
     pub fn to_u8(self) -> u8 {
         self as u8
     }
 
-    /// Retorna el encoding recomendado para un tipo de dato
+    /// Returns the recommended encoding for a given data type.
+    ///
+    /// This method selects encodings that typically provide the best balance
+    /// of compression ratio and performance for each data type:
+    ///
+    /// - **Boolean**: RLE (excellent for sparse boolean flags)
+    /// - **Int32/Int64/Timestamp**: TS_2DIFF (optimal for sequential IDs and timestamps)
+    /// - **Float/Double**: Gorilla (designed for sensor data with small deltas)
+    /// - **Text/String**: Dictionary (deduplicates repetitive strings)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tsfile::common::{TSDataType, TSEncoding};
+    ///
+    /// assert_eq!(
+    ///     TSEncoding::recommended_for(TSDataType::Float),
+    ///     TSEncoding::Gorilla
+    /// );
+    /// assert_eq!(
+    ///     TSEncoding::recommended_for(TSDataType::Boolean),
+    ///     TSEncoding::Rle
+    /// );
+    /// ```
     pub fn recommended_for(data_type: TSDataType) -> Self {
         match data_type {
             TSDataType::Boolean => Self::Rle,
@@ -150,22 +329,64 @@ impl fmt::Display for TSEncoding {
     }
 }
 
-/// Métodos de compresión soportados
+/// Compression algorithms supported by TsFile.
+///
+/// Compression is applied after encoding to further reduce data size. TsFile
+/// supports several general-purpose compression algorithms with different
+/// speed/ratio tradeoffs.
+///
+/// # Algorithm Characteristics
+///
+/// | Algorithm | Speed | Ratio | Use Case |
+/// |-----------|-------|-------|----------|
+/// | Uncompressed | Fastest | 1x | Debugging, already compressed data |
+/// | LZ4 | Very Fast | 2-3x | General purpose (recommended) |
+/// | Snappy | Fastest | 1.5-2x | Maximum throughput |
+/// | GZIP | Slow | 3-5x | Maximum compression |
+///
+/// # Recommendation
+///
+/// **LZ4** is recommended for most use cases as it provides the best balance
+/// between compression ratio and speed. It works well with all encoding types
+/// and is the default returned by [`CompressionType::recommended_for`].
+///
+/// # Examples
+///
+/// ```rust
+/// use tsfile::common::{TSDataType, CompressionType};
+///
+/// // Get recommended compression (always LZ4)
+/// let compression = CompressionType::recommended_for(TSDataType::Float);
+/// assert_eq!(compression, CompressionType::Lz4);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum CompressionType {
+    /// No compression applied.
     Uncompressed = 0,
+    /// Snappy compression (Google) - fastest.
     Snappy = 1,
+    /// GZIP compression - maximum ratio.
     Gzip = 2,
+    /// LZO compression (not implemented).
     Lzo = 3,
+    /// SDT compression (not implemented).
     Sdt = 4,
+    /// PAA compression (not implemented).
     Paa = 5,
+    /// PLA compression (not implemented).
     Pla = 6,
+    /// LZ4 compression - balanced speed and ratio (recommended).
     Lz4 = 7,
+    /// Invalid/unrecognized compression.
     Invalid = 255,
 }
 
 impl CompressionType {
+    /// Converts a byte value to a [`CompressionType`].
+    ///
+    /// If the byte doesn't match any known compression type, returns
+    /// [`CompressionType::Invalid`].
     pub fn from_u8(value: u8) -> Self {
         match value {
             0 => Self::Uncompressed,
@@ -180,13 +401,30 @@ impl CompressionType {
         }
     }
 
+    /// Converts this [`CompressionType`] to its byte representation.
     pub fn to_u8(self) -> u8 {
         self as u8
     }
 
-    /// Retorna la compresión recomendada para un tipo de dato
+    /// Returns the recommended compression type for any data type.
+    ///
+    /// Currently always returns [`CompressionType::Lz4`] as it provides the
+    /// best balance of speed and compression ratio across all data types and
+    /// encoding schemes.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tsfile::common::{TSDataType, CompressionType};
+    ///
+    /// assert_eq!(
+    ///     CompressionType::recommended_for(TSDataType::Float),
+    ///     CompressionType::Lz4
+    /// );
+    /// ```
     pub fn recommended_for(_data_type: TSDataType) -> Self {
-        Self::Lz4 // LZ4 es la recomendación general por su balance velocidad/ratio
+        // LZ4 provides the best balance of speed and compression ratio
+        Self::Lz4
     }
 }
 
@@ -206,29 +444,84 @@ impl fmt::Display for CompressionType {
     }
 }
 
-/// Categoría de columna en modelo tabla
+/// Column category in table-based data model.
+///
+/// Columns can be classified as tags (metadata/dimensions), fields (measurements),
+/// or time (timestamp column). This categorization is used in table schemas to
+/// organize data for efficient querying.
+///
+/// # Categories
+///
+/// - **Tag**: Metadata or dimension column (e.g., device_id, location)
+/// - **Field**: Measurement or metric column (e.g., temperature, pressure)
+/// - **Time**: Timestamp column (usually just one per table)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColumnCategory {
+    /// Tag column - metadata or dimension.
     Tag,
+    /// Field column - measurement or metric.
     Field,
+    /// Time column - timestamp.
     Time,
 }
 
-/// Valor de dato en TsFile (enum para todos los tipos)
+/// Type-safe wrapper for time series values.
+///
+/// This enum can hold any value type supported by TsFile. It provides type
+/// safety and convenient conversion between Rust types and TsFile types.
+///
+/// # Null Handling
+///
+/// The [`TsValue::Null`] variant represents missing values, which is distinct
+/// from Rust's `Option<TsValue>`. Use `Option<TsValue>` to indicate presence
+/// or absence of a value, and `TsValue::Null` to represent an explicit NULL
+/// value in the data.
+///
+/// # Examples
+///
+/// ```rust
+/// use tsfile::common::{TsValue, TSDataType};
+///
+/// let value = TsValue::Float(25.5);
+/// assert_eq!(value.data_type(), TSDataType::Float);
+///
+/// let null_value = TsValue::Null;
+/// assert_eq!(null_value.data_type(), TSDataType::Null);
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub enum TsValue {
+    /// Boolean value.
     Boolean(bool),
+    /// 32-bit signed integer.
     Int32(i32),
+    /// 64-bit signed integer.
     Int64(i64),
+    /// 32-bit floating-point.
     Float(f32),
+    /// 64-bit floating-point.
     Double(f64),
+    /// UTF-8 text string.
     Text(String),
+    /// String value (alternative to Text).
     String(String),
+    /// Binary data.
     Blob(Vec<u8>),
+    /// Null/missing value.
     Null,
 }
 
 impl TsValue {
+    /// Returns the [`TSDataType`] of this value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tsfile::common::{TsValue, TSDataType};
+    ///
+    /// assert_eq!(TsValue::Int32(42).data_type(), TSDataType::Int32);
+    /// assert_eq!(TsValue::Float(3.14).data_type(), TSDataType::Float);
+    /// assert_eq!(TsValue::Null.data_type(), TSDataType::Null);
+    /// ```
     pub fn data_type(&self) -> TSDataType {
         match self {
             Self::Boolean(_) => TSDataType::Boolean,

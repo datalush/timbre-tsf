@@ -1,9 +1,91 @@
+//! Batch-oriented data structures for efficient time-series ingestion.
+//!
+//! This module provides the [`Tablet`] abstraction, which enables efficient batch writing
+//! of time-series data by collecting multiple rows in columnar format before encoding.
+//! This approach significantly outperforms row-by-row writes by:
+//!
+//! - Amortizing encoding overhead across many values
+//! - Enabling SIMD and vectorized operations
+//! - Improving CPU cache locality
+//! - Reducing function call overhead
+//!
+//! # Data model
+//!
+//! A [`Tablet`] represents a batch of time-series data for a single device with multiple
+//! measurements (columns). It stores:
+//!
+//! - **Timestamps**: Shared across all measurements in a row
+//! - **Values**: Columnar storage per measurement (type-specific vectors)
+//! - **Null bitmaps**: Track which values are null
+//! - **Schema metadata**: Measurement names and types
+//!
+//! # Alignment modes
+//!
+//! Tablets support two modes:
+//!
+//! - **Non-aligned** (default): Each measurement can have independent timestamps (sparse data)
+//! - **Aligned**: All measurements share the same timestamps (dense data, better compression)
+//!
+//! Aligned mode enforces strictly increasing timestamps and requires all measurements to
+//! have values at each timestamp (individual values can still be null).
+//!
+//! # Performance
+//!
+//! For bulk operations from Arrow or other columnar formats, use [`Tablet::add_rows_bulk`]
+//! which is 3-5x faster than calling [`Tablet::add_row`] in a loop.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use tsfile::common::tablet::Tablet;
+//! use tsfile::common::schema::MeasurementSchema;
+//! use tsfile::common::types::{TSDataType, TsValue, ColumnCategory};
+//!
+//! // Create a tablet for a temperature sensor device
+//! let schemas = vec![
+//!     MeasurementSchema::with_defaults("temperature", TSDataType::Float),
+//!     MeasurementSchema::with_defaults("humidity", TSDataType::Int32),
+//! ];
+//!
+//! let mut tablet = Tablet::new(
+//!     "sensor_01",
+//!     schemas,
+//!     vec![ColumnCategory::Field, ColumnCategory::Field],
+//!     1000, // max rows per batch
+//! );
+//!
+//! // Add a row with both measurements
+//! tablet.add_row(
+//!     1000,
+//!     vec![Some(TsValue::Float(22.5)), Some(TsValue::Int32(65))],
+//! ).unwrap();
+//!
+//! // Add a row with a null value
+//! tablet.add_row(
+//!     2000,
+//!     vec![Some(TsValue::Float(23.1)), None],
+//! ).unwrap();
+//! ```
+
 use super::schema::MeasurementSchema;
 use super::types::{ColumnCategory, TSDataType, TsValue};
 use crate::error::{Result, TsFileError};
 use std::sync::Arc;
 
-/// BitMap para rastrear valores nulos
+/// Compact bitmap for tracking null values in a column.
+///
+/// Uses a bit-packed representation where each bit indicates whether the value
+/// at that index is null (1) or not null (0). This provides 8x memory efficiency
+/// compared to storing booleans in a `Vec<bool>`.
+///
+/// # Layout
+///
+/// Bits are packed into bytes in little-endian order within each byte:
+/// - Byte 0, bit 0 = index 0
+/// - Byte 0, bit 1 = index 1
+/// - Byte 0, bit 7 = index 7
+/// - Byte 1, bit 0 = index 8
+/// - etc.
 #[derive(Debug, Clone)]
 pub struct BitMap {
     bits: Vec<u8>,
@@ -11,6 +93,11 @@ pub struct BitMap {
 }
 
 impl BitMap {
+    /// Creates a new bitmap with all bits initialized to 0 (not null).
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - The number of bits to track
     pub fn new(size: usize) -> Self {
         let byte_count = (size + 7) / 8;
         Self {
@@ -19,6 +106,16 @@ impl BitMap {
         }
     }
 
+    /// Sets the null status for a specific index.
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - The position to update
+    /// * `is_null` - `true` if the value is null, `false` otherwise
+    ///
+    /// # Behavior
+    ///
+    /// If `index >= size`, this is a no-op (silent failure for performance).
     pub fn set(&mut self, index: usize, is_null: bool) {
         if index >= self.size {
             return;
@@ -32,6 +129,15 @@ impl BitMap {
         }
     }
 
+    /// Returns whether the value at the given index is null.
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - The position to check
+    ///
+    /// # Returns
+    ///
+    /// `true` if the value is null, `false` if not null or if `index >= size`.
     pub fn get(&self, index: usize) -> bool {
         if index >= self.size {
             return false;
@@ -41,12 +147,25 @@ impl BitMap {
         (self.bits[byte_idx] & (1 << bit_idx)) != 0
     }
 
+    /// Returns `true` if no values are null (all bits are 0).
+    ///
+    /// This is useful for optimization: if all values are non-null, some encodings
+    /// can omit the null bitmap entirely.
     pub fn is_all_not_null(&self) -> bool {
         self.bits.iter().all(|&b| b == 0)
     }
 }
 
-/// Matriz de valores para Tablet
+/// Type-erased columnar storage for a single measurement.
+///
+/// Stores a column of values in a type-specific vector. The variant must match
+/// the measurement's [`TSDataType`] in the schema.
+///
+/// # Memory layout
+///
+/// Each variant uses a contiguous vector for cache-friendly access during encoding.
+/// Default values (0, false, empty string) are used for null entries to maintain
+/// alignment, with actual null status tracked in a separate [`BitMap`].
 #[derive(Debug, Clone)]
 pub enum ValueMatrix {
     Boolean(Vec<bool>),
@@ -58,6 +177,12 @@ pub enum ValueMatrix {
 }
 
 impl ValueMatrix {
+    /// Creates a new empty value matrix with pre-allocated capacity.
+    ///
+    /// # Arguments
+    ///
+    /// * `data_type` - The data type determines which variant to create
+    /// * `capacity` - Initial capacity to pre-allocate
     pub fn new(data_type: TSDataType, capacity: usize) -> Self {
         match data_type {
             TSDataType::Boolean => Self::Boolean(Vec::with_capacity(capacity)),
@@ -66,10 +191,11 @@ impl ValueMatrix {
             TSDataType::Float => Self::Float(Vec::with_capacity(capacity)),
             TSDataType::Double => Self::Double(Vec::with_capacity(capacity)),
             TSDataType::Text | TSDataType::String => Self::Text(Vec::with_capacity(capacity)),
-            _ => Self::Int32(Vec::with_capacity(capacity)), // Fallback
+            _ => Self::Int32(Vec::with_capacity(capacity)),
         }
     }
 
+    /// Returns the data type of this value matrix.
     pub fn data_type(&self) -> TSDataType {
         match self {
             Self::Boolean(_) => TSDataType::Boolean,
@@ -81,6 +207,7 @@ impl ValueMatrix {
         }
     }
 
+    /// Returns the number of values currently stored.
     pub fn len(&self) -> usize {
         match self {
             Self::Boolean(v) => v.len(),
@@ -92,12 +219,41 @@ impl ValueMatrix {
         }
     }
 
+    /// Returns `true` if the matrix contains no values.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }
 
-/// Tablet para escritura eficiente por lotes
+/// Batch container for time-series data written to a TsFile.
+///
+/// A tablet collects multiple rows of data in columnar format for a single device
+/// before encoding and writing. This batch-oriented approach provides significant
+/// performance benefits over row-by-row writes.
+///
+/// # Fields
+///
+/// - `device_name`: The device/entity this data belongs to
+/// - `schemas`: Measurement metadata (name, type, encoding, compression)
+/// - `column_categories`: Whether each column is a field or tag
+/// - `timestamps`: Timestamp values (shared across all measurements in a row)
+/// - `values`: Columnar storage, one [`ValueMatrix`] per measurement
+/// - `bitmaps`: Null tracking, one [`BitMap`] per measurement
+/// - `max_rows`: Maximum rows before the tablet must be flushed
+///
+/// # Alignment
+///
+/// The tablet can operate in two modes:
+///
+/// - **Non-aligned** (default): Compatible with sparse data where different measurements
+///   may have values at different timestamps. Use [`Tablet::new`].
+/// - **Aligned**: Optimized for dense data where all measurements share the same timestamps.
+///   Enforces strictly increasing timestamps. Use [`Tablet::new_aligned`].
+///
+/// # Capacity
+///
+/// Once `row_count() >= max_rows`, the tablet is full and must be written to the file
+/// before accepting more data. Attempting to add more rows will return an error.
 #[derive(Debug, Clone)]
 pub struct Tablet {
     pub device_name: String,
@@ -112,7 +268,32 @@ pub struct Tablet {
 }
 
 impl Tablet {
-    /// Creates a new non-aligned tablet (default behavior for backwards compatibility)
+    /// Creates a new non-aligned tablet.
+    ///
+    /// Non-aligned tablets support sparse data where measurements may have different
+    /// timestamps. This is the default mode for backwards compatibility.
+    ///
+    /// # Arguments
+    ///
+    /// * `device_name` - The device/entity identifier
+    /// * `schemas` - Measurement definitions (name, type, encoding, compression)
+    /// * `column_categories` - Whether each column is a field or tag
+    /// * `max_rows` - Maximum number of rows before requiring flush
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tsfile::common::tablet::Tablet;
+    /// use tsfile::common::schema::MeasurementSchema;
+    /// use tsfile::common::types::{TSDataType, ColumnCategory};
+    ///
+    /// let schemas = vec![
+    ///     MeasurementSchema::with_defaults("temp", TSDataType::Float),
+    /// ];
+    ///
+    /// let tablet = Tablet::new("device1", schemas, vec![ColumnCategory::Field], 1000);
+    /// assert!(!tablet.is_aligned());
+    /// ```
     pub fn new(
         device_name: impl Into<String>,
         schemas: Vec<MeasurementSchema>,
@@ -122,7 +303,36 @@ impl Tablet {
         Self::new_with_alignment(device_name, schemas, column_categories, max_rows, false)
     }
 
-    /// Creates a new aligned tablet (shared timestamps across measurements)
+    /// Creates a new aligned tablet.
+    ///
+    /// Aligned tablets are optimized for dense data where all measurements share the
+    /// same timestamps. This mode:
+    ///
+    /// - Enforces strictly increasing timestamps
+    /// - Requires all measurements to have values at each timestamp (can be null)
+    /// - Produces better compression in the TsFile format
+    ///
+    /// # Arguments
+    ///
+    /// * `device_name` - The device/entity identifier
+    /// * `schemas` - Measurement definitions (name, type, encoding, compression)
+    /// * `column_categories` - Whether each column is a field or tag
+    /// * `max_rows` - Maximum number of rows before requiring flush
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tsfile::common::tablet::Tablet;
+    /// use tsfile::common::schema::MeasurementSchema;
+    /// use tsfile::common::types::{TSDataType, ColumnCategory};
+    ///
+    /// let schemas = vec![
+    ///     MeasurementSchema::with_defaults("temp", TSDataType::Float),
+    /// ];
+    ///
+    /// let tablet = Tablet::new_aligned("device1", schemas, vec![ColumnCategory::Field], 1000);
+    /// assert!(tablet.is_aligned());
+    /// ```
     pub fn new_aligned(
         device_name: impl Into<String>,
         schemas: Vec<MeasurementSchema>,
@@ -132,7 +342,7 @@ impl Tablet {
         Self::new_with_alignment(device_name, schemas, column_categories, max_rows, true)
     }
 
-    /// Internal constructor with explicit alignment parameter
+    /// Internal constructor with explicit alignment parameter.
     fn new_with_alignment(
         device_name: impl Into<String>,
         schemas: Vec<MeasurementSchema>,
@@ -159,23 +369,62 @@ impl Tablet {
         }
     }
 
-    /// Returns whether this tablet uses aligned encoding
+    /// Returns whether this tablet uses aligned encoding.
     pub fn is_aligned(&self) -> bool {
         self.is_aligned
     }
 
+    /// Returns the number of rows currently stored in the tablet.
     pub fn row_count(&self) -> usize {
         self.timestamps.len()
     }
 
+    /// Returns the number of measurements (columns) in the tablet.
     pub fn column_count(&self) -> usize {
         self.schemas.len()
     }
 
+    /// Returns `true` if the tablet has reached its maximum capacity.
+    ///
+    /// A full tablet must be written to the file before accepting more data.
     pub fn is_full(&self) -> bool {
         self.row_count() >= self.max_rows
     }
 
+    /// Adds a single row of data to the tablet.
+    ///
+    /// This method validates that:
+    /// - The tablet is not full
+    /// - The number of values matches the schema
+    /// - For aligned tablets, timestamps are strictly increasing
+    /// - Value types match the schema
+    ///
+    /// # Arguments
+    ///
+    /// * `timestamp` - The timestamp for this row (milliseconds since epoch)
+    /// * `values` - Values for each measurement (must match schema order), `None` for nulls
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The tablet is full (`is_full() == true`)
+    /// - Wrong number of values provided
+    /// - For aligned tablets, timestamp is not strictly increasing
+    /// - Value type doesn't match the schema
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tsfile::common::tablet::Tablet;
+    /// use tsfile::common::schema::MeasurementSchema;
+    /// use tsfile::common::types::{TSDataType, TsValue, ColumnCategory};
+    ///
+    /// let schemas = vec![MeasurementSchema::with_defaults("temp", TSDataType::Float)];
+    /// let mut tablet = Tablet::new("device1", schemas, vec![ColumnCategory::Field], 1000);
+    ///
+    /// tablet.add_row(1000, vec![Some(TsValue::Float(22.5))]).unwrap();
+    /// tablet.add_row(2000, vec![None]).unwrap(); // Null value
+    /// ```
     pub fn add_row(&mut self, timestamp: i64, values: Vec<Option<TsValue>>) -> Result<()> {
         if self.is_full() {
             return Err(TsFileError::InvalidState("Tablet is full".to_string()));
@@ -200,10 +449,6 @@ impl Tablet {
                     )));
                 }
             }
-
-            // All measurements must have values (no sparse data in aligned mode)
-            // Note: Individual values can still be null, but all columns must be present
-            // This is already validated by values.len() check above
         }
 
         let row_idx = self.timestamps.len();
@@ -217,7 +462,7 @@ impl Tablet {
                 }
                 None => {
                     self.bitmaps[col_idx].set(row_idx, true);
-                    // Agregar valor por defecto para mantener alineación
+                    // Add default value to maintain alignment
                     self.add_default_value(col_idx)?;
                 }
             }
@@ -226,6 +471,7 @@ impl Tablet {
         Ok(())
     }
 
+    /// Adds a typed value to a specific column.
     fn add_value(&mut self, col_idx: usize, value: TsValue) -> Result<()> {
         let expected_type = self.schemas[col_idx].data_type;
         let actual_type = value.data_type();
@@ -246,6 +492,7 @@ impl Tablet {
         Ok(())
     }
 
+    /// Adds a default value to a column (used for null entries).
     fn add_default_value(&mut self, col_idx: usize) -> Result<()> {
         match &mut self.values[col_idx] {
             ValueMatrix::Boolean(v) => v.push(false),
@@ -258,6 +505,10 @@ impl Tablet {
         Ok(())
     }
 
+    /// Clears all data from the tablet, resetting it to empty state.
+    ///
+    /// This is typically called after successfully writing the tablet's data to the file.
+    /// The tablet can then be reused for accumulating the next batch.
     pub fn clear(&mut self) {
         self.timestamps.clear();
         for value_vec in &mut self.values {
@@ -275,20 +526,64 @@ impl Tablet {
         }
     }
 
-    /// High-performance batch append for Arrow conversion (bypasses per-row validation)
+    /// High-performance bulk append for batch operations.
     ///
-    /// # Safety
-    /// This method assumes:
-    /// - All input arrays have the same length
-    /// - Data types match the schema
-    /// - Timestamps are pre-validated if using aligned mode
+    /// This method bypasses per-row validation and uses bulk vector operations for
+    /// significantly better performance when converting from Arrow or other columnar
+    /// formats.
     ///
     /// # Performance
-    /// ~3-5x faster than add_row() in a loop because:
-    /// - Bulk extend operations instead of individual pushes
+    ///
+    /// Approximately 3-5x faster than calling [`add_row`](Tablet::add_row) in a loop because:
+    /// - Uses `extend_from_slice` instead of individual pushes
     /// - No per-row validation overhead
-    /// - No temporary Vec allocations
     /// - Better CPU cache locality
+    /// - Fewer function calls
+    ///
+    /// # Arguments
+    ///
+    /// * `timestamps` - Timestamp values for all rows
+    /// * `values` - Columnar values: `values[col_idx][row_idx]`
+    ///
+    /// # Validation
+    ///
+    /// This method validates:
+    /// - Total row count doesn't exceed `max_rows`
+    /// - All columns have the same number of rows
+    /// - Number of columns matches schema
+    ///
+    /// It does NOT validate:
+    /// - Timestamp ordering (caller's responsibility for aligned tablets)
+    /// - Individual value types (assumed to match schema)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Adding rows would exceed `max_rows`
+    /// - Column count doesn't match schema
+    /// - Row counts differ across columns
+    /// - Value types don't match schema
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tsfile::common::tablet::Tablet;
+    /// use tsfile::common::schema::MeasurementSchema;
+    /// use tsfile::common::types::{TSDataType, TsValue, ColumnCategory};
+    ///
+    /// let schemas = vec![MeasurementSchema::with_defaults("temp", TSDataType::Float)];
+    /// let mut tablet = Tablet::new("device1", schemas, vec![ColumnCategory::Field], 1000);
+    ///
+    /// let timestamps = vec![1000, 2000, 3000];
+    /// let values = vec![vec![
+    ///     Some(TsValue::Float(22.5)),
+    ///     Some(TsValue::Float(23.0)),
+    ///     Some(TsValue::Float(23.5)),
+    /// ]];
+    ///
+    /// tablet.add_rows_bulk(&timestamps, values).unwrap();
+    /// assert_eq!(tablet.row_count(), 3);
+    /// ```
     #[inline]
     pub fn add_rows_bulk(
         &mut self,
@@ -335,7 +630,7 @@ impl Tablet {
         Ok(())
     }
 
-    /// Bulk append a single column's values
+    /// Bulk appends a single column's values with bitmap updates.
     #[inline]
     fn add_column_bulk(
         &mut self,
@@ -472,7 +767,9 @@ impl Tablet {
     }
 }
 
-/// Punto de datos individual
+/// A single measurement value at a specific timestamp.
+///
+/// This is used in the row-oriented [`TsRecord`] API for simple insertions.
 #[derive(Debug, Clone)]
 pub struct DataPoint {
     pub measurement_name: String,
@@ -480,6 +777,12 @@ pub struct DataPoint {
 }
 
 impl DataPoint {
+    /// Creates a new data point with a non-null value.
+    ///
+    /// # Arguments
+    ///
+    /// * `measurement_name` - The measurement identifier
+    /// * `value` - The value to store
     pub fn new(measurement_name: impl Into<String>, value: TsValue) -> Self {
         Self {
             measurement_name: measurement_name.into(),
@@ -487,6 +790,11 @@ impl DataPoint {
         }
     }
 
+    /// Creates a new data point with a null value.
+    ///
+    /// # Arguments
+    ///
+    /// * `measurement_name` - The measurement identifier
     pub fn null(measurement_name: impl Into<String>) -> Self {
         Self {
             measurement_name: measurement_name.into(),
@@ -495,7 +803,24 @@ impl DataPoint {
     }
 }
 
-/// Registro individual de serie temporal
+/// A row-oriented time-series record for a single device at a specific timestamp.
+///
+/// This provides a more intuitive API for inserting sparse data compared to [`Tablet`],
+/// but is less efficient for bulk operations.
+///
+/// # Examples
+///
+/// ```rust
+/// use tsfile::common::tablet::TsRecord;
+/// use tsfile::common::types::TsValue;
+///
+/// let record = TsRecord::new(1000, "device1")
+///     .with_value("temperature", TsValue::Float(22.5))
+///     .with_value("humidity", TsValue::Int32(65));
+///
+/// assert_eq!(record.timestamp, 1000);
+/// assert_eq!(record.points.len(), 2);
+/// ```
 #[derive(Debug, Clone)]
 pub struct TsRecord {
     pub timestamp: i64,
@@ -504,6 +829,12 @@ pub struct TsRecord {
 }
 
 impl TsRecord {
+    /// Creates a new empty record at the given timestamp.
+    ///
+    /// # Arguments
+    ///
+    /// * `timestamp` - Timestamp in milliseconds since epoch
+    /// * `device_id` - Device/entity identifier
     pub fn new(timestamp: i64, device_id: impl Into<String>) -> Self {
         Self {
             timestamp,
@@ -512,11 +843,22 @@ impl TsRecord {
         }
     }
 
+    /// Adds a data point to this record (builder pattern).
+    ///
+    /// # Arguments
+    ///
+    /// * `point` - The data point to add
     pub fn add_point(mut self, point: DataPoint) -> Self {
         self.points.push(point);
         self
     }
 
+    /// Adds a measurement value to this record (builder pattern).
+    ///
+    /// # Arguments
+    ///
+    /// * `measurement_name` - The measurement identifier
+    /// * `value` - The value to store
     pub fn with_value(mut self, measurement_name: impl Into<String>, value: TsValue) -> Self {
         self.points.push(DataPoint::new(measurement_name, value));
         self
@@ -560,7 +902,7 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(tablet.row_count(), 1);
 
-        // Con valor nulo
+        // With null value
         let result = tablet.add_row(2000, vec![Some(TsValue::Float(26.0)), None]);
         assert!(result.is_ok());
         assert_eq!(tablet.row_count(), 2);
