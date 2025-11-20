@@ -36,9 +36,9 @@
 //! # Example
 //!
 //! ```
-//! use tsfile_rs::encoding::{RleEncoder, RleDecoder, Encoder, Decoder};
+//! use timbre_tsf::encoding::{RleEncoder, RleDecoder, Encoder, Decoder};
 //! 
-//! use tsfile_rs::common::TSDataType;
+//! use timbre_tsf::common::TSDataType;
 //!
 //! let mut encoder = RleEncoder::new(TSDataType::Int32);
 //! let mut buffer = Vec::new();

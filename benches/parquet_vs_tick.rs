@@ -14,9 +14,9 @@ use parquet::arrow::ArrowWriter;
 use parquet::file::properties::WriterProperties;
 
 // TsFile imports
-use tsfile_rs::arrow::{ArrowToTsFileConverter, TsFileRecordBatchReader};
-use tsfile_rs::common::{ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsValue};
-use tsfile_rs::writer::TsFileWriter;
+use timbre_tsf::arrow::{ArrowToTsFileConverter, TsFileRecordBatchReader};
+use timbre_tsf::common::{ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsValue};
+use timbre_tsf::writer::TsFileWriter;
 
 /// Genera datos de prueba con 1M de filas
 fn generate_test_data(num_rows: usize) -> RecordBatch {
@@ -311,7 +311,7 @@ fn read_tsfile_to_arrow(path: &std::path::Path) -> usize {
     total_rows
 }
 
-/// Benchmark de lectura: Parquet vs TsFile
+/// Benchmark de lectura: Parquet vs Tick
 fn benchmark_read_comparison(c: &mut Criterion) {
     let _ = env_logger::builder().is_test(true).try_init();
 
@@ -381,7 +381,7 @@ fn benchmark_read_comparison(c: &mut Criterion) {
     group.finish();
 }
 
-/// Benchmark de escritura: Parquet vs TsFile
+/// Benchmark de escritura: Parquet vs Tick
 fn benchmark_write_comparison(c: &mut Criterion) {
     let _ = env_logger::builder().is_test(true).try_init();
 

@@ -33,8 +33,8 @@
 //! # Examples
 //!
 //! ```rust
-//! use tsfile_rs::compress::{create_compressor, Compressor};
-//! use tsfile_rs::common::CompressionType;
+//! use timbre_tsf::compress::{create_compressor, Compressor};
+//! use timbre_tsf::common::CompressionType;
 //!
 //! // Static dispatch (faster)
 //! let mut compressor = create_compressor(CompressionType::Lz4);
@@ -307,8 +307,8 @@ impl Compressor for GzipCompressor {
 /// # Examples
 ///
 /// ```rust
-/// use tsfile_rs::compress::{CompressorImpl, create_compressor};
-/// use tsfile_rs::common::CompressionType;
+/// use timbre_tsf::compress::{CompressorImpl, create_compressor};
+/// use timbre_tsf::common::CompressionType;
 ///
 /// let mut compressor = create_compressor(CompressionType::Lz4);
 /// let data = vec![1, 2, 3, 4, 5];
@@ -382,8 +382,8 @@ impl CompressorImpl {
 /// # Examples
 ///
 /// ```rust
-/// use tsfile_rs::compress::{create_compressor_boxed, Compressor};
-/// use tsfile_rs::common::CompressionType;
+/// use timbre_tsf::compress::{create_compressor_boxed, Compressor};
+/// use timbre_tsf::common::CompressionType;
 ///
 /// let mut compressor = create_compressor_boxed(CompressionType::Snappy);
 /// let data = b"Hello, World!";
@@ -420,8 +420,8 @@ pub fn create_compressor_boxed(compression_type: CompressionType) -> Box<dyn Com
 /// # Examples
 ///
 /// ```rust
-/// use tsfile_rs::compress::create_compressor;
-/// use tsfile_rs::common::CompressionType;
+/// use timbre_tsf::compress::create_compressor;
+/// use timbre_tsf::common::CompressionType;
 ///
 /// let mut compressor = create_compressor(CompressionType::Lz4);
 /// let data = vec![1, 2, 3, 4, 5];

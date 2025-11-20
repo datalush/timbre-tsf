@@ -7,9 +7,9 @@ use arrow::array::{Float32Array, StringArray, TimestampMillisecondArray};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 
-use tsfile_rs::arrow::ArrowToTsFileConverter;
-use tsfile_rs::common::{ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsValue};
-use tsfile_rs::writer::TsFileWriter;
+use timbre_tsf::arrow::ArrowToTsFileConverter;
+use timbre_tsf::common::{ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsValue};
+use timbre_tsf::writer::TsFileWriter;
 
 fn generate_test_batch(num_rows: usize) -> RecordBatch {
     let devices = ["device_1", "device_2", "device_3", "device_4", "device_5"];

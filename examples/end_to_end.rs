@@ -1,22 +1,22 @@
-/// Ejemplo completo end-to-end de escritura y lectura de TsFile
+/// Ejemplo completo end-to-end de escritura y lectura de Tick
 ///
 /// Este ejemplo demuestra:
 /// - Escritura de múltiples dispositivos con diferentes mediciones
 /// - Uso de diferentes tipos de datos y encodings
 /// - Lectura de datos completos y filtrados por tiempo
 /// - Iteración y acceso a datos
-use tsfile_rs::common::{
+use timbre_tsf::common::{
     CompressionType, MeasurementSchema, TSDataType, TSEncoding, TsRecord, TsValue,
 };
-use tsfile_rs::reader::{DecodedValueData, TsFileReader};
-use tsfile_rs::writer::TsFileWriter;
+use timbre_tsf::reader::{DecodedValueData, TsFileReader};
+use timbre_tsf::writer::TsFileWriter;
 
-fn main() -> tsfile_rs::error::Result<()> {
-    let filename = "examples/demo.tsfile";
+fn main() -> timbre_tsf::error::Result<()> {
+    let filename = "examples/demo.tick";
     let base_time = 1704067200000i64; // 2024-01-01 00:00:00
 
     println!("═══════════════════════════════════════════════════");
-    println!("TsFile Rust - Ejemplo End-to-End");
+    println!("Tick Rust - Ejemplo End-to-End");
     println!("═══════════════════════════════════════════════════\n");
 
     // ============================================================

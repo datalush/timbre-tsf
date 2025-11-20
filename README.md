@@ -1,12 +1,12 @@
-# tsfile-rs
+# timbre-tsf
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Crates.io](https://img.shields.io/crates/v/tsfile-rs.svg)](https://crates.io/crates/tsfile-rs)
-[![Documentation](https://docs.rs/tsfile-rs/badge.svg)](https://docs.rs/tsfile-rs)
+[![Crates.io](https://img.shields.io/crates/v/timbre-tsf.svg)](https://crates.io/crates/timbre-tsf)
+[![Documentation](https://docs.rs/timbre-tsf/badge.svg)](https://docs.rs/timbre-tsf)
 
-High-performance Rust implementation of the **TsFile** columnar file format, specifically designed for efficient storage and processing of time series data in IoT environments and monitoring systems.
+High-performance Rust implementation of the **Timbre** columnar file format, specifically designed for efficient storage and processing of time series data in IoT environments and monitoring systems.
 
-> **Note**: This is an independent implementation of the TsFile format, developed and maintained separately from Apache IoTDB. It aims to provide a production-ready, optimized Rust library for working with TsFile data.
+> **Note**: This format is based on Apache IoTDB's TsFile format specification, providing a production-ready, optimized Rust library for working with time series data.
 
 ## Table of Contents
 
@@ -27,8 +27,8 @@ High-performance Rust implementation of the **TsFile** columnar file format, spe
 ## Features
 
 ### Storage & Retrieval
-- **TsFile Writing**: Multiple devices and measurements
-- **TsFile Reading**: Smart caching and efficient filtering
+- **Timbre Writing**: Multiple devices and measurements
+- **Timbre Reading**: Smart caching and efficient filtering
 - **Aligned Chunks**: Optimization for synchronized sensors (67% less timestamp space)
 - **Type-Safe API**: Full Rust type system for compile-time safety
 
@@ -63,10 +63,10 @@ High-performance Rust implementation of the **TsFile** columnar file format, spe
 
 ### Data Model
 
-TsFile organizes time series data in a columnar hierarchy:
+Timbre organizes time series data in a columnar hierarchy:
 
 ```
-TsFile
+Timbre File (.timbre)
 ├── ChunkGroup (per device)
 │   ├── Chunk (per measurement)
 │   │   └── Page (compressed and encoded data)
@@ -92,14 +92,14 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tsfile-rs = "2.1.0"
+timbre-tsf = "0.1.0"
 ```
 
 Or directly from repository:
 
 ```toml
 [dependencies]
-tsfile = { git = "https://github.com/datalush/tsfile-rs" }
+timbre-tsf = { git = "https://github.com/datalush/timbre-tsf" }
 ```
 
 ## Quick Start
@@ -107,11 +107,11 @@ tsfile = { git = "https://github.com/datalush/tsfile-rs" }
 ### Basic Writing
 
 ```rust
-use tsfile::common::*;
-use tsfile::writer::TsFileWriter;
+use timbre_tsf::common::*;
+use timbre_tsf::writer::TickWriter;
 
 // Create writer
-let mut writer = TsFileWriter::new("sensor_data.tsfile")?;
+let mut writer = TickWriter::new("sensor_data.timbre")?;
 
 // Register schemas
 let temp_schema = MeasurementSchema::new(
@@ -123,8 +123,8 @@ let temp_schema = MeasurementSchema::new(
 writer.register_timeseries("device_001", temp_schema)?;
 
 // Write data
-let record = TsRecord::new(1000, "device_001")
-    .with_value("temperature", TsValue::Float(25.5));
+let record = TickRecord::new(1000, "device_001")
+    .with_value("temperature", TickValue::Float(25.5));
 writer.write_record(record)?;
 
 writer.close()?;
@@ -133,10 +133,10 @@ writer.close()?;
 ### Basic Reading
 
 ```rust
-use tsfile::reader::TsFileReader;
+use timbre_tsf::reader::TickReader;
 
 // Open file
-let mut reader = TsFileReader::open("sensor_data.tsfile")?;
+let mut reader = TickReader::open("sensor_data.timbre")?;
 
 // Read all data
 let chunk = reader.read("device_001", "temperature")?;
@@ -150,7 +150,7 @@ for (timestamp, value) in chunk.iter() {
 ### Batch Writing with Tablet
 
 ```rust
-use tsfile::common::*;
+use timbre_tsf::common::*;
 
 // Create schemas
 let temp_schema = MeasurementSchema::with_defaults("temperature", TSDataType::Float);
@@ -169,8 +169,8 @@ for i in 0..1000 {
     tablet.add_row(
         1000 + i * 100,
         vec![
-            Some(TsValue::Float(25.0 + i as f32 * 0.1)),
-            Some(TsValue::Int32(60 + (i % 10) as i32)),
+            Some(TickValue::Float(25.0 + i as f32 * 0.1)),
+            Some(TickValue::Int32(60 + (i % 10) as i32)),
         ]
     )?;
 }
@@ -200,10 +200,10 @@ Comparison with real IoT sensor data (1M measurements):
 |--------------|------|-------|-------------|------------|
 | CSV uncompressed | 100 MB | 1x | 150 MB/s | 200 MB/s |
 | CSV + GZIP | 15 MB | 6.7x | 30 MB/s | 50 MB/s |
-| TsFile (Plain + LZ4) | 12 MB | 8.3x | 180 MB/s | 220 MB/s |
-| TsFile (TS2DIFF + LZ4) | 8 MB | 12.5x | 160 MB/s | 200 MB/s |
-| TsFile (Gorilla + LZ4) | 6 MB | 16.7x | 140 MB/s | 180 MB/s |
-| TsFile (Sprintz + LZ4) | 5 MB | 20x | 120 MB/s | 150 MB/s |
+| Timbre (Plain + LZ4) | 12 MB | 8.3x | 180 MB/s | 220 MB/s |
+| Timbre (TS2DIFF + LZ4) | 8 MB | 12.5x | 160 MB/s | 200 MB/s |
+| Timbre (Gorilla + LZ4) | 6 MB | 16.7x | 140 MB/s | 180 MB/s |
+| Timbre (Sprintz + LZ4) | 5 MB | 20x | 120 MB/s | 150 MB/s |
 
 ## Aligned Chunks
 
@@ -218,7 +218,7 @@ For devices with synchronized sensors, aligned chunks eliminate timestamp duplic
 ### Usage
 
 ```rust
-use tsfile::common::*;
+use timbre_tsf::common::*;
 
 // Create aligned tablet
 let mut tablet = Tablet::new_aligned(
@@ -232,9 +232,9 @@ let mut tablet = Tablet::new_aligned(
 tablet.add_row(
     1000, // shared timestamp
     vec![
-        Some(TsValue::Float(25.5)),      // temperature
-        Some(TsValue::Int32(60)),         // humidity
-        Some(TsValue::Double(1013.25)),   // pressure
+        Some(TickValue::Float(25.5)),      // temperature
+        Some(TickValue::Int32(60)),         // humidity
+        Some(TickValue::Double(1013.25)),   // pressure
     ]
 )?;
 ```
@@ -263,7 +263,7 @@ Efficient filtering system with 3 optimization levels:
 ### Time Filters
 
 ```rust
-use tsfile::query::TimeFilter;
+use timbre_tsf::query::TimeFilter;
 
 // Basic filters
 let filter = TimeFilter::Between(1000, 2000);
@@ -281,16 +281,16 @@ let filtered = reader.read_with_time_filter(
 ### Value Filters
 
 ```rust
-use tsfile::query::ValueFilter;
+use timbre_tsf::query::ValueFilter;
 
 // Comparison filters
-let filter = ValueFilter::GreaterThan(TsValue::Float(25.0));
-let filter = ValueFilter::Between(TsValue::Int32(0), TsValue::Int32(100));
+let filter = ValueFilter::GreaterThan(TickValue::Float(25.0));
+let filter = ValueFilter::Between(TickValue::Int32(0), TickValue::Int32(100));
 
 // Set filters
 let filter = ValueFilter::In(vec![
-    TsValue::String("sensor_A".into()),
-    TsValue::String("sensor_B".into()),
+    TickValue::String("sensor_A".into()),
+    TickValue::String("sensor_B".into()),
 ]);
 
 // NULL filters
@@ -300,14 +300,14 @@ let filter = ValueFilter::IsNotNull;
 ### Complex Predicates
 
 ```rust
-use tsfile::query::Predicate;
+use timbre_tsf::query::Predicate;
 
 // Composition with AND/OR/NOT
 let predicate = Predicate::And(vec![
     Predicate::Time(TimeFilter::GreaterThan(1000)),
-    Predicate::Value("temperature".into(), ValueFilter::GreaterThan(TsValue::Float(25.0))),
+    Predicate::Value("temperature".into(), ValueFilter::GreaterThan(TickValue::Float(25.0))),
     Predicate::Not(Box::new(
-        Predicate::Value("status".into(), ValueFilter::Equals(TsValue::String("offline".into())))
+        Predicate::Value("status".into(), ValueFilter::Equals(TickValue::String("offline".into())))
     )),
 ]);
 
@@ -341,7 +341,7 @@ Result: Only relevant chunks decoded
 Probabilistic filters for query optimization:
 
 ```rust
-use tsfile::index::BloomFilter;
+use timbre_tsf::index::BloomFilter;
 
 // Create bloom filter
 let mut bloom = BloomFilter::new(
@@ -417,9 +417,9 @@ let tag_count = table_schema.tag_count();
 ### Factories
 
 ```rust
-use tsfile::encoding::{create_encoder, create_decoder};
-use tsfile::compress::create_compressor;
-use tsfile::common::statistic::create_statistic;
+use timbre_tsf::encoding::{create_encoder, create_decoder};
+use timbre_tsf::compress::create_compressor;
+use timbre_tsf::common::statistic::create_statistic;
 
 // Create encoder by type
 let encoder = create_encoder(TSEncoding::Gorilla, TSDataType::Float);
@@ -437,7 +437,7 @@ let stats = create_statistic(TSDataType::Float);
 ### Statistics
 
 ```rust
-use tsfile::common::statistic::*;
+use timbre_tsf::common::statistic::*;
 
 // Create and update statistics
 let mut stats = FloatStatistic::new();
@@ -534,7 +534,7 @@ cargo tarpaulin --out Html
 
 ### File Format
 
-This implementation aims for **binary compatibility** with the TsFile format specification version 2.1.0 from Apache IoTDB.
+This implementation is based on the **Apache IoTDB TsFile format specification** version 2.1.0, providing compatibility with the TsFile ecosystem while optimizing for Rust performance.
 
 ### Rust Versions
 
@@ -585,10 +585,10 @@ This project is licensed under Apache License 2.0.
 
 ## Links
 
-- [API Documentation](https://docs.rs/tsfile-rs) - Comprehensive rustdoc with examples
-- [Crates.io](https://crates.io/crates/tsfile-rs)
-- [GitHub Repository](https://github.com/datalush/tsfile-rs)
-- [TsFile Format Specification](https://iotdb.apache.org/UserGuide/latest/API/Programming-TsFile-API.html)
+- [API Documentation](https://docs.rs/timbre-tsf) - Comprehensive rustdoc with examples
+- [Crates.io](https://crates.io/crates/timbre-tsf)
+- [GitHub Repository](https://github.com/datalush/timbre-tsf)
+- [Apache IoTDB TsFile Specification](https://iotdb.apache.org/UserGuide/latest/API/Programming-TsFile-API.html)
 
 ## Authors
 
@@ -602,4 +602,4 @@ For questions or support:
 
 ---
 
-**tsfile-rs** - High-performance time series storage for Rust
+**timbre-tsf** - High-performance time series storage for Rust

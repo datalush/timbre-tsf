@@ -8,7 +8,7 @@ use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 
 // TsFile imports
-use tsfile_rs::arrow::ArrowToTsFileConverter;
+use timbre_tsf::arrow::ArrowToTsFileConverter;
 
 /// Generate test data
 fn generate_test_data(num_rows: usize) -> RecordBatch {

@@ -30,8 +30,8 @@
 //! # Examples
 //!
 //! ```rust
-//! use tsfile_rs::encoding::{create_encoder, Encoder};
-//! use tsfile_rs::common::{TSEncoding, TSDataType};
+//! use timbre_tsf::encoding::{create_encoder, Encoder};
+//! use timbre_tsf::common::{TSEncoding, TSDataType};
 //!
 //! // Create a Gorilla encoder for float data (static dispatch)
 //! let mut encoder = create_encoder(TSEncoding::Gorilla, TSDataType::Float);
@@ -504,8 +504,8 @@ pub fn create_encoder_boxed(encoding: TSEncoding, data_type: TSDataType) -> Box<
 /// # Examples
 ///
 /// ```rust
-/// use tsfile_rs::encoding::create_encoder;
-/// use tsfile_rs::common::{TSEncoding, TSDataType};
+/// use timbre_tsf::encoding::create_encoder;
+/// use timbre_tsf::common::{TSEncoding, TSDataType};
 ///
 /// let mut encoder = create_encoder(TSEncoding::Gorilla, TSDataType::Float);
 /// let mut output = Vec::new();
@@ -568,8 +568,8 @@ pub fn create_decoder_boxed(encoding: TSEncoding, data_type: TSDataType) -> Box<
 /// # Examples
 ///
 /// ```rust
-/// use tsfile_rs::encoding::create_decoder;
-/// use tsfile_rs::common::{TSEncoding, TSDataType};
+/// use timbre_tsf::encoding::create_decoder;
+/// use timbre_tsf::common::{TSEncoding, TSDataType};
 ///
 /// let mut decoder = create_decoder(TSEncoding::Gorilla, TSDataType::Float);
 /// let input: Vec<u8> = vec![/* encoded data */];

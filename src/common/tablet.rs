@@ -37,9 +37,9 @@
 //! # Examples
 //!
 //! ```rust
-//! use tsfile_rs::common::tablet::Tablet;
-//! use tsfile_rs::common::schema::MeasurementSchema;
-//! use tsfile_rs::common::types::{TSDataType, TsValue, ColumnCategory};
+//! use timbre_tsf::common::tablet::Tablet;
+//! use timbre_tsf::common::schema::MeasurementSchema;
+//! use timbre_tsf::common::types::{TSDataType, TsValue, ColumnCategory};
 //!
 //! // Create a tablet for a temperature sensor device
 //! let schemas = vec![
@@ -283,9 +283,9 @@ impl Tablet {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile_rs::common::tablet::Tablet;
-    /// use tsfile_rs::common::schema::MeasurementSchema;
-    /// use tsfile_rs::common::types::{TSDataType, ColumnCategory};
+    /// use timbre_tsf::common::tablet::Tablet;
+    /// use timbre_tsf::common::schema::MeasurementSchema;
+    /// use timbre_tsf::common::types::{TSDataType, ColumnCategory};
     ///
     /// let schemas = vec![
     ///     MeasurementSchema::with_defaults("temp", TSDataType::Float),
@@ -322,9 +322,9 @@ impl Tablet {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile_rs::common::tablet::Tablet;
-    /// use tsfile_rs::common::schema::MeasurementSchema;
-    /// use tsfile_rs::common::types::{TSDataType, ColumnCategory};
+    /// use timbre_tsf::common::tablet::Tablet;
+    /// use timbre_tsf::common::schema::MeasurementSchema;
+    /// use timbre_tsf::common::types::{TSDataType, ColumnCategory};
     ///
     /// let schemas = vec![
     ///     MeasurementSchema::with_defaults("temp", TSDataType::Float),
@@ -415,9 +415,9 @@ impl Tablet {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile_rs::common::tablet::Tablet;
-    /// use tsfile_rs::common::schema::MeasurementSchema;
-    /// use tsfile_rs::common::types::{TSDataType, TsValue, ColumnCategory};
+    /// use timbre_tsf::common::tablet::Tablet;
+    /// use timbre_tsf::common::schema::MeasurementSchema;
+    /// use timbre_tsf::common::types::{TSDataType, TsValue, ColumnCategory};
     ///
     /// let schemas = vec![MeasurementSchema::with_defaults("temp", TSDataType::Float)];
     /// let mut tablet = Tablet::new("device1", schemas, vec![ColumnCategory::Field], 1000);
@@ -567,9 +567,9 @@ impl Tablet {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile_rs::common::tablet::Tablet;
-    /// use tsfile_rs::common::schema::MeasurementSchema;
-    /// use tsfile_rs::common::types::{TSDataType, TsValue, ColumnCategory};
+    /// use timbre_tsf::common::tablet::Tablet;
+    /// use timbre_tsf::common::schema::MeasurementSchema;
+    /// use timbre_tsf::common::types::{TSDataType, TsValue, ColumnCategory};
     ///
     /// let schemas = vec![MeasurementSchema::with_defaults("temp", TSDataType::Float)];
     /// let mut tablet = Tablet::new("device1", schemas, vec![ColumnCategory::Field], 1000);
@@ -811,8 +811,8 @@ impl DataPoint {
 /// # Examples
 ///
 /// ```rust
-/// use tsfile_rs::common::tablet::TsRecord;
-/// use tsfile_rs::common::types::TsValue;
+/// use timbre_tsf::common::tablet::TsRecord;
+/// use timbre_tsf::common::types::TsValue;
 ///
 /// let record = TsRecord::new(1000, "device1")
 ///     .with_value("temperature", TsValue::Float(22.5))

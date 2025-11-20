@@ -17,7 +17,7 @@
 //! # Example
 //!
 //! ```rust
-//! use tsfile_rs::common::*;
+//! use timbre_tsf::common::*;
 //!
 //! // Define a measurement schema
 //! let schema = MeasurementSchema::new(

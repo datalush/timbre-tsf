@@ -1,12 +1,12 @@
 [package]
-name = "tsfile-rs"
+name = "timbre-tsf"
 version = "0.1.0"
 edition = "2024"
 authors = ["Juan José de las Heras Herrera"]
-description = "High-performance Rust implementation of the TsFile columnar storage format for time series data"
+description = "High-performance Rust implementation of the Timbre columnar storage format for time series data"
 license = "Apache-2.0"
-repository = "https://github.com/datalush/tsfile-rs"
-keywords = ["tsfile", "timeseries", "iot", "columnar", "storage"]
+repository = "https://github.com/datalush/timbre-tsf"
+keywords = ["timbre", "timeseries", "iot", "columnar", "storage"]
 categories = ["database", "compression", "encoding"]
 readme = "README.md"
 
@@ -60,5 +60,5 @@ codegen-units = 1
 inherits = "release"
 
 [[bench]]
-name = "parquet_vs_tsfile"
+name = "parquet_vs_tick"
 harness = false

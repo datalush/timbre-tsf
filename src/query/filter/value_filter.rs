@@ -43,8 +43,8 @@ impl ValueFilter {
     ///
     /// # Example
     /// ```
-    /// use tsfile_rs::common::TsValue;
-    /// use tsfile_rs::query::ValueFilter;
+    /// use timbre_tsf::common::TsValue;
+    /// use timbre_tsf::query::ValueFilter;
     ///
     /// let filter = ValueFilter::GreaterThan(TsValue::Float(25.0));
     /// assert!(filter.matches(Some(&TsValue::Float(30.0))));

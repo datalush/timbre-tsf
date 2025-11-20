@@ -11,9 +11,9 @@
 ///
 /// Expected output: Time breakdown showing % of total for each phase
 
-use tsfile_rs::arrow::TsFileRecordBatchReader;
-use tsfile_rs::common::*;
-use tsfile_rs::writer::TsFileWriter;
+use timbre_tsf::arrow::TsFileRecordBatchReader;
+use timbre_tsf::common::*;
+use timbre_tsf::writer::TsFileWriter;
 use std::time::{Duration, Instant};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -160,7 +160,7 @@ impl ReadProfile {
 fn main() {
     println!("Creating test file with 1M rows (Gorilla encoding + LZ4 compression)...\n");
 
-    let path = "/tmp/profile_read_detailed.tsfile";
+    let path = "/tmp/profile_read_detailed.tick";
     let num_rows = 1_000_000;
     let num_devices = 5;
     let num_measurements = 3;

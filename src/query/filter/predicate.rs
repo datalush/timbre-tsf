@@ -36,8 +36,8 @@ impl Predicate {
     ///
     /// # Example
     /// ```
-    /// use tsfile_rs::common::TsValue;
-    /// use tsfile_rs::query::{Predicate, TimeFilter, ValueFilter};
+    /// use timbre_tsf::common::TsValue;
+    /// use timbre_tsf::query::{Predicate, TimeFilter, ValueFilter};
     /// use std::collections::HashMap;
     ///
     /// let predicate = Predicate::And(vec![

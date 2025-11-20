@@ -1,9 +1,9 @@
 //! Integration tests for bloom filters and query filters
 
 use std::collections::HashMap;
-use tsfile_rs::common::TsValue;
-use tsfile_rs::index::BloomFilter;
-use tsfile_rs::query::{Predicate, TimeFilter, ValueFilter};
+use timbre_tsf::common::TsValue;
+use timbre_tsf::index::BloomFilter;
+use timbre_tsf::query::{Predicate, TimeFilter, ValueFilter};
 
 #[test]
 fn test_bloom_filter_integration() {

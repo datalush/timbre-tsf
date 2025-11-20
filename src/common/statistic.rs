@@ -24,8 +24,8 @@
 //! # Examples
 //!
 //! ```rust
-//! use tsfile_rs::common::statistic::{create_statistic, Statistic};
-//! use tsfile_rs::common::types::TSDataType;
+//! use timbre_tsf::common::statistic::{create_statistic, Statistic};
+//! use timbre_tsf::common::types::TSDataType;
 //!
 //! // Create a statistic tracker for Int32 data
 //! let mut stat = create_statistic(TSDataType::Int32);
@@ -762,8 +762,8 @@ impl Statistic for StringStatistic {
 /// # Examples
 ///
 /// ```rust
-/// use tsfile_rs::common::statistic::create_statistic;
-/// use tsfile_rs::common::types::TSDataType;
+/// use timbre_tsf::common::statistic::create_statistic;
+/// use timbre_tsf::common::types::TSDataType;
 ///
 /// let stat = create_statistic(TSDataType::Float);
 /// // Returns a FloatStatistic wrapped in Box<dyn Statistic>

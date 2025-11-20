@@ -9,8 +9,8 @@ use parquet::basic::{Compression, Encoding};
 use std::sync::Arc;
 use std::time::Instant;
 use tempfile::NamedTempFile;
-use tsfile_rs::arrow::{ArrowConversionConfig, ArrowToTsFileConverter};
-use tsfile_rs::common::{CompressionType, TSEncoding};
+use timbre_tsf::arrow::{ArrowConversionConfig, ArrowToTsFileConverter};
+use timbre_tsf::common::{CompressionType, TSEncoding};
 
 fn generate_timeseries_data(num_rows: usize) -> RecordBatch {
     let mut timestamps = Vec::with_capacity(num_rows);

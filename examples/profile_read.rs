@@ -1,6 +1,6 @@
-use tsfile_rs::arrow::TsFileRecordBatchReader;
-use tsfile_rs::common::*;
-use tsfile_rs::writer::TsFileWriter;
+use timbre_tsf::arrow::TsFileRecordBatchReader;
+use timbre_tsf::common::*;
+use timbre_tsf::writer::TsFileWriter;
 
 fn main() {
     let path = "/tmp/profile_tsfile.ts";

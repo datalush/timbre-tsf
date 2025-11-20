@@ -34,10 +34,10 @@
 //! # Example: Arrow → TsFile
 //!
 //! ```no_run
-//! use tsfile_rs::arrow::ArrowToTsFileConverter;
+//! use timbre_tsf::arrow::ArrowToTsFileConverter;
 //! use arrow::record_batch::RecordBatch;
 //!
-//! let mut converter = ArrowToTsFileConverter::new("output.tsfile")
+//! let mut converter = ArrowToTsFileConverter::new("output.timbreile")
 //!     .with_device_column("device_id")
 //!     .with_timestamp_column("timestamp")
 //!     .build()?;
@@ -50,10 +50,10 @@
 //! # Example: TsFile → Arrow
 //!
 //! ```no_run
-//! use tsfile_rs::arrow::TsFileRecordBatchReader;
+//! use timbre_tsf::arrow::TsFileRecordBatchReader;
 //! use arrow::record_batch::RecordBatchReader;
 //!
-//! let reader = TsFileRecordBatchReader::try_new("input.tsfile")?;
+//! let reader = TsFileRecordBatchReader::try_new("input.timbreile")?;
 //!
 //! for batch in reader {
 //!     let batch = batch?;

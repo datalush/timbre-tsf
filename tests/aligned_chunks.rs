@@ -1,10 +1,10 @@
 use std::io::Cursor;
-use tsfile_rs::common::MeasurementSchema;
-use tsfile_rs::common::tablet::Tablet;
-use tsfile_rs::common::types::{ColumnCategory, CompressionType, TSDataType, TSEncoding, TsValue};
-use tsfile_rs::file::ChunkHeader;
-use tsfile_rs::reader::AlignedChunkReader;
-use tsfile_rs::writer::AlignedChunkWriter;
+use timbre_tsf::common::MeasurementSchema;
+use timbre_tsf::common::tablet::Tablet;
+use timbre_tsf::common::types::{ColumnCategory, CompressionType, TSDataType, TSEncoding, TsValue};
+use timbre_tsf::file::ChunkHeader;
+use timbre_tsf::reader::AlignedChunkReader;
+use timbre_tsf::writer::AlignedChunkWriter;
 
 #[test]
 fn test_aligned_end_to_end() {
@@ -127,17 +127,17 @@ fn test_aligned_end_to_end() {
     assert_eq!(ts, 1000);
 
     match row.get("temperature").unwrap().as_ref().unwrap() {
-        tsfile_rs::reader::DecodedValue::Float(v) => assert_eq!(*v, 25.0),
+        timbre_tsf::reader::DecodedValue::Float(v) => assert_eq!(*v, 25.0),
         _ => panic!("Expected float"),
     }
 
     match row.get("humidity").unwrap().as_ref().unwrap() {
-        tsfile_rs::reader::DecodedValue::Int32(v) => assert_eq!(*v, 60),
+        timbre_tsf::reader::DecodedValue::Int32(v) => assert_eq!(*v, 60),
         _ => panic!("Expected int32"),
     }
 
     match row.get("pressure").unwrap().as_ref().unwrap() {
-        tsfile_rs::reader::DecodedValue::Double(v) => assert_eq!(*v, 1013.25),
+        timbre_tsf::reader::DecodedValue::Double(v) => assert_eq!(*v, 1013.25),
         _ => panic!("Expected double"),
     }
 }
@@ -276,9 +276,9 @@ trait ValueMatrixHelper {
     fn get_value(&self, index: usize) -> Option<TsValue>;
 }
 
-impl ValueMatrixHelper for tsfile_rs::common::tablet::ValueMatrix {
+impl ValueMatrixHelper for timbre_tsf::common::tablet::ValueMatrix {
     fn get_value(&self, index: usize) -> Option<TsValue> {
-        use tsfile_rs::common::tablet::ValueMatrix;
+        use timbre_tsf::common::tablet::ValueMatrix;
         match self {
             ValueMatrix::Boolean(v) => v.get(index).map(|&val| TsValue::Boolean(val)),
             ValueMatrix::Int32(v) => v.get(index).map(|&val| TsValue::Int32(val)),

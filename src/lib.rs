@@ -30,8 +30,8 @@
 //! ## Writing Data
 //!
 //! ```rust,no_run
-//! use tsfile_rs::common::*;
-//! use tsfile_rs::writer::TsFileWriter;
+//! use timbre_tsf::common::*;
+//! use timbre_tsf::writer::TsFileWriter;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Define schema for temperature measurements
@@ -43,7 +43,7 @@
 //! );
 //!
 //! // Create writer and register schema
-//! let mut writer = TsFileWriter::new("sensor.tsfile")?;
+//! let mut writer = TsFileWriter::new("sensor.timbreile")?;
 //! writer.register_timeseries("device_001", schema)?;
 //!
 //! // Write time series data
@@ -60,7 +60,7 @@
 //! For high-throughput scenarios, use the Tablet API to write data in batches:
 //!
 //! ```rust
-//! use tsfile_rs::common::*;
+//! use timbre_tsf::common::*;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let schema = MeasurementSchema::with_defaults("temperature", TSDataType::Float);
@@ -83,10 +83,10 @@
 //! ## Reading Data
 //!
 //! ```rust,no_run
-//! use tsfile_rs::reader::TsFileReader;
+//! use timbre_tsf::reader::TsFileReader;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let mut reader = TsFileReader::open("sensor.tsfile")?;
+//! let mut reader = TsFileReader::open("sensor.timbreile")?;
 //! let chunk = reader.read("device_001", "temperature")?;
 //!
 //! for (timestamp, value) in chunk.iter() {

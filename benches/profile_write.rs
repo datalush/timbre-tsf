@@ -1,5 +1,5 @@
-use tsfile_rs::common::*;
-use tsfile_rs::writer::TsFileWriter;
+use timbre_tsf::common::*;
+use timbre_tsf::writer::TsFileWriter;
 use std::hint::black_box;
 
 fn main() {

@@ -13,9 +13,9 @@
 ///
 /// This gives REAL DATA about where time is spent!
 
-use tsfile_rs::common::*;
-use tsfile_rs::writer::TsFileWriter;
-use tsfile_rs::reader::TsFileIOReader;
+use timbre_tsf::common::*;
+use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::reader::TsFileIOReader;
 use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
 
@@ -306,7 +306,7 @@ fn main() {
     println!("INSTRUMENTED TsFile READ PROFILING");
     println!("========================================\n");
 
-    let path = "/tmp/profile_read_instrumented.tsfile";
+    let path = "/tmp/profile_read_instrumented.tick";
     let num_rows = 1_000_000;
     let num_devices = 5;
     let num_measurements = 3;

@@ -10,11 +10,11 @@
 /// Run with: cargo bench --bench read_pipeline_breakdown
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use tsfile_rs::common::*;
-use tsfile_rs::writer::TsFileWriter;
-use tsfile_rs::reader::{TsFileIOReader, PageReader, DecodedValues};
-use tsfile_rs::compress::{Compressor, Lz4Compressor};
-use tsfile_rs::encoding::{Decoder, create_decoder};
+use timbre_tsf::common::*;
+use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::reader::{TsFileIOReader, PageReader, DecodedValues};
+use timbre_tsf::compress::{Compressor, Lz4Compressor};
+use timbre_tsf::encoding::{Decoder, create_decoder};
 use tempfile::NamedTempFile;
 use std::time::Duration;
 
@@ -124,7 +124,7 @@ fn bench_gorilla_decode(c: &mut Criterion) {
 
     for size in sizes {
         // Encode data first
-        use tsfile_rs::encoding::Encoder;
+        use timbre_tsf::encoding::Encoder;
         let mut encoder = tsfile::encoding::GorillaEncoder::new(TSDataType::Float);
         let mut out = Vec::new();
 
@@ -166,7 +166,7 @@ fn bench_ts2diff_decode(c: &mut Criterion) {
 
     for size in sizes {
         // Encode timestamps first
-        use tsfile_rs::encoding::Encoder;
+        use timbre_tsf::encoding::Encoder;
         let mut encoder = tsfile::encoding::Ts2DiffEncoder::new(TSDataType::Int64);
         let mut out = Vec::new();
 

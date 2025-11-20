@@ -35,9 +35,9 @@ use std::sync::Arc;
 /// # Example
 ///
 /// ```no_run
-/// use tsfile_rs::arrow::TsFileRecordBatchReader;
+/// use timbre_tsf::arrow::TsFileRecordBatchReader;
 ///
-/// let reader = TsFileRecordBatchReader::try_new("input.tsfile")?;
+/// let reader = TsFileRecordBatchReader::try_new("input.timbreile")?;
 ///
 /// for batch_result in reader {
 ///     let batch = batch_result?;

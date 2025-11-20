@@ -3,9 +3,9 @@
 /// This manually times each component operation to get EXACT measurements
 /// Run with: cargo run --release --example measure_read_phases
 
-use tsfile_rs::common::*;
-use tsfile_rs::compress::Lz4Compressor;
-use tsfile_rs::encoding::{Encoder, Decoder, GorillaEncoder, GorillaDecoder, create_decoder};
+use timbre_tsf::common::*;
+use timbre_tsf::compress::Lz4Compressor;
+use timbre_tsf::encoding::{Encoder, Decoder, GorillaEncoder, GorillaDecoder, create_decoder};
 use std::time::{Duration, Instant};
 
 fn main() {
@@ -142,7 +142,7 @@ fn measure_gorilla_encode(num_values: usize) -> (Vec<u8>, Duration) {
 }
 
 fn measure_lz4_compress(data: &[u8]) -> (Vec<u8>, Duration) {
-    use tsfile_rs::compress::Compressor;
+    use timbre_tsf::compress::Compressor;
     let mut compressor = Lz4Compressor;
 
     let start = Instant::now();
@@ -153,7 +153,7 @@ fn measure_lz4_compress(data: &[u8]) -> (Vec<u8>, Duration) {
 }
 
 fn measure_lz4_decompress(data: &[u8], uncompressed_size: usize) -> (Vec<u8>, Duration) {
-    use tsfile_rs::compress::Compressor;
+    use timbre_tsf::compress::Compressor;
     let mut compressor = Lz4Compressor;
 
     let start = Instant::now();
@@ -180,7 +180,7 @@ fn measure_gorilla_decode(data: &[u8], num_values: usize) -> (Vec<f32>, Duration
 }
 
 fn measure_ts2diff_encode(num_values: usize) -> (Vec<u8>, Duration) {
-    use tsfile_rs::encoding::Ts2DiffEncoder;
+    use timbre_tsf::encoding::Ts2DiffEncoder;
 
     let mut encoder = Ts2DiffEncoder::new(TSDataType::Int64);
     let mut out = Vec::new();

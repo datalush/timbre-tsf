@@ -33,7 +33,7 @@ impl BloomFilter {
     ///
     /// # Example
     /// ```
-    /// use tsfile_rs::index::BloomFilter;
+    /// use timbre_tsf::index::BloomFilter;
     ///
     /// let mut bloom = BloomFilter::new(1000, 0.01);
     /// bloom.insert(&"device001");

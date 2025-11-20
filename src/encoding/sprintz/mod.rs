@@ -45,9 +45,9 @@
 //! # Example
 //!
 //! ```
-//! use tsfile_rs::encoding::{SprintzEncoder, SprintzDecoder, Encoder, Decoder};
+//! use timbre_tsf::encoding::{SprintzEncoder, SprintzDecoder, Encoder, Decoder};
 //! 
-//! use tsfile_rs::common::TSDataType;
+//! use timbre_tsf::common::TSDataType;
 //!
 //! let mut encoder = SprintzEncoder::new(TSDataType::Int32);
 //! let mut buffer = Vec::new();

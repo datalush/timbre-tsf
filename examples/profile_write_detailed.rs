@@ -1,7 +1,7 @@
-use tsfile_rs::common::*;
-use tsfile_rs::writer::TsFileWriter;
-use tsfile_rs::encoding::create_encoder;
-use tsfile_rs::compress::create_compressor;
+use timbre_tsf::common::*;
+use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::encoding::create_encoder;
+use timbre_tsf::compress::create_compressor;
 use std::time::Instant;
 
 fn main() {

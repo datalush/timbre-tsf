@@ -42,8 +42,8 @@
 //! # Example
 //!
 //! ```
-//! use tsfile_rs::encoding::{GorillaEncoder, GorillaDecoder, Encoder, Decoder};
-//! use tsfile_rs::common::TSDataType;
+//! use timbre_tsf::encoding::{GorillaEncoder, GorillaDecoder, Encoder, Decoder};
+//! use timbre_tsf::common::TSDataType;
 //!
 //! let mut encoder = GorillaEncoder::with_capacity(TSDataType::Float, 1000);
 //! let mut buffer = Vec::new();

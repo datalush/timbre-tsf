@@ -13,7 +13,7 @@
 //! # Examples
 //!
 //! ```rust
-//! use tsfile_rs::common::*;
+//! use timbre_tsf::common::*;
 //!
 //! // Simple measurement schema with recommended settings
 //! let temp_schema = MeasurementSchema::with_defaults("temperature", TSDataType::Float);
@@ -61,7 +61,7 @@ use std::collections::HashMap;
 /// # Examples
 ///
 /// ```rust
-/// use tsfile_rs::common::*;
+/// use timbre_tsf::common::*;
 ///
 /// // Quick schema with recommended settings
 /// let schema = MeasurementSchema::with_defaults("temperature", TSDataType::Float);
@@ -103,7 +103,7 @@ impl MeasurementSchema {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile_rs::common::*;
+    /// use timbre_tsf::common::*;
     ///
     /// let schema = MeasurementSchema::new(
     ///     "temperature",
@@ -140,7 +140,7 @@ impl MeasurementSchema {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile_rs::common::*;
+    /// use timbre_tsf::common::*;
     ///
     /// let schema = MeasurementSchema::with_defaults("temperature", TSDataType::Float);
     /// assert_eq!(schema.encoding, TSEncoding::Gorilla);
@@ -163,7 +163,7 @@ impl MeasurementSchema {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile_rs::common::*;
+    /// use timbre_tsf::common::*;
     ///
     /// let schema = MeasurementSchema::with_defaults("temperature", TSDataType::Float)
     ///     .with_property("unit", "celsius")
@@ -207,7 +207,7 @@ impl MeasurementSchema {
 /// # Examples
 ///
 /// ```rust
-/// use tsfile_rs::common::*;
+/// use timbre_tsf::common::*;
 ///
 /// let schema = TableSchema::new(
 ///     "sensor_data",
@@ -256,7 +256,7 @@ impl TableSchema {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile_rs::common::*;
+    /// use timbre_tsf::common::*;
     ///
     /// let schema = TableSchema::new(
     ///     "sensor_data",
@@ -336,7 +336,7 @@ impl TableSchema {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile_rs::common::*;
+    /// use timbre_tsf::common::*;
     ///
     /// let schema = TableSchema::new(
     ///     "data",
@@ -406,7 +406,7 @@ impl TableSchema {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile_rs::common::*;
+    /// use timbre_tsf::common::*;
     ///
     /// let valid = TableSchema::new(
     ///     "data",
