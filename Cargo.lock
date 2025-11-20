@@ -1441,8 +1441,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "tsfile"
-version = "2.1.0"
+name = "tsfile-rs"
+version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow-array",

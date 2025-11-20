@@ -40,7 +40,7 @@ impl TimeFilter {
     ///
     /// # Example
     /// ```
-    /// use tsfile::query::TimeFilter;
+    /// use tsfile_rs::query::TimeFilter;
     ///
     /// let filter = TimeFilter::Between(1000, 2000);
     /// assert!(filter.matches(1500));
@@ -68,7 +68,7 @@ impl TimeFilter {
     ///
     /// # Example
     /// ```
-    /// use tsfile::query::TimeFilter;
+    /// use tsfile_rs::query::TimeFilter;
     ///
     /// let filter = TimeFilter::GreaterThan(5000);
     ///

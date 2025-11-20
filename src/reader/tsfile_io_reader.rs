@@ -1,6 +1,5 @@
 use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::error::{Result, TsFileError};
-use crate::file::ChunkMeta;
 use crate::reader::ChunkReader;
 use crate::writer::tsfile_io_writer::{MAGIC_STRING, VERSION};
 use byteorder::{LittleEndian, ReadBytesExt};

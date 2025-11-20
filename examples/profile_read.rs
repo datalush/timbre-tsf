@@ -1,6 +1,6 @@
-use tsfile::arrow::TsFileRecordBatchReader;
-use tsfile::common::*;
-use tsfile::writer::TsFileWriter;
+use tsfile_rs::arrow::TsFileRecordBatchReader;
+use tsfile_rs::common::*;
+use tsfile_rs::writer::TsFileWriter;
 
 fn main() {
     let path = "/tmp/profile_tsfile.ts";

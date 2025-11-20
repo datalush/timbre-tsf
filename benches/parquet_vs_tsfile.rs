@@ -14,9 +14,9 @@ use parquet::arrow::ArrowWriter;
 use parquet::file::properties::WriterProperties;
 
 // TsFile imports
-use tsfile::arrow::{ArrowToTsFileConverter, TsFileRecordBatchReader};
-use tsfile::common::{ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsValue};
-use tsfile::writer::TsFileWriter;
+use tsfile_rs::arrow::{ArrowToTsFileConverter, TsFileRecordBatchReader};
+use tsfile_rs::common::{ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsValue};
+use tsfile_rs::writer::TsFileWriter;
 
 /// Genera datos de prueba con 1M de filas
 fn generate_test_data(num_rows: usize) -> RecordBatch {

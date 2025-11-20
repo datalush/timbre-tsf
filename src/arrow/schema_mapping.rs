@@ -22,6 +22,7 @@
 use crate::common::{MeasurementSchema, TSDataType, TSEncoding};
 use crate::error::{Result, TsFileError};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+#[cfg(test)]
 use std::sync::Arc;
 
 /// Utilities for mapping between Arrow and TsFile schemas

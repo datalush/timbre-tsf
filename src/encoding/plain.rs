@@ -23,8 +23,8 @@
 //! # Example
 //!
 //! ```
-//! use tsfile_rs::encoding::plain::{PlainEncoder, PlainDecoder};
-//! use tsfile_rs::encoding::{Encoder, Decoder};
+//! use tsfile_rs::encoding::{PlainEncoder, PlainDecoder, Encoder, Decoder};
+//! 
 //! use tsfile_rs::common::TSDataType;
 //!
 //! let mut encoder = PlainEncoder::new(TSDataType::Int32);
@@ -48,14 +48,12 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 /// This encoder performs no compression and is stateless, making it suitable
 /// for scenarios where data is already compressed at a higher level or where
 /// random access patterns make compression ineffective.
-pub struct PlainEncoder {
-    data_type: TSDataType,
-}
+pub struct PlainEncoder;
 
 impl PlainEncoder {
     /// Creates a new plain encoder for the specified data type
-    pub fn new(data_type: TSDataType) -> Self {
-        Self { data_type }
+    pub fn new(_data_type: TSDataType) -> Self {
+        Self
     }
 }
 
@@ -105,14 +103,12 @@ impl Encoder for PlainEncoder {
 ///
 /// The decoder maintains a position pointer and performs direct reads from
 /// the input buffer with bounds checking.
-pub struct PlainDecoder {
-    data_type: TSDataType,
-}
+pub struct PlainDecoder;
 
 impl PlainDecoder {
     /// Creates a new plain decoder for the specified data type
-    pub fn new(data_type: TSDataType) -> Self {
-        Self { data_type }
+    pub fn new(_data_type: TSDataType) -> Self {
+        Self
     }
 }
 

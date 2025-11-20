@@ -1,18 +1,15 @@
 use crate::common::statistic::{Statistic, create_statistic};
 use crate::common::{CompressionType, TSDataType, TSEncoding};
-use crate::compress::{Compressor, create_compressor};
-use crate::encoding::{Encoder, create_encoder};
+use crate::compress::create_compressor;
+use crate::encoding::{EncoderImpl, create_encoder};
 use crate::error::Result;
 use crate::file::{PageData, PageHeader};
-
-use crate::encoding::EncoderImpl;
 
 /// Writer para páginas individuales
 /// Responsable de encoding y compresión de datos
 pub struct PageWriter {
     data_type: TSDataType,
     encoding: TSEncoding,
-    compression_type: CompressionType,
 
     // OPT-2: EncoderImpl en lugar de Box<dyn Encoder> para static dispatch
     time_encoder: EncoderImpl,
@@ -47,7 +44,6 @@ impl PageWriter {
         Self {
             data_type,
             encoding,
-            compression_type,
             time_encoder,
             value_encoder,
             compressor,

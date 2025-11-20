@@ -1,6 +1,6 @@
 [package]
-name = "tsfile"
-version = "2.1.0"
+name = "tsfile-rs"
+version = "0.1.0"
 edition = "2024"
 authors = ["Juan José de las Heras Herrera"]
 description = "High-performance Rust implementation of the TsFile columnar storage format for time series data"

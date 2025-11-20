@@ -1,7 +1,7 @@
-use tsfile::common::*;
-use tsfile::writer::TsFileWriter;
-use tsfile::encoding::{Encoder, create_encoder};
-use tsfile::compress::create_compressor;
+use tsfile_rs::common::*;
+use tsfile_rs::writer::TsFileWriter;
+use tsfile_rs::encoding::create_encoder;
+use tsfile_rs::compress::create_compressor;
 use std::time::Instant;
 
 fn main() {

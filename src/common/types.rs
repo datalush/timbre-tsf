@@ -18,7 +18,7 @@
 //! # Examples
 //!
 //! ```rust
-//! use tsfile::common::*;
+//! use tsfile_rs::common::*;
 //!
 //! // Get recommended encoding for a data type
 //! let encoding = TSEncoding::recommended_for(TSDataType::Float);
@@ -94,7 +94,7 @@ impl TSDataType {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile::common::TSDataType;
+    /// use tsfile_rs::common::TSDataType;
     ///
     /// assert_eq!(TSDataType::from_u8(1), TSDataType::Int32);
     /// assert_eq!(TSDataType::from_u8(3), TSDataType::Float);
@@ -124,7 +124,7 @@ impl TSDataType {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile::common::TSDataType;
+    /// use tsfile_rs::common::TSDataType;
     ///
     /// assert_eq!(TSDataType::Int32.to_u8(), 1);
     /// assert_eq!(TSDataType::Double.to_u8(), 4);
@@ -140,7 +140,7 @@ impl TSDataType {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile::common::TSDataType;
+    /// use tsfile_rs::common::TSDataType;
     ///
     /// assert_eq!(TSDataType::Boolean.size(), Some(1));
     /// assert_eq!(TSDataType::Int32.size(), Some(4));
@@ -206,7 +206,7 @@ impl fmt::Display for TSDataType {
 /// # Examples
 ///
 /// ```rust
-/// use tsfile::common::{TSDataType, TSEncoding};
+/// use tsfile_rs::common::{TSDataType, TSEncoding};
 ///
 /// // Get recommended encoding for a data type
 /// let encoding = TSEncoding::recommended_for(TSDataType::Float);
@@ -286,7 +286,7 @@ impl TSEncoding {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile::common::{TSDataType, TSEncoding};
+    /// use tsfile_rs::common::{TSDataType, TSEncoding};
     ///
     /// assert_eq!(
     ///     TSEncoding::recommended_for(TSDataType::Float),
@@ -353,7 +353,7 @@ impl fmt::Display for TSEncoding {
 /// # Examples
 ///
 /// ```rust
-/// use tsfile::common::{TSDataType, CompressionType};
+/// use tsfile_rs::common::{TSDataType, CompressionType};
 ///
 /// // Get recommended compression (always LZ4)
 /// let compression = CompressionType::recommended_for(TSDataType::Float);
@@ -415,7 +415,7 @@ impl CompressionType {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile::common::{TSDataType, CompressionType};
+    /// use tsfile_rs::common::{TSDataType, CompressionType};
     ///
     /// assert_eq!(
     ///     CompressionType::recommended_for(TSDataType::Float),
@@ -480,7 +480,7 @@ pub enum ColumnCategory {
 /// # Examples
 ///
 /// ```rust
-/// use tsfile::common::{TsValue, TSDataType};
+/// use tsfile_rs::common::{TsValue, TSDataType};
 ///
 /// let value = TsValue::Float(25.5);
 /// assert_eq!(value.data_type(), TSDataType::Float);
@@ -516,7 +516,7 @@ impl TsValue {
     /// # Examples
     ///
     /// ```rust
-    /// use tsfile::common::{TsValue, TSDataType};
+    /// use tsfile_rs::common::{TsValue, TSDataType};
     ///
     /// assert_eq!(TsValue::Int32(42).data_type(), TSDataType::Int32);
     /// assert_eq!(TsValue::Float(3.14).data_type(), TSDataType::Float);

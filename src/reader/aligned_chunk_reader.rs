@@ -1,5 +1,7 @@
 use crate::common::tablet::BitMap;
-use crate::common::{CompressionType, TSDataType, TSEncoding};
+use crate::common::TSDataType;
+#[cfg(test)]
+use crate::common::{CompressionType, TSEncoding};
 use crate::compress::create_compressor;
 use crate::encoding::{DecoderImpl, create_decoder};
 use crate::error::{Result, TsFileError};

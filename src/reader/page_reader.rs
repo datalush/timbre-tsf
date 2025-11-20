@@ -11,7 +11,6 @@ use std::io::Read;
 pub struct PageReader {
     data_type: TSDataType,
     encoding: TSEncoding,
-    compression_type: CompressionType,
     compressor: CompressorImpl,
 }
 
@@ -26,7 +25,6 @@ impl PageReader {
         Self {
             data_type,
             encoding,
-            compression_type,
             compressor,
         }
     }

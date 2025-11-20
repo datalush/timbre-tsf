@@ -1,7 +1,7 @@
 use crate::common::statistic::{Statistic, create_statistic};
 use crate::common::tablet::BitMap;
 use crate::common::{CompressionType, TSDataType, TSEncoding, TsValue};
-use crate::compress::{Compressor, CompressorImpl, create_compressor};
+use crate::compress::{CompressorImpl, create_compressor};
 use crate::encoding::{Encoder, create_encoder_boxed};
 use crate::error::{Result, TsFileError};
 use crate::file::{ChunkHeader, ChunkType, PageData, PageHeader};
@@ -9,10 +9,8 @@ use std::io::Write;
 
 /// Writer for a single value column in an aligned chunk
 struct ValueColumnWriter {
-    measurement_name: String,
     data_type: TSDataType,
     encoding: TSEncoding,
-    compression_type: CompressionType,
     encoder: Box<dyn Encoder>,
     compressor: CompressorImpl,
     value_buffer: Vec<u8>,
@@ -24,7 +22,7 @@ struct ValueColumnWriter {
 
 impl ValueColumnWriter {
     fn new(
-        measurement_name: String,
+        _measurement_name: String,
         data_type: TSDataType,
         encoding: TSEncoding,
         compression_type: CompressionType,
@@ -36,10 +34,8 @@ impl ValueColumnWriter {
         let bitmap = BitMap::new(max_size);
 
         Self {
-            measurement_name,
             data_type,
             encoding,
-            compression_type,
             encoder,
             compressor,
             value_buffer: Vec::new(),

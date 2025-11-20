@@ -3,7 +3,6 @@ use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::error::{Result, TsFileError};
 use crate::file::{ChunkHeader, PageData};
 use crate::writer::PageWriter;
-use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::Write;
 
 /// Writer para chunks (colección de páginas para una medición)

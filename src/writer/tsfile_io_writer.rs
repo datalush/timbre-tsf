@@ -1,11 +1,10 @@
-use crate::common::{MeasurementSchema, TSDataType};
 use crate::error::{Result, TsFileError};
-use crate::file::{ChunkHeader, ChunkMeta};
+use crate::file::ChunkMeta;
 use crate::writer::ChunkWriter;
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufWriter, Seek, SeekFrom, Write};
+use std::io::{BufWriter, Seek, Write};
 use std::path::Path;
 
 /// Magic string para TsFile
@@ -157,7 +156,7 @@ impl TsFileIOWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::{CompressionType, TSEncoding};
+    use crate::common::{CompressionType, TSDataType, TSEncoding};
     use tempfile::NamedTempFile;
 
     #[test]

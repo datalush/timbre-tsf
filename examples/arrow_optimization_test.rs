@@ -6,7 +6,7 @@ use arrow::array::{Float32Array, StringArray, TimestampMillisecondArray};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 
-use tsfile::arrow::ArrowToTsFileConverter;
+use tsfile_rs::arrow::ArrowToTsFileConverter;
 
 fn generate_test_batch(num_rows: usize) -> RecordBatch {
     let devices = ["device_1", "device_2", "device_3", "device_4", "device_5"];

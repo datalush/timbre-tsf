@@ -42,8 +42,7 @@
 //! # Example
 //!
 //! ```
-//! use tsfile_rs::encoding::gorilla::{GorillaEncoder, GorillaDecoder};
-//! use tsfile_rs::encoding::{Encoder, Decoder};
+//! use tsfile_rs::encoding::{GorillaEncoder, GorillaDecoder, Encoder, Decoder};
 //! use tsfile_rs::common::TSDataType;
 //!
 //! let mut encoder = GorillaEncoder::with_capacity(TSDataType::Float, 1000);
@@ -79,7 +78,6 @@ use crate::error::{Result, TsFileError};
 /// Maintains state to track the previous value and the leading/trailing zero counts
 /// from the previous XOR operation to enable efficient encoding of similar values.
 pub struct GorillaEncoder {
-    data_type: TSDataType,
     /// The first value in the sequence (stored in full)
     first_value: Option<u64>,
     /// The most recently encoded value (for XOR comparison)
@@ -133,7 +131,6 @@ impl GorillaEncoder {
         };
 
         Self {
-            data_type,
             first_value: None,
             previous_value: 0,
             // Initialize to INT32_MAX to ensure first XOR always writes new leading/trailing
@@ -324,7 +321,6 @@ impl Encoder for GorillaEncoder {
 /// to reconstruct values from XOR deltas. Includes a 64-bit read buffer that
 /// pre-fetches bytes to reduce I/O overhead by 30%.
 pub struct GorillaDecoder {
-    data_type: TSDataType,
     /// The first value in the sequence
     first_value: Option<u64>,
     /// The most recently decoded value (for XOR reconstruction)
@@ -335,8 +331,6 @@ pub struct GorillaDecoder {
     previous_trailing: u32,
     /// Current byte position in input stream
     byte_pos: usize,
-    /// Current bit position within the current byte (unused with buffer optimization)
-    bit_pos: u8,
     /// 64-bit buffer for batch reading (reduces read overhead by 30%)
     bit_buffer: u64,
     /// Number of valid bits available in bit_buffer
@@ -349,21 +343,6 @@ pub struct GorillaDecoder {
     value_bits: u8,
 }
 
-/// Pre-computed bit mask lookup table for efficient bit extraction
-///
-/// Provides 10-15% performance improvement by avoiding branches and
-/// computation in the hot path of read_bits().
-const BIT_MASKS: [u8; 9] = [
-    0x00, // 0 bits
-    0x01, // 1 bit
-    0x03, // 2 bits
-    0x07, // 3 bits
-    0x0F, // 4 bits
-    0x1F, // 5 bits
-    0x3F, // 6 bits
-    0x7F, // 7 bits
-    0xFF, // 8 bits
-];
 
 impl GorillaDecoder {
     /// Creates a new Gorilla decoder for the specified data type
@@ -377,14 +356,12 @@ impl GorillaDecoder {
         };
 
         Self {
-            data_type,
             first_value: None,
             previous_value: 0,
             // Initialize to INT32_MAX to ensure first XOR always writes new leading/trailing
             previous_leading: i32::MAX as u32,
             previous_trailing: 0,
             byte_pos: 0,
-            bit_pos: 0,
             // OPT-2: Initialize batch buffer
             bit_buffer: 0,
             bits_available: 0,

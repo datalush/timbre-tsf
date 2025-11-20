@@ -14,9 +14,6 @@
 //! - Reasonable compression granularity
 //! - Low metadata overhead
 
-/// Block size for Sprintz compression (8 values per block)
-const BLOCK_SIZE: usize = 8;
-
 /// Packs 8 int32 values into the minimum number of bits required
 ///
 /// This function tightly packs 8 values using a specified bit width, filling
@@ -38,8 +35,8 @@ pub fn pack_8values_i32(values: &[i32], bit_width: u8, buf: &mut Vec<u8>) {
         return;
     }
 
-    let mut buffer: u32 = 0;
-    let mut left_size = 32;
+    let mut buffer: u32;
+    let mut left_size: i32;
     let mut left_bit = 0;
     let mut value_idx = 0;
     let mut buf_idx = 0;
@@ -142,8 +139,8 @@ pub fn pack_8values_i64(values: &[i64], bit_width: u8, buf: &mut Vec<u8>) {
         return;
     }
 
-    let mut buffer: u64 = 0;
-    let mut left_size = 64;
+    let mut buffer: u64;
+    let mut left_size: i32;
     let mut left_bit = 0;
     let mut value_idx = 0;
     let mut buf_idx = 0;

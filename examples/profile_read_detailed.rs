@@ -11,11 +11,10 @@
 ///
 /// Expected output: Time breakdown showing % of total for each phase
 
-use tsfile::arrow::TsFileRecordBatchReader;
-use tsfile::common::*;
-use tsfile::writer::TsFileWriter;
+use tsfile_rs::arrow::TsFileRecordBatchReader;
+use tsfile_rs::common::*;
+use tsfile_rs::writer::TsFileWriter;
 use std::time::{Duration, Instant};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 // Global timing accumulators (atomic for thread-safety with rayon)
@@ -233,7 +232,7 @@ fn generate_test_file(path: &str, total_rows: usize, num_devices: usize) {
     writer.close().unwrap();
 }
 
-fn profile_read(path: &str, num_devices: usize, num_measurements: usize, expected_rows: usize) -> ReadProfile {
+fn profile_read(path: &str, num_devices: usize, num_measurements: usize, _expected_rows: usize) -> ReadProfile {
     // Reset global counters
     DECOMPRESS_TIME_NS.store(0, Ordering::SeqCst);
     DECODE_TIME_NS.store(0, Ordering::SeqCst);
@@ -243,7 +242,7 @@ fn profile_read(path: &str, num_devices: usize, num_measurements: usize, expecte
     let total_start = Instant::now();
 
     // Instrument the actual read path by wrapping TsFileRecordBatchReader
-    let profile = profile_read_with_instrumentation(path);
+    profile_read_with_instrumentation(path);
 
     let total_time = total_start.elapsed();
 
@@ -252,10 +251,6 @@ fn profile_read(path: &str, num_devices: usize, num_measurements: usize, expecte
     // For EXACT measurements, we'd need to modify the source code
 
     let mut total_rows = 0;
-    let decompress_time = Duration::from_nanos(DECOMPRESS_TIME_NS.load(Ordering::SeqCst));
-    let decode_time = Duration::from_nanos(DECODE_TIME_NS.load(Ordering::SeqCst));
-    let arrow_time = Duration::from_nanos(ARROW_BUILD_TIME_NS.load(Ordering::SeqCst));
-    let io_time = Duration::from_nanos(IO_TIME_NS.load(Ordering::SeqCst));
 
     // Actual read
     let reader = TsFileRecordBatchReader::try_new(path).unwrap();
@@ -312,11 +307,11 @@ fn profile_read_with_instrumentation(path: &str) -> Duration {
     let start = Instant::now();
 
     let reader = TsFileRecordBatchReader::try_new(path).unwrap();
-    let mut total_rows = 0;
+    let mut _total_rows = 0;
 
     for batch_result in reader {
         let batch = batch_result.unwrap();
-        total_rows += batch.num_rows();
+        _total_rows += batch.num_rows();
     }
 
     start.elapsed()

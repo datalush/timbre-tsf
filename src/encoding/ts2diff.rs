@@ -36,8 +36,8 @@
 //! # Example
 //!
 //! ```
-//! use tsfile_rs::encoding::ts2diff::{Ts2DiffEncoder, Ts2DiffDecoder};
-//! use tsfile_rs::encoding::{Encoder, Decoder};
+//! use tsfile_rs::encoding::{Ts2DiffEncoder, Ts2DiffDecoder, Encoder, Decoder};
+//! 
 //! use tsfile_rs::common::TSDataType;
 //!
 //! let mut encoder = Ts2DiffEncoder::new(TSDataType::Int64);
@@ -69,7 +69,6 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 /// subsequent value as the difference from the expected value based on
 /// the previous delta.
 pub struct Ts2DiffEncoder {
-    data_type: TSDataType,
     /// The first value in the sequence (stored unmodified)
     first_value: Option<i64>,
     /// The most recent value encoded
@@ -80,9 +79,8 @@ pub struct Ts2DiffEncoder {
 
 impl Ts2DiffEncoder {
     /// Creates a new TS2DIFF encoder for the specified data type
-    pub fn new(data_type: TSDataType) -> Self {
+    pub fn new(_data_type: TSDataType) -> Self {
         Self {
-            data_type,
             first_value: None,
             previous_value: 0,
             previous_delta: 0,
@@ -162,7 +160,6 @@ impl Encoder for Ts2DiffEncoder {
 /// Reconstructs original values by applying delta-of-delta operations,
 /// maintaining the previous value and delta to compute each new value.
 pub struct Ts2DiffDecoder {
-    data_type: TSDataType,
     /// The first value in the sequence
     first_value: Option<i64>,
     /// The most recently decoded value
@@ -173,9 +170,8 @@ pub struct Ts2DiffDecoder {
 
 impl Ts2DiffDecoder {
     /// Creates a new TS2DIFF decoder for the specified data type
-    pub fn new(data_type: TSDataType) -> Self {
+    pub fn new(_data_type: TSDataType) -> Self {
         Self {
-            data_type,
             first_value: None,
             previous_value: 0,
             previous_delta: 0,

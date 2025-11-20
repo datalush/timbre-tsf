@@ -9,9 +9,8 @@ use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 
 // TsFile imports
-use tsfile::arrow::ArrowToTsFileConverter;
-use tsfile::common::{ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsValue};
-use tsfile::writer::TsFileWriter;
+use tsfile_rs::common::{ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsValue};
+use tsfile_rs::writer::TsFileWriter;
 
 /// Generate test data
 fn generate_test_data(num_rows: usize) -> RecordBatch {

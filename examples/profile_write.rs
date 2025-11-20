@@ -1,5 +1,5 @@
-use tsfile::common::*;
-use tsfile::writer::TsFileWriter;
+use tsfile_rs::common::*;
+use tsfile_rs::writer::TsFileWriter;
 use std::time::Instant;
 
 fn main() {

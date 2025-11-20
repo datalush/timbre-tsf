@@ -12,7 +12,7 @@ use parquet::arrow::ArrowWriter;
 use parquet::file::properties::WriterProperties;
 
 // TsFile imports
-use tsfile::arrow::{ArrowToTsFileConverter, ArrowConversionConfig};
+use tsfile_rs::arrow::{ArrowToTsFileConverter, ArrowConversionConfig};
 
 /// Generate test data
 fn generate_test_data(num_rows: usize) -> RecordBatch {
@@ -83,7 +83,7 @@ fn benchmark_parquet(batch: &RecordBatch) -> (f64, usize) {
     (elapsed, file_size)
 }
 
-fn benchmark_tsfile(batch: &RecordBatch, config: ArrowConversionConfig, name: &str) -> (f64, usize) {
+fn benchmark_tsfile(batch: &RecordBatch, config: ArrowConversionConfig, _name: &str) -> (f64, usize) {
     let temp_file = NamedTempFile::new().unwrap();
 
     let start = Instant::now();
@@ -166,7 +166,7 @@ fn main() {
     let fast_min = fast_times.iter().copied().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
 
     // Benchmark TsFile - Optimized (Plain + LZ4) - Best of both worlds
-    use tsfile::common::{TSEncoding, CompressionType};
+    use tsfile_rs::common::{TSEncoding, CompressionType};
     let optimized_config = ArrowConversionConfig::default()
         .with_compression(CompressionType::Lz4)
         .with_f32_encoding(TSEncoding::Plain)

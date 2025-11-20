@@ -19,7 +19,6 @@
 
 //! TsFile → Arrow conversion
 
-use crate::arrow::schema_mapping::ArrowSchemaMapping;
 use crate::arrow::types::ArrowConversionConfig;
 use crate::error::{Result, TsFileError};
 use crate::reader::{DecodedValues, TsFileIOReader};
@@ -36,7 +35,7 @@ use std::sync::Arc;
 /// # Example
 ///
 /// ```no_run
-/// use tsfile::arrow::TsFileRecordBatchReader;
+/// use tsfile_rs::arrow::TsFileRecordBatchReader;
 ///
 /// let reader = TsFileRecordBatchReader::try_new("input.tsfile")?;
 ///
@@ -49,13 +48,8 @@ use std::sync::Arc;
 pub struct TsFileRecordBatchReader {
     io_reader: TsFileIOReader,
     arrow_schema: Arc<Schema>,
-    config: ArrowConversionConfig,
     device_index: usize,
     devices: Vec<String>,
-    current_device: Option<String>,
-    current_measurements: Vec<String>,
-    measurement_index: usize,
-    batch_size: usize,
 }
 
 impl TsFileRecordBatchReader {
@@ -67,7 +61,7 @@ impl TsFileRecordBatchReader {
     /// Create a new reader with custom configuration
     pub fn try_new_with_config<P: AsRef<Path>>(
         path: P,
-        config: ArrowConversionConfig,
+        _config: ArrowConversionConfig,
     ) -> Result<Self> {
         let io_reader = TsFileIOReader::open(path)?;
         let devices = io_reader.get_devices();
@@ -94,13 +88,8 @@ impl TsFileRecordBatchReader {
         Ok(Self {
             io_reader,
             arrow_schema: Arc::new(arrow_schema),
-            config,
             device_index: 0,
             devices,
-            current_device: None,
-            current_measurements: Vec::new(),
-            measurement_index: 0,
-            batch_size: 1024,
         })
     }
 

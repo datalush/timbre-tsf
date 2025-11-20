@@ -17,7 +17,7 @@
 //! # Example
 //!
 //! ```rust
-//! use tsfile::common::*;
+//! use tsfile_rs::common::*;
 //!
 //! // Define a measurement schema
 //! let schema = MeasurementSchema::new(

@@ -19,36 +19,32 @@
 
 //! Arrow → TsFile conversion
 
-use crate::arrow::schema_mapping::ArrowSchemaMapping;
 use crate::arrow::types::ArrowConversionConfig;
-use crate::common::{ColumnCategory, MeasurementSchema, Tablet, TsRecord, TsValue};
+use crate::common::{ColumnCategory, MeasurementSchema, Tablet, TsValue};
 use crate::error::{Result, TsFileError};
 use crate::writer::TsFileWriter;
 use arrow::array::*;
 use arrow::datatypes::{DataType, TimeUnit};
 use arrow::record_batch::RecordBatch;
-use rayon::prelude::*;
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 /// Converts Arrow RecordBatches to TsFile format
 ///
 /// # Example
 ///
 /// ```no_run
-/// use tsfile::arrow::ArrowToTsFileConverter;
+/// use tsfile_rs::arrow::ArrowToTsFileConverter;
 /// use arrow::record_batch::RecordBatch;
 ///
-/// let converter = ArrowToTsFileConverter::new("output.tsfile")
+/// let mut converter = ArrowToTsFileConverter::new("output.tsfile")
 ///     .with_device_column("device_id")
 ///     .with_timestamp_column("timestamp")
 ///     .build()?;
 ///
-/// // Write multiple batches
-/// for batch in batches {
-///     converter.write_batch(&batch)?;
-/// }
+/// // Write a batch (example assumes you have a RecordBatch called 'batch')
+/// // converter.write_batch(&batch)?;
 ///
 /// converter.finish()?;
 /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -319,19 +315,9 @@ impl ArrowToTsFileConverter {
     }
 
     /// Initialize TsFile schema from Arrow schema
-    fn initialize_schema(&mut self, batch: &RecordBatch) -> Result<()> {
-        let arrow_schema = batch.schema();
-
-        // Convert Arrow schema to TsFile schemas
-        let tsfile_schemas = ArrowSchemaMapping::arrow_to_tsfile_schemas(
-            &arrow_schema,
-            &self.timestamp_column,
-            Some(&self.device_column),
-        )?;
-
+    fn initialize_schema(&mut self, _batch: &RecordBatch) -> Result<()> {
         // Register all measurements for all potential devices
         // Note: We'll register schemas lazily as we encounter new devices
-        // For now, just store the schema mapping
         Ok(())
     }
 
@@ -430,129 +416,6 @@ impl ArrowToTsFileConverter {
         }
     }
 
-    /// Extract TsValue from Arrow array at given index (optimized version)
-    fn extract_value_fast(
-        &self,
-        array: &Arc<dyn arrow::array::Array>,
-        index: usize,
-        data_type: &DataType,
-    ) -> Result<Option<TsValue>> {
-        if array.is_null(index) {
-            return Ok(None);
-        }
-
-        let value = match data_type {
-            DataType::Boolean => {
-                let arr = array.as_any().downcast_ref::<BooleanArray>().unwrap();
-                TsValue::Boolean(arr.value(index))
-            }
-            DataType::Int32 => {
-                let arr = array.as_any().downcast_ref::<Int32Array>().unwrap();
-                TsValue::Int32(arr.value(index))
-            }
-            DataType::Int64 => {
-                let arr = array.as_any().downcast_ref::<Int64Array>().unwrap();
-                TsValue::Int64(arr.value(index))
-            }
-            DataType::Float32 => {
-                let arr = array.as_any().downcast_ref::<Float32Array>().unwrap();
-                TsValue::Float(arr.value(index))
-            }
-            DataType::Float64 => {
-                let arr = array.as_any().downcast_ref::<Float64Array>().unwrap();
-                TsValue::Double(arr.value(index))
-            }
-            DataType::Utf8 => {
-                let arr = array.as_any().downcast_ref::<StringArray>().unwrap();
-                TsValue::Text(arr.value(index).to_string())
-            }
-            _ => {
-                return Err(TsFileError::NotImplemented(format!(
-                    "Unsupported Arrow data type: {:?}",
-                    data_type
-                )));
-            }
-        };
-
-        Ok(Some(value))
-    }
-
-    /// Extract TsValue from Arrow array at given index (legacy, kept for compatibility)
-    fn extract_value(
-        &self,
-        array: &Arc<dyn arrow::array::Array>,
-        index: usize,
-        data_type: &DataType,
-    ) -> Result<Option<TsValue>> {
-        if array.is_null(index) {
-            return Ok(None);
-        }
-
-        let value = match data_type {
-            DataType::Boolean => {
-                let arr = array.as_any().downcast_ref::<BooleanArray>().unwrap();
-                TsValue::Boolean(arr.value(index))
-            }
-            DataType::Int32 | DataType::Int8 | DataType::Int16 | DataType::UInt8 | DataType::UInt16 | DataType::UInt32 => {
-                let arr = array.as_any().downcast_ref::<Int32Array>()
-                    .or_else(|| {
-                        // Try casting from other integer types
-                        array.as_any().downcast_ref::<Int8Array>().map(|a| {
-                            // This is a workaround - in real implementation we'd handle each type
-                            array.as_any().downcast_ref::<Int32Array>().unwrap()
-                        })
-                    })
-                    .ok_or_else(|| TsFileError::InvalidState("Failed to downcast to Int32Array".to_string()))?;
-                TsValue::Int32(arr.value(index))
-            }
-            DataType::Int64 | DataType::UInt64 => {
-                let arr = array.as_any().downcast_ref::<Int64Array>().unwrap();
-                TsValue::Int64(arr.value(index))
-            }
-            DataType::Float32 | DataType::Float16 => {
-                let arr = array.as_any().downcast_ref::<Float32Array>().unwrap();
-                TsValue::Float(arr.value(index))
-            }
-            DataType::Float64 => {
-                let arr = array.as_any().downcast_ref::<Float64Array>().unwrap();
-                TsValue::Double(arr.value(index))
-            }
-            DataType::Utf8 => {
-                let arr = array.as_any().downcast_ref::<StringArray>().unwrap();
-                TsValue::Text(arr.value(index).to_string())
-            }
-            _ => {
-                return Err(TsFileError::NotImplemented(format!(
-                    "Unsupported Arrow data type for TsFile conversion: {:?}",
-                    data_type
-                )));
-            }
-        };
-
-        Ok(Some(value))
-    }
-
-    /// Create MeasurementSchema from Arrow field
-    fn create_measurement_schema(&self, name: &str, data_type: &DataType) -> Result<MeasurementSchema> {
-        let ts_data_type = crate::arrow::schema_mapping::arrow_type_to_tsfile(data_type)?;
-
-        let encoding = match &ts_data_type {
-            crate::common::TSDataType::Boolean => self.config.default_encoding_bool,
-            crate::common::TSDataType::Int32 => self.config.default_encoding_i32,
-            crate::common::TSDataType::Int64 => self.config.default_encoding_i64,
-            crate::common::TSDataType::Float => self.config.default_encoding_f32,
-            crate::common::TSDataType::Double => self.config.default_encoding_f64,
-            crate::common::TSDataType::Text => self.config.default_encoding_string,
-            _ => crate::common::TSEncoding::Plain, // Default for unsupported types
-        };
-
-        Ok(MeasurementSchema::new(
-            name.to_string(),
-            ts_data_type,
-            encoding,
-            self.config.default_compression,
-        ))
-    }
 }
 
 impl ArrowToTsFileConverterBuilder {

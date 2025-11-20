@@ -8,7 +8,7 @@
 //! # Examples
 //!
 //! ```rust
-//! use tsfile::{Result, TsFileError};
+//! use tsfile_rs::{Result, TsFileError};
 //!
 //! fn validate_version(version: u8) -> Result<()> {
 //!     if version != 3 {
@@ -39,7 +39,7 @@ use thiserror::Error;
 /// # Examples
 ///
 /// ```rust
-/// use tsfile::TsFileError;
+/// use tsfile_rs::TsFileError;
 ///
 /// // Create type mismatch error
 /// let err = TsFileError::TypeMismatch {
@@ -208,7 +208,7 @@ pub enum TsFileError {
 /// # Examples
 ///
 /// ```rust
-/// use tsfile::Result;
+/// use tsfile_rs::Result;
 ///
 /// fn read_value() -> Result<i32> {
 ///     Ok(42)

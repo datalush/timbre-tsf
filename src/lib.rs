@@ -30,8 +30,8 @@
 //! ## Writing Data
 //!
 //! ```rust,no_run
-//! use tsfile::common::*;
-//! use tsfile::writer::TsFileWriter;
+//! use tsfile_rs::common::*;
+//! use tsfile_rs::writer::TsFileWriter;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Define schema for temperature measurements
@@ -60,7 +60,7 @@
 //! For high-throughput scenarios, use the Tablet API to write data in batches:
 //!
 //! ```rust
-//! use tsfile::common::*;
+//! use tsfile_rs::common::*;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let schema = MeasurementSchema::with_defaults("temperature", TSDataType::Float);
@@ -83,7 +83,7 @@
 //! ## Reading Data
 //!
 //! ```rust,no_run
-//! use tsfile::reader::TsFileReader;
+//! use tsfile_rs::reader::TsFileReader;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let mut reader = TsFileReader::open("sensor.tsfile")?;

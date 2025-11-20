@@ -1,7 +1,7 @@
 use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::error::Result;
 use crate::file::{ChunkHeader, PageData, PageHeader};
-use crate::reader::{DecodedPage, DecodedValue, DecodedValues, PageReader};
+use crate::reader::{DecodedPage, DecodedValues, PageReader};
 use rayon::prelude::*;
 use std::io::Read;
 
@@ -11,7 +11,6 @@ pub struct ChunkReader {
     data_type: TSDataType,
     encoding: TSEncoding,
     compression_type: CompressionType,
-    page_reader: PageReader,
 }
 
 impl ChunkReader {
@@ -22,13 +21,11 @@ impl ChunkReader {
         encoding: TSEncoding,
         compression_type: CompressionType,
     ) -> Self {
-        let page_reader = PageReader::new(data_type, encoding, compression_type);
         Self {
             measurement_name,
             data_type,
             encoding,
             compression_type,
-            page_reader,
         }
     }
 

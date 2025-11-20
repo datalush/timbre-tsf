@@ -1,7 +1,6 @@
 use std::fs::File;
-use std::io::Write;
-use tsfile::common::{CompressionType, TSDataType, TSEncoding};
-use tsfile::writer::ChunkWriter;
+use tsfile_rs::common::{CompressionType, TSDataType, TSEncoding};
+use tsfile_rs::writer::ChunkWriter;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== TsFile Write Example ===\n");

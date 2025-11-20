@@ -7,9 +7,9 @@
 //! 4. Complex predicates with AND/OR/NOT logic
 
 use std::collections::HashMap;
-use tsfile::common::TsValue;
-use tsfile::index::BloomFilter;
-use tsfile::query::{Predicate, TimeFilter, ValueFilter};
+use tsfile_rs::common::TsValue;
+use tsfile_rs::index::BloomFilter;
+use tsfile_rs::query::{Predicate, TimeFilter, ValueFilter};
 
 fn main() {
     println!("=== Bloom Filter Example ===\n");

@@ -9,8 +9,8 @@ use parquet::basic::{Compression, Encoding};
 use std::sync::Arc;
 use std::time::Instant;
 use tempfile::NamedTempFile;
-use tsfile::arrow::{ArrowConversionConfig, ArrowToTsFileConverter};
-use tsfile::common::{CompressionType, TSEncoding};
+use tsfile_rs::arrow::{ArrowConversionConfig, ArrowToTsFileConverter};
+use tsfile_rs::common::{CompressionType, TSEncoding};
 
 fn generate_timeseries_data(num_rows: usize) -> RecordBatch {
     let mut timestamps = Vec::with_capacity(num_rows);
@@ -183,7 +183,7 @@ fn main() {
 
     let baseline_size = results[0].2;
 
-    for (name, time, size) in &results {
+    for (name, _time, size) in &results {
         let ratio = baseline_size as f64 / *size as f64;
         let speedup = if ratio < 1.0 {
             format!("{:.1}x más grande", 1.0 / ratio)

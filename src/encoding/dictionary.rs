@@ -30,7 +30,6 @@
 use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
 use crate::error::{Result, TsFileError};
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::collections::HashMap;
 
 /// Dictionary encoder for strings with high repetition
@@ -93,7 +92,7 @@ impl DictionaryEncoder {
     }
 
     /// Write variable-length integer (compatible with C++ implementation)
-    fn write_varint(&self, mut value: i32, out: &mut Vec<u8>) -> Result<()> {
+    fn write_varint(&self, value: i32, out: &mut Vec<u8>) -> Result<()> {
         // Zigzag encoding for signed integers
         let encoded = ((value << 1) ^ (value >> 31)) as u32;
 

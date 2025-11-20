@@ -194,7 +194,7 @@ pub enum EncodingHint {
 
 impl EncodingHint {
     /// Select the best encoding based on this hint
-    pub fn select_encoding(&self, config: &ArrowConversionConfig) -> TSEncoding {
+    pub fn select_encoding(&self) -> TSEncoding {
         match self {
             EncodingHint::Timestamp => TSEncoding::Ts2Diff,
             EncodingHint::FloatingPoint => TSEncoding::Gorilla,
@@ -237,22 +237,20 @@ mod tests {
 
     #[test]
     fn test_encoding_hint_selection() {
-        let config = ArrowConversionConfig::default();
-
         assert_eq!(
-            EncodingHint::Timestamp.select_encoding(&config),
+            EncodingHint::Timestamp.select_encoding(),
             TSEncoding::Ts2Diff
         );
         assert_eq!(
-            EncodingHint::FloatingPoint.select_encoding(&config),
+            EncodingHint::FloatingPoint.select_encoding(),
             TSEncoding::Gorilla
         );
         assert_eq!(
-            EncodingHint::RepetitiveString.select_encoding(&config),
+            EncodingHint::RepetitiveString.select_encoding(),
             TSEncoding::Dictionary
         );
         assert_eq!(
-            EncodingHint::Boolean.select_encoding(&config),
+            EncodingHint::Boolean.select_encoding(),
             TSEncoding::Rle
         );
     }

@@ -13,11 +13,9 @@
 ///
 /// This gives REAL DATA about where time is spent!
 
-use tsfile::common::*;
-use tsfile::writer::TsFileWriter;
-use tsfile::reader::{TsFileIOReader, DecodedValues};
-use tsfile::compress::{Compressor, create_compressor};
-use tsfile::encoding::{Decoder, create_decoder};
+use tsfile_rs::common::*;
+use tsfile_rs::writer::TsFileWriter;
+use tsfile_rs::reader::TsFileIOReader;
 use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
 
@@ -405,9 +403,6 @@ fn profile_read_instrumented(path: &str) -> (TimingData, Duration) {
         let measurements = io_reader.get_measurements(device_id).unwrap();
 
         for measurement in &measurements {
-            // Get chunk metadata
-            let chunk_meta = io_reader.get_chunk_metadata(device_id, measurement).unwrap();
-
             // Instrument read_chunk operation
             profile_chunk_read(&mut io_reader, device_id, measurement, &timing);
         }

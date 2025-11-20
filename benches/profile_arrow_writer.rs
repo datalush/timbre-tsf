@@ -9,7 +9,7 @@ use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 
 // TsFile imports
-use tsfile::arrow::ArrowToTsFileConverter;
+use tsfile_rs::arrow::ArrowToTsFileConverter;
 
 /// Generate test data
 fn generate_test_data(num_rows: usize) -> RecordBatch {

@@ -36,8 +36,8 @@
 //! # Example
 //!
 //! ```
-//! use tsfile_rs::encoding::rle::{RleEncoder, RleDecoder};
-//! use tsfile_rs::encoding::{Encoder, Decoder};
+//! use tsfile_rs::encoding::{RleEncoder, RleDecoder, Encoder, Decoder};
+//! 
 //! use tsfile_rs::common::TSDataType;
 //!
 //! let mut encoder = RleEncoder::new(TSDataType::Int32);
@@ -69,7 +69,6 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 /// Maintains state to track the current run of identical values and writes
 /// runs as (value, count) pairs when a new value is encountered or flush is called.
 pub struct RleEncoder {
-    data_type: TSDataType,
     /// The value of the current run (None if no values encoded yet)
     previous_value: Option<i64>,
     /// Number of consecutive occurrences of previous_value
@@ -78,9 +77,8 @@ pub struct RleEncoder {
 
 impl RleEncoder {
     /// Creates a new RLE encoder for the specified data type
-    pub fn new(data_type: TSDataType) -> Self {
+    pub fn new(_data_type: TSDataType) -> Self {
         Self {
-            data_type,
             previous_value: None,
             run_length: 0,
         }
@@ -162,7 +160,6 @@ impl Encoder for RleEncoder {
 /// amortized decoding performance by reading each (value, count) pair once
 /// and returning the value multiple times.
 pub struct RleDecoder {
-    data_type: TSDataType,
     /// The value of the current run being decoded
     current_value: Option<i64>,
     /// Number of values remaining in the current run
@@ -171,9 +168,8 @@ pub struct RleDecoder {
 
 impl RleDecoder {
     /// Creates a new RLE decoder for the specified data type
-    pub fn new(data_type: TSDataType) -> Self {
+    pub fn new(_data_type: TSDataType) -> Self {
         Self {
-            data_type,
             current_value: None,
             remaining: 0,
         }

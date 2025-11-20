@@ -5,13 +5,13 @@
 /// - Uso de diferentes tipos de datos y encodings
 /// - Lectura de datos completos y filtrados por tiempo
 /// - Iteración y acceso a datos
-use tsfile::common::{
+use tsfile_rs::common::{
     CompressionType, MeasurementSchema, TSDataType, TSEncoding, TsRecord, TsValue,
 };
-use tsfile::reader::{DecodedValueData, TsFileReader};
-use tsfile::writer::TsFileWriter;
+use tsfile_rs::reader::{DecodedValueData, TsFileReader};
+use tsfile_rs::writer::TsFileWriter;
 
-fn main() -> tsfile::error::Result<()> {
+fn main() -> tsfile_rs::error::Result<()> {
     let filename = "examples/demo.tsfile";
     let base_time = 1704067200000i64; // 2024-01-01 00:00:00
 

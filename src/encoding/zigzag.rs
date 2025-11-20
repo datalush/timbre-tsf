@@ -42,7 +42,6 @@ use crate::error::{Result, TsFileError};
 
 /// Zigzag encoder for signed integers
 pub struct ZigzagEncoder {
-    data_type: TSDataType,
     /// Buffered encoded bytes
     encoded_bytes: Vec<u8>,
     /// Number of input values
@@ -50,9 +49,8 @@ pub struct ZigzagEncoder {
 }
 
 impl ZigzagEncoder {
-    pub fn new(data_type: TSDataType) -> Self {
+    pub fn new(_data_type: TSDataType) -> Self {
         Self {
-            data_type,
             encoded_bytes: Vec::new(),
             value_count: 0,
         }
@@ -172,7 +170,6 @@ impl Encoder for ZigzagEncoder {
 
 /// Zigzag decoder for signed integers
 pub struct ZigzagDecoder {
-    data_type: TSDataType,
     /// Decoded bytes buffer
     decoded_bytes: Vec<u8>,
     /// Current position in decoded_bytes
@@ -184,9 +181,8 @@ pub struct ZigzagDecoder {
 }
 
 impl ZigzagDecoder {
-    pub fn new(data_type: TSDataType) -> Self {
+    pub fn new(_data_type: TSDataType) -> Self {
         Self {
-            data_type,
             decoded_bytes: Vec::new(),
             position: 0,
             value_count: 0,

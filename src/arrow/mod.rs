@@ -34,15 +34,15 @@
 //! # Example: Arrow → TsFile
 //!
 //! ```no_run
-//! use tsfile::arrow::ArrowToTsFileConverter;
+//! use tsfile_rs::arrow::ArrowToTsFileConverter;
 //! use arrow::record_batch::RecordBatch;
 //!
-//! let converter = ArrowToTsFileConverter::new("output.tsfile")
+//! let mut converter = ArrowToTsFileConverter::new("output.tsfile")
 //!     .with_device_column("device_id")
 //!     .with_timestamp_column("timestamp")
 //!     .build()?;
 //!
-//! converter.write_batch(&record_batch)?;
+//! // converter.write_batch(&record_batch)?;
 //! converter.finish()?;
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
@@ -50,7 +50,7 @@
 //! # Example: TsFile → Arrow
 //!
 //! ```no_run
-//! use tsfile::arrow::TsFileRecordBatchReader;
+//! use tsfile_rs::arrow::TsFileRecordBatchReader;
 //! use arrow::record_batch::RecordBatchReader;
 //!
 //! let reader = TsFileRecordBatchReader::try_new("input.tsfile")?;

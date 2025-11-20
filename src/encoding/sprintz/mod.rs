@@ -45,8 +45,8 @@
 //! # Example
 //!
 //! ```
-//! use tsfile_rs::encoding::sprintz::{SprintzEncoder, SprintzDecoder};
-//! use tsfile_rs::encoding::{Encoder, Decoder};
+//! use tsfile_rs::encoding::{SprintzEncoder, SprintzDecoder, Encoder, Decoder};
+//! 
 //! use tsfile_rs::common::TSDataType;
 //!
 //! let mut encoder = SprintzEncoder::new(TSDataType::Int32);
@@ -91,7 +91,6 @@ use crate::error::{Result, TsFileError};
 /// specialized encoders based on the data type. This design allows for
 /// type-specific optimizations while maintaining a unified interface.
 pub struct SprintzEncoder {
-    data_type: TSDataType,
     int32_encoder: Option<Int32SprintzEncoder>,
     int64_encoder: Option<Int64SprintzEncoder>,
     float_encoder: Option<FloatSprintzEncoder>,
@@ -110,7 +109,6 @@ impl SprintzEncoder {
         };
 
         Self {
-            data_type,
             int32_encoder,
             int64_encoder,
             float_encoder,
@@ -196,7 +194,6 @@ impl Encoder for SprintzEncoder {
 /// This wrapper implements the generic `Decoder` trait and delegates to
 /// specialized decoders based on the data type, mirroring the encoder structure.
 pub struct SprintzDecoder {
-    data_type: TSDataType,
     int32_decoder: Option<Int32SprintzDecoder>,
     int64_decoder: Option<Int64SprintzDecoder>,
     float_decoder: Option<FloatSprintzDecoder>,
@@ -215,7 +212,6 @@ impl SprintzDecoder {
         };
 
         Self {
-            data_type,
             int32_decoder,
             int64_decoder,
             float_decoder,
