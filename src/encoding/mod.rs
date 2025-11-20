@@ -45,11 +45,14 @@
 //! // Encoded data is now in `output`
 //! ```
 
+pub mod adaptive;
 mod chimp128;
 mod delta_of_delta;
 mod dictionary;
+pub mod dictionary_rle;
 mod gorilla;
 mod plain;
+pub mod quantized;
 mod rle;
 mod simple8b;
 mod sprintz;
@@ -157,6 +160,8 @@ pub enum EncoderImpl {
     Rle(RleEncoder),
     Zigzag(ZigzagEncoder),
     Sprintz(SprintzEncoder),
+    // Note: Quantized and DictionaryRLE use different APIs (batch encoding)
+    // They are not included here but can be used via adaptive::recommend_encoding()
 }
 
 impl EncoderImpl {
@@ -565,6 +570,16 @@ pub fn create_encoder(encoding: TSEncoding, data_type: TSDataType) -> EncoderImp
         TSEncoding::Rle => EncoderImpl::Rle(RleEncoder::new(data_type)),
         TSEncoding::Zigzag => EncoderImpl::Zigzag(ZigzagEncoder::new(data_type)),
         TSEncoding::Sprintz => EncoderImpl::Sprintz(SprintzEncoder::new(data_type)),
+        TSEncoding::Quantized => {
+            // Quantized encoder requires min/step parameters
+            // For now, fallback to Chimp128 (user should use adaptive tools)
+            EncoderImpl::Chimp128(Chimp128Encoder::new(data_type))
+        }
+        TSEncoding::DictionaryRLE => {
+            // DictionaryRLE doesn't use the standard Encoder trait
+            // For now, fallback to Chimp128 (user should use adaptive tools)
+            EncoderImpl::Chimp128(Chimp128Encoder::new(data_type))
+        }
         _ => EncoderImpl::Plain(PlainEncoder::new(data_type)),
     }
 }

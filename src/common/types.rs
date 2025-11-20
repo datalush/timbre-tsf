@@ -246,6 +246,10 @@ pub enum TSEncoding {
     Chimp128 = 13,
     /// Simple8b encoding - high-efficiency integer packing (10-100x improvement).
     Simple8b = 14,
+    /// Quantized encoding - for regular step patterns (0.1°C resolution, etc).
+    Quantized = 15,
+    /// DictionaryRLE encoding - for high repetition with discrete values.
+    DictionaryRLE = 16,
     /// Invalid/unrecognized encoding.
     Invalid = 255,
 }
@@ -370,6 +374,8 @@ impl fmt::Display for TSEncoding {
             Self::Sprintz => write!(f, "SPRINTZ"),
             Self::Chimp128 => write!(f, "CHIMP128"),
             Self::Simple8b => write!(f, "SIMPLE8B"),
+            Self::Quantized => write!(f, "QUANTIZED"),
+            Self::DictionaryRLE => write!(f, "DICTIONARY_RLE"),
             Self::Invalid => write!(f, "INVALID"),
         }
     }

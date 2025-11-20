@@ -23,6 +23,7 @@ use crate::arrow::types::ArrowConversionConfig;
 use crate::error::{Result, TsFileError};
 use crate::reader::{DecodedValues, TsFileIOReader};
 use arrow::array::*;
+use arrow::buffer::Buffer;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 use std::path::Path;
@@ -159,9 +160,10 @@ impl TsFileRecordBatchReader {
         for measurement in measurements.iter() {
             match self.io_reader.read_chunk(device_id, measurement) {
                 Ok(chunk) => {
+                    // OPT-ARROW-4: Move timestamps instead of clone (zero-copy)
                     // Save timestamps from first chunk
                     if all_timestamps.is_none() {
-                        all_timestamps = Some(chunk.timestamps.clone());
+                        all_timestamps = Some(chunk.timestamps);
                     }
 
                     // Convert DecodedValues directly to Arrow array (zero-copy!)
@@ -200,17 +202,16 @@ impl TsFileRecordBatchReader {
         Ok(Some(batch))
     }
 
-    /// Convert DecodedValues directly to Arrow array (zero-copy)
-    /// OPT-READ-2: Eliminates intermediate Vec<&str> for strings
-    /// Uses StringArray::from_iter_values which is more efficient
-    /// OPT-1: Zero-copy Arrow construction using Buffer::from_vec (takes ownership)
+    /// Convert DecodedValues directly to Arrow array (zero-copy with 64-byte alignment)
+    ///
+    /// OPT-ARROW-1: 64-byte aligned buffers for SIMD and cache efficiency
+    /// OPT-ARROW-2: Zero-copy construction using Buffer::from_vec (takes ownership)
+    /// OPT-ARROW-3: Eliminates intermediate Vec<&str> for strings
     fn decoded_values_to_arrow(
         &self,
         values: DecodedValues,
     ) -> Result<Arc<dyn arrow::array::Array>> {
-        use arrow::buffer::Buffer;
         use arrow::array::ArrayData;
-        use arrow::datatypes::DataType;
 
         let array: Arc<dyn arrow::array::Array> = match values {
             DecodedValues::Boolean(vec) => {
@@ -218,9 +219,9 @@ impl TsFileRecordBatchReader {
                 Arc::new(BooleanArray::from(vec))
             }
             DecodedValues::Int32(vec) => {
-                // OPT-1: Zero-copy - Buffer::from_vec takes ownership without copying
+                // OPT-ARROW-1+2: Zero-copy with alignment check
                 let len = vec.len();
-                let buffer = Buffer::from_vec(vec);
+                let buffer = Self::ensure_aligned_buffer_i32(vec);
                 let data = ArrayData::builder(DataType::Int32)
                     .len(len)
                     .add_buffer(buffer)
@@ -229,9 +230,9 @@ impl TsFileRecordBatchReader {
                 Arc::new(Int32Array::from(data))
             }
             DecodedValues::Int64(vec) => {
-                // OPT-1: Zero-copy
+                // OPT-ARROW-1+2: Zero-copy with alignment check
                 let len = vec.len();
-                let buffer = Buffer::from_vec(vec);
+                let buffer = Self::ensure_aligned_buffer_i64(vec);
                 let data = ArrayData::builder(DataType::Int64)
                     .len(len)
                     .add_buffer(buffer)
@@ -240,9 +241,9 @@ impl TsFileRecordBatchReader {
                 Arc::new(Int64Array::from(data))
             }
             DecodedValues::Float(vec) => {
-                // OPT-1: Zero-copy
+                // OPT-ARROW-1+2: Zero-copy with alignment check
                 let len = vec.len();
-                let buffer = Buffer::from_vec(vec);
+                let buffer = Self::ensure_aligned_buffer_f32(vec);
                 let data = ArrayData::builder(DataType::Float32)
                     .len(len)
                     .add_buffer(buffer)
@@ -251,9 +252,9 @@ impl TsFileRecordBatchReader {
                 Arc::new(Float32Array::from(data))
             }
             DecodedValues::Double(vec) => {
-                // OPT-1: Zero-copy
+                // OPT-ARROW-1+2: Zero-copy with alignment check
                 let len = vec.len();
-                let buffer = Buffer::from_vec(vec);
+                let buffer = Self::ensure_aligned_buffer_f64(vec);
                 let data = ArrayData::builder(DataType::Float64)
                     .len(len)
                     .add_buffer(buffer)
@@ -262,13 +263,75 @@ impl TsFileRecordBatchReader {
                 Arc::new(Float64Array::from(data))
             }
             DecodedValues::Text(vec) => {
-                // OPT-READ-2: Use from_iter_values instead of collecting to Vec<&str>
+                // OPT-ARROW-3: Use from_iter_values instead of collecting to Vec<&str>
                 // Text arrays are complex (offsets + values), not suitable for simple zero-copy
                 Arc::new(StringArray::from_iter_values(vec.iter().map(|s| s.as_str())))
             }
         };
 
         Ok(array)
+    }
+
+    /// Ensures buffer is 64-byte aligned for optimal Arrow/SIMD performance
+    ///
+    /// If the buffer is already aligned, uses zero-copy. Otherwise, reallocates
+    /// with proper alignment (rare case, as decoders should produce aligned buffers).
+    #[inline]
+    fn ensure_aligned_buffer_i32(vec: Vec<i32>) -> Buffer {
+        use crate::arrow::alloc_aligned_vec;
+
+        let ptr = vec.as_ptr() as usize;
+        if ptr % crate::arrow::ARROW_ALIGNMENT == 0 {
+            // Already aligned - zero-copy path
+            Buffer::from_vec(vec)
+        } else {
+            // Not aligned - reallocate (should be rare)
+            let mut aligned = alloc_aligned_vec::<i32>(vec.len());
+            aligned.extend(vec);
+            Buffer::from_vec(aligned)
+        }
+    }
+
+    #[inline]
+    fn ensure_aligned_buffer_i64(vec: Vec<i64>) -> Buffer {
+        use crate::arrow::alloc_aligned_vec;
+
+        let ptr = vec.as_ptr() as usize;
+        if ptr % crate::arrow::ARROW_ALIGNMENT == 0 {
+            Buffer::from_vec(vec)
+        } else {
+            let mut aligned = alloc_aligned_vec::<i64>(vec.len());
+            aligned.extend(vec);
+            Buffer::from_vec(aligned)
+        }
+    }
+
+    #[inline]
+    fn ensure_aligned_buffer_f32(vec: Vec<f32>) -> Buffer {
+        use crate::arrow::alloc_aligned_vec;
+
+        let ptr = vec.as_ptr() as usize;
+        if ptr % crate::arrow::ARROW_ALIGNMENT == 0 {
+            Buffer::from_vec(vec)
+        } else {
+            let mut aligned = alloc_aligned_vec::<f32>(vec.len());
+            aligned.extend(vec);
+            Buffer::from_vec(aligned)
+        }
+    }
+
+    #[inline]
+    fn ensure_aligned_buffer_f64(vec: Vec<f64>) -> Buffer {
+        use crate::arrow::alloc_aligned_vec;
+
+        let ptr = vec.as_ptr() as usize;
+        if ptr % crate::arrow::ARROW_ALIGNMENT == 0 {
+            Buffer::from_vec(vec)
+        } else {
+            let mut aligned = alloc_aligned_vec::<f64>(vec.len());
+            aligned.extend(vec);
+            Buffer::from_vec(aligned)
+        }
     }
 
     /// Get the Arrow schema

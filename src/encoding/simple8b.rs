@@ -93,7 +93,10 @@ impl Simple8bEncoder {
         // Use zigzag encoding for signed values: 0 -> 0, -1 -> 1, 1 -> 2, -2 -> 3, etc.
         let zigzag = ((value << 1) ^ (value >> 31)) as u64;
         self.pending.push(zigzag);
-        self.try_pack();
+        // Only try to pack when we have accumulated enough values (at least 60)
+        if self.pending.len() >= 60 {
+            self.try_pack();
+        }
     }
 
     /// Encodes a signed 64-bit integer.
@@ -101,7 +104,10 @@ impl Simple8bEncoder {
         // Use zigzag encoding
         let zigzag = ((value << 1) ^ (value >> 63)) as u64;
         self.pending.push(zigzag);
-        self.try_pack();
+        // Only try to pack when we have accumulated enough values (at least 60)
+        if self.pending.len() >= 60 {
+            self.try_pack();
+        }
     }
 
     /// Tries to pack pending values into a 64-bit word.
@@ -167,23 +173,54 @@ impl Simple8bEncoder {
     fn finish(&mut self) -> &[u64] {
         // Force pack remaining values
         while !self.pending.is_empty() {
-            let value = self.pending[0];
-            let bits_needed = 64 - value.leading_zeros();
+            // Find the best selector that can fit all remaining values
+            let mut best_selector = 15; // Worst case: 1 value of 60 bits
+            let mut best_count = 1;
 
-            // Find smallest selector that fits
-            let selector = SELECTORS
-                .iter()
-                .enumerate()
-                .find(|&(_, &(_, bits))| bits >= bits_needed as u8 || bits == 60)
-                .map(|(idx, _)| idx)
-                .unwrap_or(15);
+            // Try to find a selector that can fit all (or partial) pending values
+            for (selector_idx, &(count, bits)) in SELECTORS.iter().enumerate() {
+                let max_value = if bits == 0 {
+                    0
+                } else {
+                    (1u64 << bits) - 1
+                };
 
-            let (count, bits) = SELECTORS[selector];
-            let to_pack = std::cmp::min(count as usize, self.pending.len());
-            let values = &self.pending[..to_pack];
-            let packed = self.pack_values(values, selector as u8, bits);
+                // Determine how many values we can pack with this selector
+                let can_pack = if count as usize <= self.pending.len() {
+                    // We have enough values - check if they all fit in this selector
+                    if self.pending[..count as usize].iter().all(|&v| v <= max_value) {
+                        count as usize
+                    } else {
+                        0
+                    }
+                } else {
+                    // Not enough values - need to pad with zeros
+                    // Only use this selector if all pending values fit
+                    if self.pending.iter().all(|&v| v <= max_value) {
+                        count as usize
+                    } else {
+                        0
+                    }
+                };
+
+                if can_pack > 0 {
+                    best_selector = selector_idx;
+                    best_count = can_pack;
+                    break; // Found the best match (iterating from most efficient to least)
+                }
+            }
+
+            let (_, bits) = SELECTORS[best_selector];
+
+            // Pack values, padding with zeros if needed
+            let mut values_to_pack = self.pending[..self.pending.len().min(best_count)].to_vec();
+            while values_to_pack.len() < best_count {
+                values_to_pack.push(0); // Pad with zeros
+            }
+
+            let packed = self.pack_values(&values_to_pack, best_selector as u8, bits);
             self.output.push(packed);
-            self.pending.drain(..to_pack);
+            self.pending.drain(..self.pending.len().min(best_count));
         }
 
         &self.output
@@ -270,6 +307,11 @@ impl Simple8bDecoder {
             current_pos: 0,
             current_selector: 0,
         }
+    }
+
+    /// Returns true if there are pending values in the current word.
+    pub fn has_pending_values(&self) -> bool {
+        self.current_pos > 0
     }
 
     /// Reads the next 64-bit word if needed.

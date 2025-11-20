@@ -84,12 +84,13 @@ pub struct DeltaOfDeltaEncoder {
 
 impl DeltaOfDeltaEncoder {
     /// Creates a new Delta-of-Delta encoder for the specified data type
-    pub fn new(data_type: TSDataType) -> Self {
+    pub fn new(_data_type: TSDataType) -> Self {
+        // Delta-of-deltas are always encoded as i64, regardless of input data type
         Self {
             first_value: None,
             previous_value: 0,
             previous_delta: 0,
-            simple8b: Simple8bEncoder::new(data_type),
+            simple8b: Simple8bEncoder::new(TSDataType::Int64),
             first_delta_written: false,
         }
     }
@@ -279,7 +280,8 @@ impl Decoder for DeltaOfDeltaDecoder {
     }
 
     fn has_remaining(&self, input: &[u8], pos: usize) -> bool {
-        pos < input.len()
+        // Check if there's more data to read OR if simple8b has pending values in current word
+        pos < input.len() || self.simple8b.has_pending_values()
     }
 
     fn encoding_type(&self) -> TSEncoding {

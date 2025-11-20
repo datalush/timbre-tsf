@@ -62,11 +62,13 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+mod aligned_buffer;
 mod from_arrow;
 mod schema_mapping;
 mod to_arrow;
 mod types;
 
+pub use aligned_buffer::{alloc_aligned_vec, AlignedVec, ARROW_ALIGNMENT};
 pub use from_arrow::ArrowToTsFileConverter;
 pub use schema_mapping::{arrow_type_to_tsfile, tsfile_type_to_arrow, ArrowSchemaMapping};
 pub use to_arrow::TsFileRecordBatchReader;

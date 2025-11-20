@@ -18,7 +18,7 @@ pub struct PageWriter {
     data_type: TSDataType,
     encoding: TSEncoding,
     compression_type: CompressionType,
-    miniblock_config: MiniBlockConfig,
+    pub miniblock_config: MiniBlockConfig,
 
     // Datos RAW acumulados (sin encodear)
     timestamps: Vec<i64>,

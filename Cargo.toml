@@ -57,6 +57,8 @@ bumpalo = { version = "3.14", optional = true }
 criterion = "0.5"
 tempfile = "3.8"
 env_logger = "0.11"
+rand = "0.8"
+bytemuck = "1.14"
 
 [features]
 default = []
@@ -72,4 +74,20 @@ inherits = "release"
 
 [[bench]]
 name = "parquet_vs_tick"
+harness = false
+
+[[bench]]
+name = "miniblock_speedup"
+harness = false
+
+[[bench]]
+name = "parquet_vs_timbre"
+harness = false
+
+[[bench]]
+name = "compression_rigorous"
+harness = false
+
+[[bench]]
+name = "encoding_compression_tradeoff"
 harness = false
