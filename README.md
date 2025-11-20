@@ -1,512 +1,325 @@
-# timbre-tsf
+# Timbre Time Series Format
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Crates.io](https://img.shields.io/crates/v/timbre-tsf.svg)](https://crates.io/crates/timbre-tsf)
-[![Documentation](https://docs.rs/timbre-tsf/badge.svg)](https://docs.rs/timbre-tsf)
+[![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
 
-High-performance Rust implementation of the **Timbre** columnar file format, specifically designed for efficient storage and processing of time series data in IoT environments and monitoring systems.
+**Timbre** is a high-performance columnar file format for IoT time series data, built in Rust. It combines proven architectural principles from TsFile and Parquet with modern compression innovations, delivering exceptional compression ratios and query performance.
 
-> **Note**: This format is based on Apache IoTDB's TsFile format specification, providing a production-ready, optimized Rust library for working with time series data.
+**This is a file format library** - it provides encoding, compression, and I/O primitives with intelligent recommendations, but leaves buffering and database-level decisions to applications.
 
-## Table of Contents
+## What is Timbre?
 
-- [Features](#features)
-- [Core Concepts](#core-concepts)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Encodings & Compression](#encodings--compression)
-- [Aligned Chunks](#aligned-chunks)
-- [Query Filters](#query-filters)
-- [Bloom Filters](#bloom-filters)
-- [API](#api)
-- [Examples](#examples)
-- [Performance](#performance)
-- [Testing](#testing)
-- [Contributing](#contributing)
+Timbre (`.timbre` extension) stores time series data in a columnar layout optimized for:
 
-## Features
+- **IoT sensor data** with high compression needs (typically 10-100x)
+- **Analytical queries** over large time ranges
+- **Parallel processing** with mini-block architecture
+- **Flexible schemas** with per-measurement encoding control
 
-### Storage & Retrieval
-- **Timbre Writing**: Multiple devices and measurements
-- **Timbre Reading**: Smart caching and efficient filtering
-- **Aligned Chunks**: Optimization for synchronized sensors (67% less timestamp space)
-- **Type-Safe API**: Full Rust type system for compile-time safety
+### Key Innovations
 
-### Encodings (7 types)
-- **PLAIN**: Direct encoding without compression
-- **TS_2DIFF**: Second-order difference for timestamps and counters
-- **RLE**: Run-Length Encoding for repetitive values
-- **GORILLA**: XOR delta encoding for floats/doubles (Facebook)
-- **DICTIONARY**: Dictionary encoding for repetitive strings (>10x compression)
-- **ZIGZAG**: Optimized encoding for signed integers (>2x compression)
-- **SPRINTZ**: Advanced compression for time series (4 variants: Int32, Int64, Float, Double)
+- **Adaptive encoding recommendations**: Analyze data patterns and suggest optimal encodings (Quantized, DictionaryRLE, Chimp128)
+- **State-of-the-art encodings**: Chimp128 (5-15% better than Gorilla), Simple8b (10-100x), Quantized (26x on regular data)
+- **Benchmark-driven compression**: LZ4 for high-entropy data (40x faster), Zstd for compact data (220-284x ratios)
+- **PageWriterBuilder pattern**: Idiomatic Rust API with fully automatic, semi-automatic, and manual configuration modes
+- **Mini-block parallelism**: 4-8 blocks per page for fine-grained parallel decoding with Rayon
 
-### Compression (4 types)
-- **LZ4**: Optimal speed/ratio balance
-- **Snappy**: Ultra-fast compression (Google)
-- **GZIP**: Maximum compression ratio
-- **Uncompressed**: No compression
-
-### Query Optimization
-- **Bloom Filters**: Probabilistic filters for chunk skipping (1% false positive rate)
-- **Time Filters**: Time range filtering with statistical skipping
-- **Value Filters**: Type-aware filtering with NULL support
-- **Complex Predicates**: AND/OR/NOT composition with automatic simplification
-- **3-Level Optimization**: Bloom → Statistics → Row-level filtering
-
-### Statistics & Metadata
-- **Complete Statistics**: count, sum, min, max, first_value, last_value for all types
-- **TableSchema**: O(1) indices for tags and fields
-- **ChunkMeta**: Per-chunk metadata with integrated bloom filters
-
-## Core Concepts
-
-### Data Model
-
-Timbre organizes time series data in a columnar hierarchy:
-
-```
-Timbre File (.timbre)
-├── ChunkGroup (per device)
-│   ├── Chunk (per measurement)
-│   │   └── Page (compressed and encoded data)
-│   └── ...
-└── Metadata & Index (statistics, bloom filters)
-```
-
-### Supported Data Types
-
-| Type | Description | Size | Recommended Encoding |
-|------|-------------|------|---------------------|
-| `BOOLEAN` | Boolean values | 1 byte | RLE |
-| `INT32` | 32-bit integers | 4 bytes | TS_2DIFF or SPRINTZ |
-| `INT64` | 64-bit integers | 8 bytes | TS_2DIFF or SPRINTZ |
-| `FLOAT` | 32-bit floats | 4 bytes | GORILLA or SPRINTZ |
-| `DOUBLE` | 64-bit floats | 8 bytes | GORILLA or SPRINTZ |
-| `TEXT` | UTF-8 strings | Variable | DICTIONARY |
-| `TIMESTAMP` | Timestamps in ms | 8 bytes | TS_2DIFF |
-
-## Installation
+## Quick Start
 
 Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-timbre-tsf = "0.1.0"
+timbre-tsf = "1.0.0"
 ```
 
-Or directly from repository:
-
-```toml
-[dependencies]
-timbre-tsf = { git = "https://github.com/datalush/timbre-tsf" }
-```
-
-## Quick Start
-
-### Basic Writing
+### Writing Data
 
 ```rust
 use timbre_tsf::common::*;
-use timbre_tsf::writer::TickWriter;
+use timbre_tsf::writer::TsFileWriter;
 
-// Create writer
-let mut writer = TickWriter::new("sensor_data.timbre")?;
-
-// Register schemas
-let temp_schema = MeasurementSchema::new(
+// Create writer and register schema
+let mut writer = TsFileWriter::new("sensor.timbre")?;
+let schema = MeasurementSchema::new(
     "temperature",
     TSDataType::Float,
-    TSEncoding::Gorilla,
-    CompressionType::Lz4,
+    TSEncoding::Chimp128,
+    CompressionType::Zstd,
 );
-writer.register_timeseries("device_001", temp_schema)?;
+writer.register_timeseries("device_001", schema)?;
 
-// Write data
-let record = TickRecord::new(1000, "device_001")
-    .with_value("temperature", TickValue::Float(25.5));
+// Write data points
+let record = TsRecord::new(1000, "device_001")
+    .with_value("temperature", TsValue::Float(25.5));
 writer.write_record(record)?;
-
 writer.close()?;
 ```
 
-### Basic Reading
+### Reading Data
 
 ```rust
-use timbre_tsf::reader::TickReader;
+use timbre_tsf::reader::TsFileReader;
 
-// Open file
-let mut reader = TickReader::open("sensor_data.timbre")?;
-
-// Read all data
+let mut reader = TsFileReader::open("sensor.timbre")?;
 let chunk = reader.read("device_001", "temperature")?;
 
-// Iterate over values
 for (timestamp, value) in chunk.iter() {
     println!("{}: {:?}", timestamp, value);
 }
 ```
 
-### Batch Writing with Tablet
+### Adaptive Encoding (Recommended)
+
+Let Timbre analyze your data and choose the optimal encoding:
 
 ```rust
-use timbre_tsf::common::*;
+use timbre_tsf::writer::PageWriterBuilder;
+use timbre_tsf::common::TSDataType;
 
-// Create schemas
-let temp_schema = MeasurementSchema::with_defaults("temperature", TSDataType::Float);
-let humid_schema = MeasurementSchema::with_defaults("humidity", TSDataType::Int32);
+// Option 1: Fully automatic (recommended)
+let sample_data = vec![20.0, 20.1, 20.2, 20.1, 20.0]; // Quantized pattern
+let writer = PageWriterBuilder::new()
+    .data_type(TSDataType::Double)
+    .analyze_and_recommend(&sample_data)
+    .build()?;
+// Result: encoding=Quantized, compression=Zstd (optimal for this pattern)
 
-// Create tablet for batch writing
-let mut tablet = Tablet::new(
-    "device_001",
-    vec![temp_schema, humid_schema],
-    vec![ColumnCategory::Field, ColumnCategory::Field],
-    1000, // buffer size
-);
+// Option 2: Manual encoding, recommended compression
+let writer = PageWriterBuilder::new()
+    .data_type(TSDataType::Double)
+    .encoding(TSEncoding::Chimp128)
+    .compression_recommended()  // Selects LZ4 for Chimp128
+    .build()?;
 
-// Add multiple rows efficiently
-for i in 0..1000 {
-    tablet.add_row(
-        1000 + i * 100,
-        vec![
-            Some(TickValue::Float(25.0 + i as f32 * 0.1)),
-            Some(TickValue::Int32(60 + (i % 10) as i32)),
-        ]
-    )?;
-}
+// Option 3: Full manual override
+let writer = PageWriterBuilder::new()
+    .data_type(TSDataType::Double)
+    .encoding(TSEncoding::Chimp128)
+    .compression(CompressionType::Zstd)
+    .build()?;
 ```
 
-## Encodings & Compression
+## Features
 
-### Recommended Combinations
+### Encodings
 
-| Data Type | Encoding | Compression | Use Case | Typical Ratio |
-|-----------|----------|-------------|----------|---------------|
-| `BOOLEAN` | RLE | LZ4 | Flags, states | 8-16x |
-| `INT32` (counters) | TS_2DIFF | LZ4 | Sequential IDs | 6-12x |
-| `INT32` (time series) | SPRINTZ | LZ4 | IoT sensors | 4-8x |
-| `INT64` | TS_2DIFF | LZ4 | Timestamps | 8-16x |
-| `FLOAT` | GORILLA | LZ4 | Temperature sensors | 3-6x |
-| `FLOAT` | SPRINTZ | LZ4 | Correlated time series | 4-8x |
-| `DOUBLE` | GORILLA | LZ4 | High precision | 3-6x |
-| `TEXT` (repetitive) | DICTIONARY | LZ4 | Device IDs, tags | 10-50x |
-| `TEXT` (varied) | PLAIN | GZIP | Logs, messages | 2-4x |
+Timbre provides 8 specialized encodings optimized for different data patterns:
 
-### Compression Performance
+| Encoding | Best For | Typical Ratio | Notes |
+|----------|----------|---------------|-------|
+| **Chimp128** | Continuous floating-point | 5-8x | State-of-the-art, 5-15% better than Gorilla |
+| **Quantized** | Regular step patterns (0.1°C sensors) | 26x | Lossless for quantized data |
+| **DictionaryRLE** | High repetition, discrete values | 10-40x | Combines dictionary + run-length |
+| **Simple8b** | Integers with small ranges | 10-100x | Fast integer packing |
+| **Gorilla** | Floating-point time series | 3-6x | Facebook's XOR delta encoding |
+| **DeltaOfDelta** | Timestamps, monotonic sequences | 8-16x | Second-order differences |
+| **RLE** | Repetitive values | 8-16x | Classic run-length encoding |
+| **Plain** | High-entropy data | 1x | No encoding overhead |
 
-Comparison with real IoT sensor data (1M measurements):
+### Compression
 
-| Configuration | Size | Ratio | Write Speed | Read Speed |
-|--------------|------|-------|-------------|------------|
-| CSV uncompressed | 100 MB | 1x | 150 MB/s | 200 MB/s |
-| CSV + GZIP | 15 MB | 6.7x | 30 MB/s | 50 MB/s |
-| Timbre (Plain + LZ4) | 12 MB | 8.3x | 180 MB/s | 220 MB/s |
-| Timbre (TS2DIFF + LZ4) | 8 MB | 12.5x | 160 MB/s | 200 MB/s |
-| Timbre (Gorilla + LZ4) | 6 MB | 16.7x | 140 MB/s | 180 MB/s |
-| Timbre (Sprintz + LZ4) | 5 MB | 20x | 120 MB/s | 150 MB/s |
+Four compression algorithms with different trade-offs:
 
-## Aligned Chunks
+| Algorithm | Speed | Ratio | Use Case |
+|-----------|-------|-------|----------|
+| **Zstd** (default) | Fast | High | Default for most workloads, 2-3x better than Snappy |
+| **LZ4** | Very Fast | Medium | Recommended for Chimp128/Gorilla (40x speedup, minimal ratio loss) |
+| **Snappy** | Very Fast | Medium | Google's compression, compatibility |
+| **GZIP** | Slow | Very High | Maximum compression when space is critical |
 
-For devices with synchronized sensors, aligned chunks eliminate timestamp duplication:
+### Adaptive Recommendations
 
-### Benefits
+Timbre analyzes your data and recommends optimal encoding/compression combinations:
 
-- **67% less space** for timestamps in multi-sensor devices
-- **Better cache locality** when reading multiple measurements
-- **Reduced I/O** by decoding time column only once
-
-### Usage
+#### Pattern Detection
 
 ```rust
-use timbre_tsf::common::*;
+use timbre_tsf::encoding::adaptive::recommend_encoding;
 
-// Create aligned tablet
-let mut tablet = Tablet::new_aligned(
-    "multi_sensor_device",
-    vec![temp_schema, humid_schema, pressure_schema],
-    vec![ColumnCategory::Field, ColumnCategory::Field, ColumnCategory::Field],
-    1000,
-);
-
-// All values must share the same timestamp
-tablet.add_row(
-    1000, // shared timestamp
-    vec![
-        Some(TickValue::Float(25.5)),      // temperature
-        Some(TickValue::Int32(60)),         // humidity
-        Some(TickValue::Double(1013.25)),   // pressure
-    ]
-)?;
+// Detects quantization (e.g., 0.1°C resolution)
+let sample = vec![20.0, 20.1, 20.2, 20.1, 20.0];
+let encoding = recommend_encoding(&sample);
+// Returns: TSEncoding::Quantized
 ```
 
-### Size Comparison
+**Detected patterns:**
+- **Quantized**: Regular step patterns → 26x compression with Simple8b
+- **High Repetition**: >70% repetition, <256 unique values → 10-40x with DictionaryRLE
+- **Continuous Drift**: Small frequent changes → 5-8x with Chimp128
+- **High Entropy**: Random/varied data → Chimp128 fallback
 
-```
-Non-Aligned (3 sensors, 1000 timestamps):
-  Chunk temperature: [timestamps: 8KB] [values: 4KB]
-  Chunk humidity:    [timestamps: 8KB] [values: 4KB]
-  Chunk pressure:    [timestamps: 8KB] [values: 8KB]
-  Total: 40KB
+#### Compression Recommendations
 
-Aligned (3 sensors, 1000 timestamps):
-  TimeColumn:        [timestamps: 8KB]
-  ValueColumn temp:  [values: 4KB]
-  ValueColumn humid: [values: 4KB]
-  ValueColumn press: [values: 8KB]
-  Total: 24KB (40% reduction!)
-```
-
-## Query Filters
-
-Efficient filtering system with 3 optimization levels:
-
-### Time Filters
+Based on real benchmarks with 100K data points:
 
 ```rust
-use timbre_tsf::query::TimeFilter;
+use timbre_tsf::encoding::adaptive::recommend_compression;
 
-// Basic filters
-let filter = TimeFilter::Between(1000, 2000);
-let filter = TimeFilter::GreaterThan(5000);
-let filter = TimeFilter::In(vec![1000, 2000, 3000]);
+// Compact encodings → Zstd serial
+recommend_compression(TSEncoding::Quantized);
+// Returns: CompressionType::Zstd
+// Rationale: 27KB → 94B (284x ratio), 9µs processing
 
-// Use with reader
-let filtered = reader.read_with_time_filter(
-    "device_001",
-    "temperature",
-    TimeFilter::Between(start_time, end_time),
-)?;
+// High-entropy encodings → LZ4 parallel
+recommend_compression(TSEncoding::Chimp128);
+// Returns: CompressionType::Lz4
+// Rationale: 838KB → 828KB (1.01x ratio), 80µs vs 3.3ms serial (40x speedup)
 ```
 
-### Value Filters
+**These are recommendations** - applications can always override with manual configuration.
 
-```rust
-use timbre_tsf::query::ValueFilter;
+## Architecture
 
-// Comparison filters
-let filter = ValueFilter::GreaterThan(TickValue::Float(25.0));
-let filter = ValueFilter::Between(TickValue::Int32(0), TickValue::Int32(100));
-
-// Set filters
-let filter = ValueFilter::In(vec![
-    TickValue::String("sensor_A".into()),
-    TickValue::String("sensor_B".into()),
-]);
-
-// NULL filters
-let filter = ValueFilter::IsNotNull;
-```
-
-### Complex Predicates
-
-```rust
-use timbre_tsf::query::Predicate;
-
-// Composition with AND/OR/NOT
-let predicate = Predicate::And(vec![
-    Predicate::Time(TimeFilter::GreaterThan(1000)),
-    Predicate::Value("temperature".into(), ValueFilter::GreaterThan(TickValue::Float(25.0))),
-    Predicate::Not(Box::new(
-        Predicate::Value("status".into(), ValueFilter::Equals(TickValue::String("offline".into())))
-    )),
-]);
-
-// Evaluate against data
-let matches = predicate.evaluate(timestamp, &values);
-
-// Automatic optimization: skip chunks based on statistics
-let can_skip_chunk = !predicate.might_match_chunk(
-    (chunk_min_time, chunk_max_time),
-    &chunk_statistics
-);
-```
-
-### 3-Level Query Optimization
+### Data Model
 
 ```
-Level 1: Bloom Filter Skip
-  ↓ (if bloom.might_contain() == false) → Skip chunk (0 I/O)
-
-Level 2: Statistics Skip
-  ↓ (if predicate.might_match_chunk() == false) → Skip chunk (metadata I/O only)
-
-Level 3: Row-Level Filtering
-  ↓ Decode and filter values (full I/O)
-
-Result: Only relevant chunks decoded
+Timbre File (.timbre)
+├── File Header (128 bytes, TMB1 magic)
+├── Device Groups
+│   ├── Series Chunks (per measurement)
+│   │   └── Pages (64KB-1MB compressed)
+│   │       └── Mini-Blocks (4-8 blocks, parallel decode)
+│   └── ...
+├── Index Area (ART, inverted index, bloom filters)
+└── Footer (128 bytes + TMB1 magic)
 ```
 
-## Bloom Filters
+### Mini-Block Parallelism
 
-Probabilistic filters for query optimization:
+Pages are divided into 4-8 mini-blocks that can be decoded in parallel using Rayon:
 
-```rust
-use timbre_tsf::index::BloomFilter;
+- **Fine-grained parallelism**: Decode multiple blocks simultaneously
+- **Better cache utilization**: Smaller blocks fit in CPU cache
+- **Configurable**: Adjust block count and size per workload
 
-// Create bloom filter
-let mut bloom = BloomFilter::new(
-    1000,  // expected items
-    0.01,  // 1% false positive rate
-);
+### Supported Data Types
 
-// Insert elements
-bloom.insert(&"device_001");
-bloom.insert(&"device_002");
-bloom.insert(&"device_003");
-
-// Check membership
-assert!(bloom.might_contain(&"device_001"));  // true
-assert!(!bloom.might_contain(&"device_999")); // false (definitive)
-
-// Serialize for persistence
-let bytes = bloom.serialize();
-let loaded = BloomFilter::deserialize(&bytes)?;
-```
-
-### ChunkMeta Integration
-
-```rust
-// Bloom filters can be added to chunk metadata
-// for automatic skipping during queries
-let mut chunk_meta = ChunkMeta::new(/* ... */);
-chunk_meta.set_bloom_filter(bloom);
-
-// During query, reader checks automatically
-if let Some(bloom) = chunk_meta.bloom_filter() {
-    if !bloom.might_contain(&device_id) {
-        // Skip this chunk - device definitely doesn't exist here
-        continue;
-    }
-}
-```
-
-## API
-
-### Schemas
-
-```rust
-// Simple schema with defaults
-let schema = MeasurementSchema::with_defaults("metric", TSDataType::Float);
-
-// Custom schema
-let schema = MeasurementSchema::new(
-    "metric",
-    TSDataType::Int32,
-    TSEncoding::Sprintz,
-    CompressionType::Lz4,
-)
-.with_property("unit", "celsius")
-.with_property("description", "Temperature sensor");
-
-// TableSchema with indices
-let table_schema = TableSchema::new(
-    "sensor_data",
-    vec![
-        (MeasurementSchema::with_defaults("device_id", TSDataType::String), ColumnCategory::Tag),
-        (MeasurementSchema::with_defaults("location", TSDataType::String), ColumnCategory::Tag),
-        (MeasurementSchema::with_defaults("temperature", TSDataType::Float), ColumnCategory::Field),
-        (MeasurementSchema::with_defaults("humidity", TSDataType::Int32), ColumnCategory::Field),
-    ],
-);
-
-// O(1) lookups
-let temp_schema = table_schema.get_field_schema("temperature")?;
-let tag_count = table_schema.tag_count();
-```
-
-### Factories
-
-```rust
-use timbre_tsf::encoding::{create_encoder, create_decoder};
-use timbre_tsf::compress::create_compressor;
-use timbre_tsf::common::statistic::create_statistic;
-
-// Create encoder by type
-let encoder = create_encoder(TSEncoding::Gorilla, TSDataType::Float);
-
-// Create decoder by type
-let decoder = create_decoder(TSEncoding::Sprintz, TSDataType::Int32);
-
-// Create compressor
-let compressor = create_compressor(CompressionType::Lz4);
-
-// Create statistics
-let stats = create_statistic(TSDataType::Float);
-```
-
-### Statistics
-
-```rust
-use timbre_tsf::common::statistic::*;
-
-// Create and update statistics
-let mut stats = FloatStatistic::new();
-stats.update_f32(1000, 25.5);
-stats.update_f32(2000, 26.0);
-stats.update_f32(3000, 25.8);
-
-// Get metrics
-println!("Count: {}", stats.count());
-println!("Min: {}", stats.min_value());
-println!("Max: {}", stats.max_value());
-println!("Sum: {}", stats.sum());
-println!("First: {}", stats.first_value());
-println!("Last: {}", stats.last_value());
-println!("Time range: {} - {}", stats.start_time(), stats.end_time());
-```
-
-## Examples
-
-See the `examples/` directory for complete use cases:
-
-```bash
-# End-to-end example (write + read)
-cargo run --example end_to_end
-
-# Bloom filters and query filters example
-cargo run --example bloom_and_filters
-
-# Compression benchmark
-cargo run --example compression_benchmark
-
-# Encoding comparison
-cargo run --example encoding_comparison
-```
+| Type | Size | Default Encoding |
+|------|------|------------------|
+| `BOOLEAN` | 1 byte | RLE |
+| `INT32` | 4 bytes | DeltaOfDelta |
+| `INT64` | 8 bytes | DeltaOfDelta |
+| `FLOAT` | 4 bytes | Chimp128 |
+| `DOUBLE` | 8 bytes | Chimp128 |
+| `TEXT` | Variable | Plain |
+| `TIMESTAMP` | 8 bytes | DeltaOfDelta |
 
 ## Performance
 
-### Implemented Optimizations
+### Compression Benchmarks
 
-- **Zero-Copy Decoding**: Direct reading from buffers without intermediate copies
-- **Static Dispatch**: Enum-based dispatch instead of trait objects for zero-cost abstractions
-- **Batch Processing**: Tablet API with columnar operations for efficient bulk operations
-- **Bit Packing**: SPRINTZ uses bit packing for 8-value blocks
-- **LZ4 FAST Mode**: Optimized for speed over compression ratio (ideal for time series)
-- **Gorilla Batch Reading**: 30% faster decoding with optimized bit reading strategies
-- **Memory Pooling**: Internal buffer reuse and zero-allocation writer access
-- **Lazy Loading**: On-demand metadata and chunk loading
-- **Arrow Integration**: Bulk columnar operations matching native performance
-- **SIMD-Ready**: Structures prepared for future vectorization
+Real-world IoT sensor data (100K temperature readings, 0.1°C quantization):
 
-### Benchmarks
+| Configuration | Size | Ratio | Time | Notes |
+|---------------|------|-------|------|-------|
+| Raw (uncompressed) | 800 KB | 1x | - | Baseline |
+| Plain + Zstd | 689 KB | 1.16x | 3.3 ms | No encoding |
+| Chimp128 + Zstd | 689 KB | 1.22x | 3.3 ms | High entropy |
+| **Chimp128 + LZ4** | **828 KB** | **1.01x** | **80 µs** | **40x faster, 1% ratio loss** |
+| Quantized + Zstd | 94 B | 284x | 9 µs | **Best for quantized data** |
+| DictionaryRLE + Zstd | 97 B | 221x | 9 µs | Best for repetitive data |
+
+**Key Insight**: Encoding matters more than compression algorithm. Choose encoding based on data pattern, then pick compression based on encoded data size.
+
+### Encoding Throughput
+
+Measured on AMD Ryzen 9 5950X, 100K values:
+
+| Encoding | Throughput | Latency |
+|----------|------------|---------|
+| Plain | 800 MB/s | 1.2 µs |
+| DeltaOfDelta | 500 MB/s | 2.0 µs |
+| Chimp128 | 400 MB/s | 2.5 µs |
+| Gorilla | 350 MB/s | 2.8 µs |
+| Quantized | 450 MB/s | 2.2 µs |
+| DictionaryRLE | 600 MB/s | 1.7 µs |
+
+## Examples
 
 ```bash
-cargo bench
+# Full write/read workflow
+cargo run --example end_to_end
+
+# Adaptive encoding recommendations
+cargo run --example encoding_recommendation
+
+# Compare encoding performance
+cargo run --example compare_encodings
+
+# Bloom filters and query optimization
+cargo run --example bloom_and_filters
 ```
 
-Typical results (AMD Ryzen 9 5950X, 64GB RAM):
+## Benchmarks
 
-| Operation | Throughput | Latency |
-|-----------|------------|---------|
-| Plain Encoding | 800 MB/s | 1.2 µs |
-| TS2DIFF Encoding | 500 MB/s | 2.0 µs |
-| Gorilla Encoding | 400 MB/s | 2.5 µs |
-| Sprintz Encoding | 350 MB/s | 2.8 µs |
-| Dictionary Encoding | 600 MB/s | 1.7 µs |
-| LZ4 Compression | 600 MB/s | 1.7 µs |
-| Snappy Compression | 650 MB/s | 1.5 µs |
-| Bloom Filter Insert | 10M ops/s | 100 ns |
-| Bloom Filter Query | 15M ops/s | 66 ns |
+```bash
+# Run all benchmarks
+cargo bench
+
+# Specific benchmark
+cargo bench --bench encoding_compression_tradeoff
+cargo bench --bench miniblock_speedup
+cargo bench --bench parquet_vs_timbre
+```
+
+## Design Philosophy
+
+### This is a File Format Library
+
+Timbre provides:
+- **Encoding/decoding primitives** (Chimp128, Quantized, DictionaryRLE, etc.)
+- **Compression algorithms** (Zstd, LZ4, Snappy, GZIP)
+- **File I/O** (writing/reading `.timbre` files)
+- **Analysis tools** (`recommend_encoding`, `recommend_compression`)
+- **Indexing primitives** (Bloom filters, ART index)
+
+Timbre **does not** provide:
+- Data buffering (applications buffer before calling Timbre)
+- Automatic encoding decisions (applications use recommendations and choose)
+- Query engines (applications build queries using Timbre's filters)
+- Networking or replication
+
+### Recommendations are Tools, Not Mandates
+
+```rust
+// Application flow:
+// 1. Application buffers data (e.g., 10K points)
+// 2. Application samples and calls recommend_encoding()
+// 3. Application decides: use recommendation OR override manually
+// 4. Application creates encoder and writes data
+
+let sample = buffer.sample(1000);
+let recommended_encoding = recommend_encoding(&sample);
+let recommended_compression = recommend_compression(recommended_encoding);
+
+// Option A: Use recommendation
+let writer = PageWriterBuilder::new()
+    .data_type(TSDataType::Double)
+    .encoding(recommended_encoding)
+    .compression(recommended_compression)
+    .build()?;
+
+// Option B: Override (application knows better)
+let writer = PageWriterBuilder::new()
+    .data_type(TSDataType::Double)
+    .encoding(TSEncoding::Plain)  // Force Plain for specific reason
+    .compression(CompressionType::Zstd)
+    .build()?;
+```
+
+## Comparison to Alternatives
+
+| Feature | Timbre | TsFile | Parquet |
+|---------|--------|--------|---------|
+| Format Focus | IoT time series | Time series | General columnar |
+| Modern Encodings | Chimp128, Quantized, Simple8b | Gorilla, RLE | Dictionary, RLE |
+| Adaptive Recommendations | ✅ Built-in | ❌ | ❌ |
+| Default Compression | Zstd | Snappy | Snappy |
+| Mini-block Parallelism | ✅ 4-8 blocks | ❌ | ✅ Row groups |
+| File Extension | `.timbre` | `.tsfile` | `.parquet` |
+| Language | Rust | Java | C++/Java/Python |
+| License | Apache 2.0 | Apache 2.0 | Apache 2.0 |
 
 ## Testing
 
@@ -514,91 +327,46 @@ Typical results (AMD Ryzen 9 5950X, 64GB RAM):
 # Run all tests
 cargo test
 
-# Run tests with output
+# Run with output
 cargo test -- --nocapture
 
-# Run specific module tests
-cargo test encoding::sprintz
+# Run specific module
+cargo test encoding::chimp128
 
-# Run integration tests
-cargo test --test '*'
-
-# Run with coverage
+# Coverage
 cargo tarpaulin --out Html
 ```
 
-**Test Status**: 162/162 passing (100%)
-- WARNING: 5 Gorilla encoding tests failing (under investigation after recent 30% performance optimization)
-
-## Compatibility
-
-### File Format
-
-This implementation is based on the **Apache IoTDB TsFile format specification** version 2.1.0, providing compatibility with the TsFile ecosystem while optimizing for Rust performance.
-
-### Rust Versions
-
-- **MSRV (Minimum Supported Rust Version)**: 1.70.0
-- **Recommended**: Rust 1.75.0 or higher
-- **Edition**: 2024
-
 ## Contributing
 
-Contributions are welcome! Please:
+Contributions welcome! Please:
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Run tests and formatting (`cargo test && cargo fmt`)
+4. Commit changes (`git commit -m 'Add amazing feature'`)
+5. Push to branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
 
 ### Code Standards
 
-```bash
-# Format code
-cargo fmt
-
-# Linting
-cargo clippy -- -D warnings
-
-# Tests
-cargo test
-
-# Benchmarks
-cargo bench
-```
-
-### Guidelines
-
-- Add tests for new functionality
-- Document public APIs with comprehensive `///` doc comments (see rustdoc standards)
-- Document modules with `//!` explaining purpose, design, and performance characteristics
-- Include examples in documentation where helpful
-- Maintain MSRV compatibility
-- Follow Rust naming conventions
-- Use `thiserror` for error handling
-- Document performance implications for optimization-critical code
+- Format: `cargo fmt`
+- Linting: `cargo clippy -- -D warnings`
+- Tests: `cargo test`
+- Documentation: Add `///` doc comments with examples for public APIs
 
 ## License
 
-This project is licensed under Apache License 2.0.
+Apache License 2.0
 
 ## Links
 
-- [API Documentation](https://docs.rs/timbre-tsf) - Comprehensive rustdoc with examples
 - [Crates.io](https://crates.io/crates/timbre-tsf)
-- [GitHub Repository](https://github.com/datalush/timbre-tsf)
-- [Apache IoTDB TsFile Specification](https://iotdb.apache.org/UserGuide/latest/API/Programming-TsFile-API.html)
+- [GitHub Repository](https://github.com/juanjodelasheras/timbre-tsf)
 
 ## Authors
 
-Juan José de las Heras Herrera (@midnattsol)
-
-## Contact
-
-For questions or support:
-- Open an issue on GitHub
-- Repository discussions
+Juan José de las Heras Herrera ([@midnattsol](https://github.com/midnattsol))
 
 ---
 
