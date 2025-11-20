@@ -515,6 +515,8 @@ pub struct ChunkMeta {
     pub encoding: TSEncoding,
     pub compression_type: CompressionType,
     pub bloom_filter: Option<BloomFilter>,
+    pub min_time: i64,
+    pub max_time: i64,
 }
 
 impl ChunkMeta {
@@ -533,6 +535,8 @@ impl ChunkMeta {
             encoding,
             compression_type,
             bloom_filter: None,
+            min_time: i64::MAX,
+            max_time: i64::MIN,
         }
     }
 

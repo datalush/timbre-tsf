@@ -330,6 +330,42 @@ pub enum DecodedValues {
     Text(Vec<Arc<str>>),
 }
 
+impl DecodedValues {
+    /// Create an empty DecodedValues for a given data type
+    pub fn empty(data_type: crate::common::TSDataType) -> Self {
+        use crate::common::TSDataType;
+        match data_type {
+            TSDataType::Boolean => DecodedValues::Boolean(Vec::new()),
+            TSDataType::Int32 | TSDataType::Date => DecodedValues::Int32(Vec::new()),
+            TSDataType::Int64 | TSDataType::Timestamp => DecodedValues::Int64(Vec::new()),
+            TSDataType::Float => DecodedValues::Float(Vec::new()),
+            TSDataType::Double => DecodedValues::Double(Vec::new()),
+            TSDataType::Text | TSDataType::String => DecodedValues::Text(Vec::new()),
+            _ => DecodedValues::Int32(Vec::new()), // Default fallback
+        }
+    }
+
+    /// Extend this DecodedValues with another (must be same variant)
+    pub fn extend(&mut self, other: DecodedValues) -> Result<()> {
+        use crate::error::TsFileError;
+        match (self, other) {
+            (DecodedValues::Boolean(v1), DecodedValues::Boolean(v2)) => v1.extend(v2),
+            (DecodedValues::Int32(v1), DecodedValues::Int32(v2)) => v1.extend(v2),
+            (DecodedValues::Int64(v1), DecodedValues::Int64(v2)) => v1.extend(v2),
+            (DecodedValues::Float(v1), DecodedValues::Float(v2)) => v1.extend(v2),
+            (DecodedValues::Double(v1), DecodedValues::Double(v2)) => v1.extend(v2),
+            (DecodedValues::Text(v1), DecodedValues::Text(v2)) => v1.extend(v2),
+            (left, right) => {
+                return Err(TsFileError::TypeMismatch {
+                    expected: format!("{:?}", left),
+                    actual: format!("{:?}", right),
+                })
+            }
+        }
+        Ok(())
+    }
+}
+
 impl DecodedPage {
     /// Obtiene un valor específico por índice
     pub fn get(&self, index: usize) -> Option<(i64, DecodedValue)> {

@@ -184,6 +184,16 @@ pub enum DecodedValueDataRef<'a> {
 }
 
 impl DecodedChunk {
+    /// Create an empty chunk
+    pub fn empty(measurement_name: impl Into<Arc<str>>, data_type: TSDataType) -> Self {
+        Self {
+            measurement_name: measurement_name.into(),
+            data_type,
+            timestamps: Vec::new(),
+            values: DecodedValues::empty(data_type),
+        }
+    }
+
     /// Número de puntos en el chunk
     pub fn len(&self) -> usize {
         self.timestamps.len()
@@ -279,6 +289,72 @@ impl DecodedChunk {
         DecodedChunkIterRef {
             chunk: self,
             index: 0,
+        }
+    }
+
+    /// Filter chunk by predicate (in-memory filtering)
+    pub fn filter_by_predicate(&self, predicate: &crate::query::Predicate) -> Self {
+        use crate::common::TsValue;
+        use std::collections::HashMap;
+
+        let mut filtered_timestamps = Vec::new();
+        let mut filtered_indices = Vec::new();
+
+        // Build values HashMap for predicate evaluation
+        for (idx, &ts) in self.timestamps.iter().enumerate() {
+            let mut values = HashMap::new();
+
+            // Get value at this index
+            if let Some((_, value_data)) = self.get_ref(idx) {
+                let ts_value = match value_data {
+                    DecodedValueDataRef::Boolean(v) => Some(TsValue::Boolean(v)),
+                    DecodedValueDataRef::Int32(v) => Some(TsValue::Int32(v)),
+                    DecodedValueDataRef::Int64(v) => Some(TsValue::Int64(v)),
+                    DecodedValueDataRef::Float(v) => Some(TsValue::Float(v)),
+                    DecodedValueDataRef::Double(v) => Some(TsValue::Double(v)),
+                    DecodedValueDataRef::Text(s) => Some(TsValue::Text(s.to_string())),
+                };
+
+                values.insert(self.measurement_name.to_string(), ts_value);
+            }
+
+            // Evaluate predicate
+            if predicate.evaluate(ts, &values) {
+                filtered_timestamps.push(ts);
+                filtered_indices.push(idx);
+            }
+        }
+
+        // Build filtered values
+        let filtered_values = match &self.values {
+            DecodedValues::Boolean(vec) => {
+                DecodedValues::Boolean(filtered_indices.iter().map(|&i| vec[i]).collect())
+            }
+            DecodedValues::Int32(vec) => {
+                DecodedValues::Int32(filtered_indices.iter().map(|&i| vec[i]).collect())
+            }
+            DecodedValues::Int64(vec) => {
+                DecodedValues::Int64(filtered_indices.iter().map(|&i| vec[i]).collect())
+            }
+            DecodedValues::Float(vec) => {
+                DecodedValues::Float(filtered_indices.iter().map(|&i| vec[i]).collect())
+            }
+            DecodedValues::Double(vec) => {
+                DecodedValues::Double(filtered_indices.iter().map(|&i| vec[i]).collect())
+            }
+            DecodedValues::Text(vec) => DecodedValues::Text(
+                filtered_indices
+                    .iter()
+                    .map(|&i| Arc::clone(&vec[i]))
+                    .collect(),
+            ),
+        };
+
+        Self {
+            measurement_name: Arc::clone(&self.measurement_name),
+            data_type: self.data_type,
+            timestamps: filtered_timestamps,
+            values: filtered_values,
         }
     }
 

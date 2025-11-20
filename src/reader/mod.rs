@@ -26,11 +26,13 @@
 // pub mod aligned_chunk_reader; // Temporarily disabled for Timbre mini-blocks migration
 pub mod chunk_reader;
 pub mod page_reader;
+pub mod scan;
 pub mod tsfile_io_reader;
 pub mod tsfile_reader;
 
 // pub use aligned_chunk_reader::*;
 pub use chunk_reader::*;
 pub use page_reader::*;
+pub use scan::ScanBuilder;
 pub use tsfile_io_reader::*;
 pub use tsfile_reader::*;

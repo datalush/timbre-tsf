@@ -26,6 +26,8 @@ pub struct ChunkMetadata {
     pub encoding: TSEncoding,
     pub compression_type: CompressionType,
     pub offset: i64,
+    pub min_time: i64,
+    pub max_time: i64,
 }
 
 impl TsFileIOReader {
@@ -109,12 +111,20 @@ impl TsFileIOReader {
                 let encoding = TSEncoding::from_u8(file.read_u8()?);
                 let compression_type = CompressionType::from_u8(file.read_u8()?);
 
+                // TODO: Add min_time y max_time to writer metadata format
+                // For now, use conservative defaults that never allow chunk skip
+                // This maintains backward compatibility with existing files
+                let min_time = i64::MIN;
+                let max_time = i64::MAX;
+
                 chunks.push(ChunkMetadata {
                     measurement_name,
                     data_type,
                     encoding,
                     compression_type,
                     offset,
+                    min_time,
+                    max_time,
                 });
             }
 
