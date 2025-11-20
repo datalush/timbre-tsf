@@ -265,7 +265,8 @@ impl TsFileRecordBatchReader {
             DecodedValues::Text(vec) => {
                 // OPT-ARROW-3: Use from_iter_values instead of collecting to Vec<&str>
                 // Text arrays are complex (offsets + values), not suitable for simple zero-copy
-                Arc::new(StringArray::from_iter_values(vec.iter().map(|s| s.as_str())))
+                // OPT-ZERO-COPY-2: Arc<str> derefs to &str, so we can just use &**s
+                Arc::new(StringArray::from_iter_values(vec.iter().map(|s| &**s)))
             }
         };
 

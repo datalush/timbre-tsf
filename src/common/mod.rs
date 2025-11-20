@@ -34,10 +34,12 @@
 
 pub mod schema;
 pub mod statistic;
+pub mod string_interner;
 pub mod tablet;
 pub mod types;
 
 pub use schema::*;
 pub use statistic::*;
+pub use string_interner::StringInterner;
 pub use tablet::*;
 pub use types::*;
