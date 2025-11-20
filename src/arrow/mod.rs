@@ -37,7 +37,7 @@
 //! use timbre_tsf::arrow::ArrowToTsFileConverter;
 //! use arrow::record_batch::RecordBatch;
 //!
-//! let mut converter = ArrowToTsFileConverter::new("output.timbreile")
+//! let mut converter = ArrowToTsFileConverter::builder("output.timbreile")
 //!     .with_device_column("device_id")
 //!     .with_timestamp_column("timestamp")
 //!     .build()?;

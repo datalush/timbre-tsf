@@ -25,7 +25,7 @@ impl ChunkWriter {
     pub const DEFAULT_MAX_PAGE_SIZE: usize = 64 * 1024;
 
     pub fn new(
-        measurement_name: String,
+        measurement_name: impl Into<String>,
         data_type: TSDataType,
         encoding: TSEncoding,
         compression_type: CompressionType,
@@ -34,7 +34,7 @@ impl ChunkWriter {
         let chunk_statistic = create_statistic(data_type);
 
         Self {
-            measurement_name,
+            measurement_name: measurement_name.into(),
             data_type,
             encoding,
             compression_type,
@@ -48,7 +48,7 @@ impl ChunkWriter {
 
     /// Crea un ChunkWriter con tamaño de página personalizado
     pub fn with_page_size(
-        measurement_name: String,
+        measurement_name: impl Into<String>,
         data_type: TSDataType,
         encoding: TSEncoding,
         compression_type: CompressionType,
@@ -147,7 +147,7 @@ impl ChunkWriter {
 
         // Crear y escribir chunk header
         let mut header = ChunkHeader::new(
-            self.measurement_name.clone(),
+            &self.measurement_name,
             self.data_type,
             self.compression_type,
             self.encoding,

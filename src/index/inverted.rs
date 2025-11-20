@@ -103,7 +103,7 @@ impl InvertedIndex {
             let tag = format!("{}={}", key, value);
             self.tag_index
                 .entry(tag)
-                .or_insert_with(RoaringBitmap::new)
+                .or_default()
                 .insert(device_id);
         }
     }
@@ -152,6 +152,7 @@ impl InvertedIndex {
         // Start with first tag's bitmap
         let first_tag = format!("{}={}", tags[0].0, tags[0].1);
         let mut result = if let Some(bitmap) = self.tag_index.get(&first_tag) {
+            // Clone necessary: bitmap will be modified (AND'd with other bitmaps)
             bitmap.clone()
         } else {
             return Vec::new(); // First tag has no matches
@@ -290,6 +291,7 @@ impl InvertedIndex {
             let name = String::from_utf8(name_bytes)
                 .map_err(|e| TsFileError::InvalidState(format!("Invalid UTF-8 in device name: {}", e)))?;
 
+            // Clone necessary: name inserted into two HashMaps
             index.device_id_to_name.insert(id, name.clone());
             index.device_name_to_id.insert(name, id);
             if id >= index.next_device_id {

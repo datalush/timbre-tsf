@@ -151,7 +151,7 @@ impl TsFileIOReader {
 
         // Crear reader y leer chunk
         let mut chunk_reader = ChunkReader::new(
-            chunk_meta.measurement_name.clone(),
+            chunk_meta.measurement_name.as_str(),
             chunk_meta.data_type,
             chunk_meta.encoding,
             chunk_meta.compression_type,
@@ -169,6 +169,7 @@ impl TsFileIOReader {
     pub fn get_measurements(&self, device_id: &str) -> Option<Vec<String>> {
         self.device_metadata
             .get(device_id)
+            // Clone necessary: building owned Vec<String> from &ChunkMetadata references
             .map(|chunks| chunks.iter().map(|c| c.measurement_name.clone()).collect())
     }
 
@@ -247,7 +248,7 @@ mod tests {
         // Leer chunk
         let chunk = reader.read_chunk("device1", "temperature").unwrap();
         assert_eq!(chunk.len(), 10);
-        assert_eq!(chunk.measurement_name, "temperature");
+        assert_eq!(chunk.measurement_name.as_ref(), "temperature");
 
         // Verificar valores
         for (i, (ts, value)) in chunk.iter().enumerate() {

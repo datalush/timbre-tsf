@@ -429,19 +429,13 @@ impl FireI64 {
 /// Prediction method for Sprintz encoding
 ///
 /// Determines which prediction strategy to use during encoding.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PredictMethod {
     /// Simple delta encoding (value - previous_value)
     Delta,
     /// Adaptive FIRE prediction (learns patterns)
+    #[default]
     Fire,
-}
-
-impl Default for PredictMethod {
-    fn default() -> Self {
-        // FIRE generally provides better compression for time series
-        PredictMethod::Fire
-    }
 }
 
 #[cfg(test)]

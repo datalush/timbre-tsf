@@ -231,10 +231,9 @@ fn format_size(bytes: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{compress_chimp128_only, compress_chimp128_zstd, compress_raw_zstd, generate_iot_temperature};
-
     #[test]
     fn test_chimp128_stable_data() {
+        use super::compress_chimp128_only;
         // Datos 100% estables → ~1 bit/valor
         let data = vec![20.0; 10000];
         let encoded = compress_chimp128_only(&data);

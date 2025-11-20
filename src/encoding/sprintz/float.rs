@@ -246,16 +246,16 @@ impl FloatSprintzDecoder {
 
     fn recalculate(&mut self, mut convert_buffer: Vec<i32>) -> Result<()> {
         // Zigzag decode
-        for i in 0..BLOCK_SIZE {
-            convert_buffer[i] = zigzag_decode_i32(convert_buffer[i]);
+        for item in convert_buffer.iter_mut().take(BLOCK_SIZE) {
+            *item = zigzag_decode_i32(*item);
         }
 
         // Reverse prediction using wrapping arithmetic
         match self.predict_method {
             PredictMethod::Delta => {
                 let mut prev_bits = self.current_buffer[0].to_bits() as i32;
-                for i in 0..BLOCK_SIZE {
-                    let curr_bits = prev_bits.wrapping_add(convert_buffer[i]);
+                for (i, &delta) in convert_buffer.iter().enumerate().take(BLOCK_SIZE) {
+                    let curr_bits = prev_bits.wrapping_add(delta);
                     self.current_buffer[i + 1] = f32::from_bits(curr_bits as u32);
                     prev_bits = curr_bits;
                 }
@@ -272,10 +272,9 @@ impl FloatSprintzDecoder {
                 self.fire_pred.train(prev_bits, curr_bits, err);
 
                 // Remaining values: use previously decoded value from current_buffer[i]
-                for i in 1..BLOCK_SIZE {
+                for (i, &err) in convert_buffer.iter().enumerate().take(BLOCK_SIZE).skip(1) {
                     let prev_bits_i = self.current_buffer[i].to_bits() as i32;
                     let pred = self.fire_pred.predict(prev_bits_i);
-                    let err = convert_buffer[i];
                     let curr_bits = pred.wrapping_add(err);
                     self.current_buffer[i + 1] = f32::from_bits(curr_bits as u32);
                     self.fire_pred.train(prev_bits_i, curr_bits, err);

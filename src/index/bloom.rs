@@ -168,7 +168,7 @@ impl BloomFilter {
             return 1;
         }
         let k = (m as f64 / n as f64) * 2.0_f64.ln();
-        k.ceil().max(1.0).min(10.0) as u32 // Cap at 10 for performance
+        k.ceil().clamp(1.0, 10.0) as u32 // Cap at 10 for performance
     }
 
     /// Hash with seed for multiple hash functions

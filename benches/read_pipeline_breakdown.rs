@@ -12,9 +12,9 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use timbre_tsf::common::*;
 use timbre_tsf::writer::TsFileWriter;
-use timbre_tsf::reader::{TsFileIOReader, PageReader, DecodedValues};
+use timbre_tsf::reader::TsFileIOReader;
 use timbre_tsf::compress::{Compressor, Lz4Compressor};
-use timbre_tsf::encoding::{Decoder, create_decoder};
+use timbre_tsf::encoding::create_decoder;
 use tempfile::NamedTempFile;
 use std::time::Duration;
 
@@ -67,7 +67,7 @@ fn extract_compressed_pages(path: &std::path::Path) -> Vec<(Vec<u8>, usize)> {
     // Returns: Vec<(compressed_data, uncompressed_size)>
 
     let mut io_reader = TsFileIOReader::open(path).unwrap();
-    let chunk = io_reader.read_chunk("device1", "temperature").unwrap();
+    let _chunk = io_reader.read_chunk("device1", "temperature").unwrap();
 
     // For this benchmark, we'll re-read and extract raw pages
     // In a real scenario, we'd instrument the reader to capture this
@@ -124,8 +124,8 @@ fn bench_gorilla_decode(c: &mut Criterion) {
 
     for size in sizes {
         // Encode data first
-        use timbre_tsf::encoding::Encoder;
-        let mut encoder = tsfile::encoding::GorillaEncoder::new(TSDataType::Float);
+        use timbre_tsf::encoding::{Encoder, GorillaEncoder};
+        let mut encoder = GorillaEncoder::new(TSDataType::Float);
         let mut out = Vec::new();
 
         for i in 0..size {
@@ -166,8 +166,8 @@ fn bench_dod_decode(c: &mut Criterion) {
 
     for size in sizes {
         // Encode timestamps first
-        use timbre_tsf::encoding::Encoder;
-        let mut encoder = tsfile::encoding::DeltaOfDeltaEncoder::new(TSDataType::Int64);
+        use timbre_tsf::encoding::{Encoder, DeltaOfDeltaEncoder};
+        let mut encoder = DeltaOfDeltaEncoder::new(TSDataType::Int64);
         let mut out = Vec::new();
 
         for i in 0..size {

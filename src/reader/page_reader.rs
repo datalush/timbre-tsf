@@ -271,14 +271,11 @@ impl PageReader {
             }
             TSDataType::Float => {
                 // OPT-READ-4: Hot path for Float - most common in benchmarks
-                // Use unsafe to avoid bounds checks in tight decode loop
+                // Modern Rust compilers optimize this loop to eliminate bounds checks
+                // when using with_capacity + push pattern
                 let mut values: Vec<f32> = Vec::with_capacity(count);
-                unsafe {
-                    let ptr = values.as_mut_ptr();
-                    for i in 0..count {
-                        ptr.add(i).write(decoder.read_f32(data, pos)?);
-                    }
-                    values.set_len(count);
+                for _ in 0..count {
+                    values.push(decoder.read_f32(data, pos)?);
                 }
                 Ok(DecodedValues::Float(values))
             }
@@ -337,6 +334,7 @@ impl DecodedPage {
             DecodedValues::Int64(v) => DecodedValue::Int64(v[index]),
             DecodedValues::Float(v) => DecodedValue::Float(v[index]),
             DecodedValues::Double(v) => DecodedValue::Double(v[index]),
+            // Clone necessary: DecodedValue owns the String for API consistency
             DecodedValues::Text(v) => DecodedValue::Text(v[index].clone()),
         };
 

@@ -278,15 +278,18 @@ impl TableSchema {
         let mut time_column_index = None;
 
         for (idx, (schema, category)) in columns.into_iter().enumerate() {
-            column_index.insert(schema.measurement_name.clone(), idx);
+            // Extract measurement_name once to avoid multiple clones
+            let measurement_name = schema.measurement_name.clone();
+
+            column_index.insert(measurement_name.clone(), idx);
 
             // Build category-specific indices
             match category {
                 ColumnCategory::Tag => {
-                    tag_indices.insert(schema.measurement_name.clone(), idx);
+                    tag_indices.insert(measurement_name.clone(), idx);
                 }
                 ColumnCategory::Field => {
-                    field_indices.insert(schema.measurement_name.clone(), idx);
+                    field_indices.insert(measurement_name, idx);
                 }
                 ColumnCategory::Time => {
                     time_column_index = Some(idx);

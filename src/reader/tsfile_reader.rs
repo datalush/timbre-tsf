@@ -34,6 +34,7 @@ impl TsFileReader {
 
         if !self.chunk_cache.contains_key(&cache_key) {
             let chunk = self.io_reader.read_chunk(device_id, measurement_name)?;
+            // Clone necessary: cache_key used for both contains_key check and insert
             self.chunk_cache.insert(cache_key.clone(), chunk);
         }
 

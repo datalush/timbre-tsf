@@ -159,7 +159,7 @@ pub enum EncoderImpl {
     DeltaOfDelta(DeltaOfDeltaEncoder),
     Rle(RleEncoder),
     Zigzag(ZigzagEncoder),
-    Sprintz(SprintzEncoder),
+    Sprintz(Box<SprintzEncoder>),
     // Note: Quantized and DictionaryRLE use different APIs (batch encoding)
     // They are not included here but can be used via adaptive::recommend_encoding()
 }
@@ -383,7 +383,7 @@ pub enum DecoderImpl {
     DeltaOfDelta(DeltaOfDeltaDecoder),
     Rle(RleDecoder),
     Zigzag(ZigzagDecoder),
-    Sprintz(SprintzDecoder),
+    Sprintz(Box<SprintzDecoder>),
 }
 
 impl DecoderImpl {
@@ -569,7 +569,7 @@ pub fn create_encoder(encoding: TSEncoding, data_type: TSDataType) -> EncoderImp
         TSEncoding::DeltaOfDelta => EncoderImpl::DeltaOfDelta(DeltaOfDeltaEncoder::new(data_type)),
         TSEncoding::Rle => EncoderImpl::Rle(RleEncoder::new(data_type)),
         TSEncoding::Zigzag => EncoderImpl::Zigzag(ZigzagEncoder::new(data_type)),
-        TSEncoding::Sprintz => EncoderImpl::Sprintz(SprintzEncoder::new(data_type)),
+        TSEncoding::Sprintz => EncoderImpl::Sprintz(Box::new(SprintzEncoder::new(data_type))),
         TSEncoding::Quantized => {
             // Quantized encoder requires min/step parameters
             // For now, fallback to Chimp128 (user should use adaptive tools)
@@ -644,7 +644,7 @@ pub fn create_decoder(encoding: TSEncoding, data_type: TSDataType) -> DecoderImp
         TSEncoding::DeltaOfDelta => DecoderImpl::DeltaOfDelta(DeltaOfDeltaDecoder::new(data_type)),
         TSEncoding::Rle => DecoderImpl::Rle(RleDecoder::new(data_type)),
         TSEncoding::Zigzag => DecoderImpl::Zigzag(ZigzagDecoder::new(data_type)),
-        TSEncoding::Sprintz => DecoderImpl::Sprintz(SprintzDecoder::new(data_type)),
+        TSEncoding::Sprintz => DecoderImpl::Sprintz(Box::new(SprintzDecoder::new(data_type))),
         _ => DecoderImpl::Plain(PlainDecoder::new(data_type)),
     }
 }

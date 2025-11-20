@@ -272,7 +272,7 @@ fn write_tsfile_native(batch: &RecordBatch, path: &std::path::Path) {
 fn write_tsfile_arrow(batch: &RecordBatch, path: &std::path::Path) {
     println!("Escribiendo {} filas a TsFile (Arrow)...", batch.num_rows());
 
-    let mut converter = ArrowToTsFileConverter::new(path)
+    let mut converter = ArrowToTsFileConverter::builder(path)
         .with_device_column("device_id")
         .with_timestamp_column("timestamp")
         .build()

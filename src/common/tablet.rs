@@ -99,7 +99,7 @@ impl BitMap {
     ///
     /// * `size` - The number of bits to track
     pub fn new(size: usize) -> Self {
-        let byte_count = (size + 7) / 8;
+        let byte_count = size.div_ceil(8);
         Self {
             bits: vec![0; byte_count],
             size,
@@ -441,13 +441,13 @@ impl Tablet {
         // Validation for aligned tablets
         if self.is_aligned {
             // Timestamps must be monotonically increasing
-            if let Some(&last_ts) = self.timestamps.last() {
-                if timestamp <= last_ts {
-                    return Err(TsFileError::InvalidState(format!(
-                        "Aligned tablet requires strictly increasing timestamps. Got {} after {}",
-                        timestamp, last_ts
-                    )));
-                }
+            if let Some(&last_ts) = self.timestamps.last()
+                && timestamp <= last_ts
+            {
+                return Err(TsFileError::InvalidState(format!(
+                    "Aligned tablet requires strictly increasing timestamps. Got {} after {}",
+                    timestamp, last_ts
+                )));
             }
         }
 

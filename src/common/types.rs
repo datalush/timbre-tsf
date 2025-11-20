@@ -330,12 +330,12 @@ impl TSEncoding {
     /// ```rust
     /// use timbre_tsf::common::TSEncoding;
     ///
-    /// assert_eq!(TSEncoding::from_str("gorilla"), Some(TSEncoding::Gorilla));
-    /// assert_eq!(TSEncoding::from_str("CHIMP128"), Some(TSEncoding::Chimp128));
-    /// assert_eq!(TSEncoding::from_str("plain"), Some(TSEncoding::Plain));
-    /// assert_eq!(TSEncoding::from_str("unknown"), None);
+    /// assert_eq!(TSEncoding::parse_encoding("gorilla"), Some(TSEncoding::Gorilla));
+    /// assert_eq!(TSEncoding::parse_encoding("CHIMP128"), Some(TSEncoding::Chimp128));
+    /// assert_eq!(TSEncoding::parse_encoding("plain"), Some(TSEncoding::Plain));
+    /// assert_eq!(TSEncoding::parse_encoding("unknown"), None);
     /// ```
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_encoding(s: &str) -> Option<Self> {
         let s_upper = s.to_uppercase();
         match s_upper.as_str() {
             "PLAIN" => Some(Self::Plain),

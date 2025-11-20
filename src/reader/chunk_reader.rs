@@ -4,10 +4,11 @@ use crate::file::{ChunkHeader, PageData, PageHeader};
 use crate::reader::{DecodedPage, DecodedValues, PageReader};
 use rayon::prelude::*;
 use std::io::Read;
+use std::sync::Arc;
 
 /// Reader para chunks (colección de páginas)
 pub struct ChunkReader {
-    measurement_name: String,
+    measurement_name: Arc<str>,
     data_type: TSDataType,
     encoding: TSEncoding,
     compression_type: CompressionType,
@@ -16,13 +17,13 @@ pub struct ChunkReader {
 impl ChunkReader {
     /// Crea un nuevo ChunkReader
     pub fn new(
-        measurement_name: String,
+        measurement_name: impl Into<Arc<str>>,
         data_type: TSDataType,
         encoding: TSEncoding,
         compression_type: CompressionType,
     ) -> Self {
         Self {
-            measurement_name,
+            measurement_name: measurement_name.into(),
             data_type,
             encoding,
             compression_type,
@@ -77,7 +78,7 @@ impl ChunkReader {
                     .map_err(|e| format!("Failed to decode page: {:?}", e))
             })
             .collect::<std::result::Result<Vec<_>, String>>()
-            .map_err(|e| crate::error::TsFileError::DecodingError(e))?;
+            .map_err(crate::error::TsFileError::DecodingError)?;
 
         // Paso 3: Merge secuencial (rápido, solo concatena vectores)
         let mut all_timestamps = Vec::new();
@@ -118,7 +119,7 @@ impl ChunkReader {
         }
 
         Ok(DecodedChunk {
-            measurement_name: self.measurement_name.clone(),
+            measurement_name: Arc::clone(&self.measurement_name),
             data_type: self.data_type,
             timestamps: all_timestamps,
             values: all_values.unwrap_or_else(|| DecodedValues::Int32(Vec::new())),
@@ -141,7 +142,7 @@ impl ChunkReader {
 /// para eliminar boxing y mejorar cache locality
 #[derive(Debug, Clone)]
 pub struct DecodedChunk {
-    pub measurement_name: String,
+    pub measurement_name: Arc<str>,
     pub data_type: TSDataType,
     pub timestamps: Vec<i64>,
     pub values: DecodedValues,
@@ -182,6 +183,8 @@ impl DecodedChunk {
             DecodedValues::Int64(vec) => DecodedValueData::Int64(vec[index]),
             DecodedValues::Float(vec) => DecodedValueData::Float(vec[index]),
             DecodedValues::Double(vec) => DecodedValueData::Double(vec[index]),
+            // Clone necessary: DecodedValueData owns the String for API consistency
+            // Future: Consider using Cow<'a, str> or Arc<str> for zero-copy
             DecodedValues::Text(vec) => DecodedValueData::Text(vec[index].clone()),
         };
 
@@ -232,12 +235,14 @@ impl DecodedChunk {
                 DecodedValues::Double(filtered_indices.iter().map(|&i| vec[i]).collect())
             }
             DecodedValues::Text(vec) => {
+                // Clone necessary: filtering requires owned Strings in new Vec
+                // Future: Consider using Arc<str> in DecodedValues for cheap cloning
                 DecodedValues::Text(filtered_indices.iter().map(|&i| vec[i].clone()).collect())
             }
         };
 
         DecodedChunk {
-            measurement_name: self.measurement_name.clone(),
+            measurement_name: Arc::clone(&self.measurement_name),
             data_type: self.data_type,
             timestamps: filtered_timestamps,
             values: filtered_values,
@@ -295,7 +300,7 @@ mod tests {
         let decoded = reader.read_chunk(&mut cursor).unwrap();
 
         assert_eq!(decoded.len(), 10);
-        assert_eq!(decoded.measurement_name, "temperature");
+        assert_eq!(decoded.measurement_name.as_ref(), "temperature");
 
         // Verificar valores
         for (i, (ts, value)) in decoded.iter().enumerate() {

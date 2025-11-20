@@ -117,7 +117,7 @@ impl TsFileRecordBatchReader {
             if let Some(metadata) = io_reader.get_chunk_metadata(device_id, measurement) {
                 let arrow_type =
                     crate::arrow::schema_mapping::tsfile_type_to_arrow(&metadata.data_type)?;
-                fields.push(Field::new(measurement.clone(), arrow_type, true));
+                fields.push(Field::new(measurement.as_str(), arrow_type, true));
             }
         }
 
@@ -131,7 +131,7 @@ impl TsFileRecordBatchReader {
             return Ok(None);
         }
 
-        let device_id = &self.devices[self.device_index].clone();
+        let device_id = &self.devices[self.device_index];
 
         // Get measurements for this device
         let measurements = self
@@ -189,13 +189,13 @@ impl TsFileRecordBatchReader {
 
         // Replace placeholder arrays with real data
         arrays[0] = Arc::new(TimestampMillisecondArray::from(timestamps));
-        // OPT-READ-3: Use from_iter_values with repeat() - avoids allocating vec
+        // OPT-READ-3: Use from_iter_values with repeat_n() - avoids allocating vec
         arrays[1] = Arc::new(StringArray::from_iter_values(
-            std::iter::repeat(device_id.as_str()).take(num_rows)
+            std::iter::repeat_n(device_id.as_str(), num_rows)
         ));
 
         // Create RecordBatch
-        let batch = RecordBatch::try_new(self.arrow_schema.clone(), arrays).map_err(|e| {
+        let batch = RecordBatch::try_new(Arc::clone(&self.arrow_schema), arrays).map_err(|e| {
             TsFileError::InvalidState(format!("Failed to create RecordBatch: {}", e))
         })?;
 
@@ -221,7 +221,7 @@ impl TsFileRecordBatchReader {
             DecodedValues::Int32(vec) => {
                 // OPT-ARROW-1+2: Zero-copy with alignment check
                 let len = vec.len();
-                let buffer = Self::ensure_aligned_buffer_i32(vec);
+                let buffer = Self::ensure_aligned_buffer_i32(vec)?;
                 let data = ArrayData::builder(DataType::Int32)
                     .len(len)
                     .add_buffer(buffer)
@@ -232,7 +232,7 @@ impl TsFileRecordBatchReader {
             DecodedValues::Int64(vec) => {
                 // OPT-ARROW-1+2: Zero-copy with alignment check
                 let len = vec.len();
-                let buffer = Self::ensure_aligned_buffer_i64(vec);
+                let buffer = Self::ensure_aligned_buffer_i64(vec)?;
                 let data = ArrayData::builder(DataType::Int64)
                     .len(len)
                     .add_buffer(buffer)
@@ -243,7 +243,7 @@ impl TsFileRecordBatchReader {
             DecodedValues::Float(vec) => {
                 // OPT-ARROW-1+2: Zero-copy with alignment check
                 let len = vec.len();
-                let buffer = Self::ensure_aligned_buffer_f32(vec);
+                let buffer = Self::ensure_aligned_buffer_f32(vec)?;
                 let data = ArrayData::builder(DataType::Float32)
                     .len(len)
                     .add_buffer(buffer)
@@ -254,7 +254,7 @@ impl TsFileRecordBatchReader {
             DecodedValues::Double(vec) => {
                 // OPT-ARROW-1+2: Zero-copy with alignment check
                 let len = vec.len();
-                let buffer = Self::ensure_aligned_buffer_f64(vec);
+                let buffer = Self::ensure_aligned_buffer_f64(vec)?;
                 let data = ArrayData::builder(DataType::Float64)
                     .len(len)
                     .add_buffer(buffer)
@@ -276,67 +276,72 @@ impl TsFileRecordBatchReader {
     ///
     /// If the buffer is already aligned, uses zero-copy. Otherwise, reallocates
     /// with proper alignment (rare case, as decoders should produce aligned buffers).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TsFileError::AllocationError`] if aligned memory allocation fails
+    /// during buffer reallocation (extremely rare, only if system is out of memory).
     #[inline]
-    fn ensure_aligned_buffer_i32(vec: Vec<i32>) -> Buffer {
+    fn ensure_aligned_buffer_i32(vec: Vec<i32>) -> Result<Buffer> {
         use crate::arrow::alloc_aligned_vec;
 
         let ptr = vec.as_ptr() as usize;
-        if ptr % crate::arrow::ARROW_ALIGNMENT == 0 {
+        if ptr.is_multiple_of(crate::arrow::ARROW_ALIGNMENT) {
             // Already aligned - zero-copy path
-            Buffer::from_vec(vec)
+            Ok(Buffer::from_vec(vec))
         } else {
             // Not aligned - reallocate (should be rare)
-            let mut aligned = alloc_aligned_vec::<i32>(vec.len());
+            let mut aligned = alloc_aligned_vec::<i32>(vec.len())?;
             aligned.extend(vec);
-            Buffer::from_vec(aligned)
+            Ok(Buffer::from_vec(aligned))
         }
     }
 
     #[inline]
-    fn ensure_aligned_buffer_i64(vec: Vec<i64>) -> Buffer {
+    fn ensure_aligned_buffer_i64(vec: Vec<i64>) -> Result<Buffer> {
         use crate::arrow::alloc_aligned_vec;
 
         let ptr = vec.as_ptr() as usize;
-        if ptr % crate::arrow::ARROW_ALIGNMENT == 0 {
-            Buffer::from_vec(vec)
+        if ptr.is_multiple_of(crate::arrow::ARROW_ALIGNMENT) {
+            Ok(Buffer::from_vec(vec))
         } else {
-            let mut aligned = alloc_aligned_vec::<i64>(vec.len());
+            let mut aligned = alloc_aligned_vec::<i64>(vec.len())?;
             aligned.extend(vec);
-            Buffer::from_vec(aligned)
+            Ok(Buffer::from_vec(aligned))
         }
     }
 
     #[inline]
-    fn ensure_aligned_buffer_f32(vec: Vec<f32>) -> Buffer {
+    fn ensure_aligned_buffer_f32(vec: Vec<f32>) -> Result<Buffer> {
         use crate::arrow::alloc_aligned_vec;
 
         let ptr = vec.as_ptr() as usize;
-        if ptr % crate::arrow::ARROW_ALIGNMENT == 0 {
-            Buffer::from_vec(vec)
+        if ptr.is_multiple_of(crate::arrow::ARROW_ALIGNMENT) {
+            Ok(Buffer::from_vec(vec))
         } else {
-            let mut aligned = alloc_aligned_vec::<f32>(vec.len());
+            let mut aligned = alloc_aligned_vec::<f32>(vec.len())?;
             aligned.extend(vec);
-            Buffer::from_vec(aligned)
+            Ok(Buffer::from_vec(aligned))
         }
     }
 
     #[inline]
-    fn ensure_aligned_buffer_f64(vec: Vec<f64>) -> Buffer {
+    fn ensure_aligned_buffer_f64(vec: Vec<f64>) -> Result<Buffer> {
         use crate::arrow::alloc_aligned_vec;
 
         let ptr = vec.as_ptr() as usize;
-        if ptr % crate::arrow::ARROW_ALIGNMENT == 0 {
-            Buffer::from_vec(vec)
+        if ptr.is_multiple_of(crate::arrow::ARROW_ALIGNMENT) {
+            Ok(Buffer::from_vec(vec))
         } else {
-            let mut aligned = alloc_aligned_vec::<f64>(vec.len());
+            let mut aligned = alloc_aligned_vec::<f64>(vec.len())?;
             aligned.extend(vec);
-            Buffer::from_vec(aligned)
+            Ok(Buffer::from_vec(aligned))
         }
     }
 
     /// Get the Arrow schema
     pub fn schema(&self) -> Arc<Schema> {
-        self.arrow_schema.clone()
+        Arc::clone(&self.arrow_schema)
     }
 }
 

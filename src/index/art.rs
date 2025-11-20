@@ -56,7 +56,7 @@ enum Node {
     /// 17-48 children: 256-entry index array + 48 child array
     Node48 {
         child_index: [u8; 256], // Maps key byte → child slot (255 = empty)
-        children: [Option<Box<Node>>; 48],
+        children: Box<[Option<Box<Node>>; 48]>,
         num_children: u8,
     },
     /// 49-256 children: direct array (dense fanout)
@@ -92,7 +92,7 @@ impl Node {
         const NONE: Option<Box<Node>> = None;
         Node::Node48 {
             child_index: [255; 256], // 255 means "no child"
-            children: [NONE; 48],
+            children: Box::new([NONE; 48]),
             num_children: 0,
         }
     }
@@ -298,10 +298,9 @@ impl ArtIndex {
             let mut new_node = Node::new_node16();
             if let Node::Node16 { keys: new_keys, children: new_children, num_children: new_count } = &mut new_node {
                 // Copy existing children
-                for i in 0..num_children as usize {
-                    new_keys[i] = keys[i];
-                    new_children[i] = children[i].clone();
-                }
+                let n = num_children as usize;
+                new_keys[..n].copy_from_slice(&keys[..n]);
+                new_children[..n].clone_from_slice(&children[..n]);
                 // Add new child
                 new_keys[num_children as usize] = new_key;
                 new_children[num_children as usize] = Some(Self::insert_recursive(
@@ -332,6 +331,7 @@ impl ArtIndex {
                 // Copy existing children
                 for i in 0..num_children as usize {
                     child_index[keys[i] as usize] = i as u8;
+                    // Clone necessary: ART node expansion requires cloning child nodes
                     new_children[i] = children[i].clone();
                 }
                 // Add new child
@@ -364,6 +364,7 @@ impl ArtIndex {
                 // Copy existing children
                 for (byte_val, &slot) in child_index.iter().enumerate() {
                     if slot != 255 {
+                        // Clone necessary: ART node expansion requires cloning child nodes
                         new_children[byte_val] = children[slot as usize].clone();
                     }
                 }
@@ -380,22 +381,6 @@ impl ArtIndex {
         } else {
             node
         }
-    }
-
-    /// Adds a child to a node
-    fn add_child(mut node: Box<Node>, key_byte: u8, child: Box<Node>) -> Box<Node> {
-        match &mut *node {
-            Node::Node4 { keys, children, num_children } => {
-                if (*num_children as usize) < 4 {
-                    let idx = *num_children as usize;
-                    keys[idx] = key_byte;
-                    children[idx] = Some(child);
-                    *num_children += 1;
-                }
-            }
-            _ => {}
-        }
-        node
     }
 
     /// Searches for a key in the ART
@@ -482,7 +467,7 @@ impl ArtIndex {
 
         // Serialize tree structure (simplified: collect and write as flat map)
         let mut entries = Vec::new();
-        self.collect_entries(self.root.as_ref(), &mut entries, Vec::new());
+        Self::collect_entries(self.root.as_deref(), &mut entries, Vec::new());
 
         writer.write_u32::<LittleEndian>(entries.len() as u32)?;
         bytes_written += 4;
@@ -498,41 +483,45 @@ impl ArtIndex {
     }
 
     /// Collects all entries for serialization
-    fn collect_entries(&self, node: Option<&Box<Node>>, entries: &mut Vec<(Vec<u8>, u64)>, path: Vec<u8>) {
+    fn collect_entries(node: Option<&Node>, entries: &mut Vec<(Vec<u8>, u64)>, path: Vec<u8>) {
         if let Some(node) = node {
-            match &**node {
+            match node {
                 Node::Leaf { value } => {
                     entries.push((path, *value));
                 }
                 Node::Node4 { keys, children, num_children } => {
                     for i in 0..*num_children as usize {
+                        // Clone necessary: building independent path for each child in tree traversal
                         let mut new_path = path.clone();
                         new_path.push(keys[i]);
-                        self.collect_entries(children[i].as_ref(), entries, new_path);
+                        Self::collect_entries(children[i].as_deref(), entries, new_path);
                     }
                 }
                 Node::Node16 { keys, children, num_children } => {
                     for i in 0..*num_children as usize {
+                        // Clone necessary: building independent path for each child in tree traversal
                         let mut new_path = path.clone();
                         new_path.push(keys[i]);
-                        self.collect_entries(children[i].as_ref(), entries, new_path);
+                        Self::collect_entries(children[i].as_deref(), entries, new_path);
                     }
                 }
                 Node::Node48 { child_index, children, .. } => {
                     for (byte_val, &slot) in child_index.iter().enumerate() {
                         if slot != 255 {
+                            // Clone necessary: building independent path for each child in tree traversal
                             let mut new_path = path.clone();
                             new_path.push(byte_val as u8);
-                            self.collect_entries(children[slot as usize].as_ref(), entries, new_path);
+                            Self::collect_entries(children[slot as usize].as_deref(), entries, new_path);
                         }
                     }
                 }
                 Node::Node256 { children, .. } => {
                     for (byte_val, child) in children.iter().enumerate() {
                         if child.is_some() {
+                            // Clone necessary: building independent path for each child in tree traversal
                             let mut new_path = path.clone();
                             new_path.push(byte_val as u8);
-                            self.collect_entries(child.as_ref(), entries, new_path);
+                            Self::collect_entries(child.as_deref(), entries, new_path);
                         }
                     }
                 }

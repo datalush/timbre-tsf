@@ -59,7 +59,7 @@ impl ArrowSchemaMapping {
             let encoding = Self::select_default_encoding(&ts_data_type, field);
 
             let schema = MeasurementSchema::new(
-                field_name.clone(),
+                field_name.as_str(),
                 ts_data_type,
                 encoding,
                 crate::common::CompressionType::Lz4,
@@ -102,7 +102,7 @@ impl ArrowSchemaMapping {
         // Add measurement fields
         for (name, schema) in tsfile_schemas {
             let arrow_type = tsfile_type_to_arrow(&schema.data_type)?;
-            fields.push(Field::new(name.clone(), arrow_type, true));
+            fields.push(Field::new(name.as_str(), arrow_type, true));
         }
 
         Ok(Schema::new(fields))

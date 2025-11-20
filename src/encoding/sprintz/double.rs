@@ -242,16 +242,16 @@ impl DoubleSprintzDecoder {
 
     fn recalculate(&mut self, mut convert_buffer: Vec<i64>) -> Result<()> {
         // Zigzag decode
-        for i in 0..BLOCK_SIZE {
-            convert_buffer[i] = zigzag_decode_i64(convert_buffer[i]);
+        for item in convert_buffer.iter_mut().take(BLOCK_SIZE) {
+            *item = zigzag_decode_i64(*item);
         }
 
         // Reverse prediction using wrapping arithmetic
         match self.predict_method {
             PredictMethod::Delta => {
                 let mut prev_bits = self.current_buffer[0].to_bits() as i64;
-                for i in 0..BLOCK_SIZE {
-                    let curr_bits = prev_bits.wrapping_add(convert_buffer[i]);
+                for (i, &delta) in convert_buffer.iter().enumerate().take(BLOCK_SIZE) {
+                    let curr_bits = prev_bits.wrapping_add(delta);
                     self.current_buffer[i + 1] = f64::from_bits(curr_bits as u64);
                     prev_bits = curr_bits;
                 }
@@ -260,9 +260,8 @@ impl DoubleSprintzDecoder {
                 self.fire_pred.reset();
                 let mut prev_bits = self.current_buffer[0].to_bits() as i64;
 
-                for i in 0..BLOCK_SIZE {
+                for (i, &err) in convert_buffer.iter().enumerate().take(BLOCK_SIZE) {
                     let pred = self.fire_pred.predict(prev_bits);
-                    let err = convert_buffer[i];
                     let curr_bits = pred.wrapping_add(err);
                     self.current_buffer[i + 1] = f64::from_bits(curr_bits as u64);
                     self.fire_pred.train(prev_bits, curr_bits, err);

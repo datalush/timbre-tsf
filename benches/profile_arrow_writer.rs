@@ -71,7 +71,7 @@ fn profile_arrow_tsfile(batch: &RecordBatch) {
 
     // PHASE 1: Converter creation
     let start_phase = Instant::now();
-    let mut converter = ArrowToTsFileConverter::new(temp_file.path())
+    let mut converter = ArrowToTsFileConverter::builder(temp_file.path())
         .with_device_column("device_id")
         .with_timestamp_column("timestamp")
         .build()
@@ -117,7 +117,7 @@ fn benchmark_profile(c: &mut Criterion) {
     group.bench_function("100k_rows", |b| {
         b.iter(|| {
             let temp_file = NamedTempFile::new().unwrap();
-            let mut converter = ArrowToTsFileConverter::new(temp_file.path())
+            let mut converter = ArrowToTsFileConverter::builder(temp_file.path())
                 .with_device_column("device_id")
                 .with_timestamp_column("timestamp")
                 .build()

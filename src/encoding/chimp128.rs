@@ -108,7 +108,7 @@ impl Chimp128Encoder {
                 let length = bit_width - self.prev_leading - self.prev_trailing;
                 for i in (0..length).rev() {
                     self.buffer
-                        .push((xor >> (start + i as u8)) & 1 == 1);
+                        .push((xor >> (start + i)) & 1 == 1);
                 }
             } else if (leading >= self.prev_leading.saturating_sub(1)
                 && leading <= self.prev_leading + 1)

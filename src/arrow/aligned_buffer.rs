@@ -41,6 +41,7 @@
 
 use std::alloc::{alloc, Layout};
 use std::mem;
+use crate::error::{Result, TsFileError};
 
 /// 64-byte alignment constant (Arrow specification + AVX-512 requirement)
 pub const ARROW_ALIGNMENT: usize = 64;
@@ -49,6 +50,13 @@ pub const ARROW_ALIGNMENT: usize = 64;
 ///
 /// This ensures the data pointer is aligned to 64 bytes, which is critical
 /// for zero-copy Arrow integration and SIMD operations.
+///
+/// # Errors
+///
+/// Returns [`TsFileError::AllocationError`] if:
+/// - Memory allocation fails (out of memory)
+/// - Layout parameters are invalid (e.g., alignment not power of 2)
+/// - Size exceeds system limits
 ///
 /// # Safety
 ///
@@ -60,7 +68,7 @@ pub const ARROW_ALIGNMENT: usize = 64;
 /// ```ignore
 /// use timbre_tsf::arrow::aligned_buffer::alloc_aligned_vec;
 ///
-/// let vec: Vec<i64> = alloc_aligned_vec(1000);
+/// let vec: Vec<i64> = alloc_aligned_vec(1000)?;
 /// assert_eq!(vec.len(), 0);
 /// assert!(vec.capacity() >= 1000);
 ///
@@ -68,26 +76,40 @@ pub const ARROW_ALIGNMENT: usize = 64;
 /// let ptr = vec.as_ptr() as usize;
 /// assert_eq!(ptr % 64, 0, "Buffer should be 64-byte aligned");
 /// ```
-pub fn alloc_aligned_vec<T>(capacity: usize) -> Vec<T> {
+pub fn alloc_aligned_vec<T>(capacity: usize) -> Result<Vec<T>> {
     if capacity == 0 {
-        return Vec::new();
+        return Ok(Vec::new());
     }
 
     let size = capacity * mem::size_of::<T>();
     let align = ARROW_ALIGNMENT.max(mem::align_of::<T>());
 
+    // Validate alignment is power of 2
+    if !align.is_power_of_two() {
+        return Err(TsFileError::AllocationError(format!(
+            "Alignment must be power of 2, got {}",
+            align
+        )));
+    }
+
     unsafe {
-        // Allocate aligned memory
-        let layout = Layout::from_size_align_unchecked(size, align);
+        // Allocate aligned memory with safe layout construction
+        let layout = Layout::from_size_align(size, align).map_err(|e| {
+            TsFileError::AllocationError(format!("Invalid layout: {}", e))
+        })?;
+
         let ptr = alloc(layout);
 
         if ptr.is_null() {
-            panic!("Failed to allocate aligned buffer");
+            return Err(TsFileError::AllocationError(format!(
+                "Failed to allocate {} bytes with {} byte alignment",
+                size, align
+            )));
         }
 
         // Create Vec from raw parts
-        // SAFETY: ptr is aligned, capacity is correct, len starts at 0
-        Vec::from_raw_parts(ptr as *mut T, 0, capacity)
+        // SAFETY: ptr is non-null, aligned, and layout is valid
+        Ok(Vec::from_raw_parts(ptr as *mut T, 0, capacity))
     }
 }
 
@@ -113,16 +135,23 @@ pub struct AlignedVec<T> {
 
 impl<T> AlignedVec<T> {
     /// Creates a new aligned vector with the specified capacity
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            inner: alloc_aligned_vec(capacity),
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TsFileError::AllocationError`] if memory allocation fails.
+    pub fn with_capacity(capacity: usize) -> Result<Self> {
+        Ok(Self {
+            inner: alloc_aligned_vec(capacity)?,
             _align_marker: std::marker::PhantomData,
-        }
+        })
     }
 
     /// Creates a new empty aligned vector
     pub fn new() -> Self {
-        Self::with_capacity(0)
+        Self {
+            inner: Vec::new(),
+            _align_marker: std::marker::PhantomData,
+        }
     }
 
     /// Pushes a value to the vector (may reallocate if capacity exceeded)
@@ -198,17 +227,21 @@ impl<T> From<AlignedVec<T>> for Vec<T> {
     }
 }
 
-impl<T: Clone> From<Vec<T>> for AlignedVec<T> {
+impl<T: Clone> AlignedVec<T> {
     /// Creates an AlignedVec from a Vec by copying into aligned buffer
     ///
     /// Note: This performs a copy. For zero-copy, create AlignedVec first
     /// and populate it directly.
-    fn from(vec: Vec<T>) -> Self {
-        let mut aligned = Self::with_capacity(vec.len());
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TsFileError::AllocationError`] if memory allocation fails.
+    pub fn from_vec(vec: Vec<T>) -> Result<Self> {
+        let mut aligned = Self::with_capacity(vec.len())?;
         for item in vec {
             aligned.push(item);
         }
-        aligned
+        Ok(aligned)
     }
 }
 
@@ -218,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_alloc_aligned_vec_i64() {
-        let vec: Vec<i64> = alloc_aligned_vec(1000);
+        let vec: Vec<i64> = alloc_aligned_vec(1000).unwrap();
 
         // Check alignment
         let ptr = vec.as_ptr() as usize;
@@ -231,7 +264,7 @@ mod tests {
 
     #[test]
     fn test_alloc_aligned_vec_f32() {
-        let vec: Vec<f32> = alloc_aligned_vec(500);
+        let vec: Vec<f32> = alloc_aligned_vec(500).unwrap();
 
         let ptr = vec.as_ptr() as usize;
         assert_eq!(ptr % ARROW_ALIGNMENT, 0);
@@ -239,7 +272,7 @@ mod tests {
 
     #[test]
     fn test_aligned_vec_push() {
-        let mut vec = AlignedVec::<i64>::with_capacity(10);
+        let mut vec = AlignedVec::<i64>::with_capacity(10).unwrap();
         vec.verify_alignment();
 
         for i in 0..10 {
@@ -252,7 +285,7 @@ mod tests {
 
     #[test]
     fn test_aligned_vec_into_inner() {
-        let mut vec = AlignedVec::<i32>::with_capacity(5);
+        let mut vec = AlignedVec::<i32>::with_capacity(5).unwrap();
         vec.push(1);
         vec.push(2);
         vec.push(3);
@@ -263,7 +296,7 @@ mod tests {
 
     #[test]
     fn test_aligned_vec_alignment_i64() {
-        let vec = AlignedVec::<i64>::with_capacity(100);
+        let vec = AlignedVec::<i64>::with_capacity(100).unwrap();
         let ptr = vec.as_ptr() as usize;
 
         assert_eq!(
@@ -276,7 +309,7 @@ mod tests {
 
     #[test]
     fn test_aligned_vec_alignment_f64() {
-        let vec = AlignedVec::<f64>::with_capacity(100);
+        let vec = AlignedVec::<f64>::with_capacity(100).unwrap();
         let ptr = vec.as_ptr() as usize;
 
         assert_eq!(ptr % ARROW_ALIGNMENT, 0);
@@ -284,7 +317,7 @@ mod tests {
 
     #[test]
     fn test_zero_capacity() {
-        let vec = AlignedVec::<i64>::with_capacity(0);
+        let vec = AlignedVec::<i64>::with_capacity(0).unwrap();
         assert_eq!(vec.len(), 0);
         assert_eq!(vec.capacity(), 0);
     }

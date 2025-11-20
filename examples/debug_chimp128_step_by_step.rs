@@ -8,7 +8,7 @@ fn compress_chimp128_step_by_step(data: &[f64]) -> Vec<u8> {
     println!("Encoding {} values step by step...\n", data.len());
 
     for (i, &value) in data.iter().enumerate() {
-        let before_len = output.len();
+        let _before_len = output.len();
         encoder.encode_f64(value, &mut output).unwrap();
 
         // Note: encode_f64 doesn't write to output immediately in Chimp128
@@ -32,8 +32,8 @@ fn main() {
     let constant_data = vec![20.0; 100];
     let encoded = compress_chimp128_step_by_step(&constant_data);
 
-    let expected_bits = 64 + 99;  // First value (64) + 99 × 1 bit
-    let expected_bytes = (expected_bits + 7) / 8;
+    let expected_bits: usize = 64 + 99;  // First value (64) + 99 × 1 bit
+    let expected_bytes = expected_bits.div_ceil(8);
 
     println!("\nExpected: {} bits = {} bytes", expected_bits, expected_bytes);
     println!("Got:      {} bytes", encoded.len());
@@ -80,7 +80,8 @@ fn main() {
     println!("Total size: {} bytes", encoded.len());
 
     // Expected: 64 + 2 + 15 + 1 = 82 bits = 11 bytes
-    let expected = (64 + 2 + 15 + 1 + 7) / 8;
+    let expected: usize = 64 + 2 + 15 + 1;
+    let expected = expected.div_ceil(8);
     println!("Expected: ~{} bytes", expected);
 
     if encoded.len() > expected * 3 {

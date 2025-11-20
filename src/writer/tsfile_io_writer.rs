@@ -95,7 +95,7 @@ impl TsFileIOWriter {
 
         self.device_chunk_groups
             .entry(device_id.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(chunk_meta);
 
         Ok(chunk_offset)

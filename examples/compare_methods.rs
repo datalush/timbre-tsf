@@ -104,7 +104,7 @@ fn write_tsfile_arrow(batch: &RecordBatch) -> std::time::Duration {
     let temp_file = NamedTempFile::new().unwrap();
     let start = Instant::now();
 
-    let mut converter = ArrowToTsFileConverter::new(temp_file.path())
+    let mut converter = ArrowToTsFileConverter::builder(temp_file.path())
         .with_device_column("device_id")
         .with_timestamp_column("timestamp")
         .build()

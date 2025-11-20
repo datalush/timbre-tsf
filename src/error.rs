@@ -194,6 +194,13 @@ pub enum TsFileError {
     #[error("Not implemented: {0}")]
     NotImplemented(String),
 
+    /// Memory allocation failure.
+    ///
+    /// Occurs when memory allocation fails, typically due to system resource
+    /// constraints or invalid allocation parameters.
+    #[error("Memory allocation failed: {0}")]
+    AllocationError(String),
+
     /// Catch-all for other errors.
     ///
     /// Used for error cases that don't fit other categories.

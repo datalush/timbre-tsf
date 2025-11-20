@@ -204,6 +204,7 @@ impl GlobalDictionary {
             let s = String::from_utf8(bytes)
                 .map_err(|e| TsFileError::InvalidState(format!("Invalid UTF-8 in dictionary: {}", e)))?;
 
+            // Clone necessary: s is inserted into HashMap and pushed into Vec
             string_to_id.insert(s.clone(), id);
             id_to_string.push(s);
         }

@@ -139,7 +139,7 @@ impl Default for ByteStream {
 impl Write for ByteStream {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.write_bytes(buf)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
         Ok(buf.len())
     }
 

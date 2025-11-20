@@ -115,7 +115,7 @@ fn benchmark_tsfile(batch: &RecordBatch, encoding: TSEncoding, compression: Comp
     let mut times = Vec::new();
 
     for _ in 0..iterations {
-        let mut converter = ArrowToTsFileConverter::new(path)
+        let mut converter = ArrowToTsFileConverter::builder(path)
             .with_device_column("device_id")
             .with_timestamp_column("timestamp")
             .with_config(config.clone())

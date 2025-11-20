@@ -142,7 +142,7 @@ impl FileHeader {
         // Magic number (4 bytes)
         let mut magic = [0u8; 4];
         reader.read_exact(&mut magic)?;
-        if &magic != MAGIC {
+        if magic != MAGIC {
             return Err(TsFileError::InvalidFormat(format!(
                 "Invalid magic number: expected TMB1, got {:?}",
                 magic
@@ -361,7 +361,7 @@ impl FileFooter {
         // Magic number at the end (4 bytes)
         let mut magic = [0u8; 4];
         reader.read_exact(&mut magic)?;
-        if &magic != MAGIC {
+        if magic != MAGIC {
             return Err(TsFileError::InvalidFormat(format!(
                 "Invalid footer magic number: expected TMB1, got {:?}",
                 magic
@@ -432,14 +432,14 @@ pub struct ChunkHeader {
 
 impl ChunkHeader {
     pub fn new(
-        measurement_name: String,
+        measurement_name: impl Into<String>,
         data_type: TSDataType,
         compression_type: CompressionType,
         encoding_type: TSEncoding,
     ) -> Self {
         Self {
             chunk_type: ChunkType::NonAligned,
-            measurement_name,
+            measurement_name: measurement_name.into(),
             data_size: 0,
             data_type,
             compression_type,

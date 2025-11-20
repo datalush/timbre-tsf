@@ -87,7 +87,7 @@ fn benchmark_tsfile(batch: &RecordBatch, config: ArrowConversionConfig, _name: &
     let temp_file = NamedTempFile::new().unwrap();
 
     let start = Instant::now();
-    let mut converter = ArrowToTsFileConverter::new(temp_file.path())
+    let mut converter = ArrowToTsFileConverter::builder(temp_file.path())
         .with_device_column("device_id")
         .with_timestamp_column("timestamp")
         .with_config(config)
@@ -110,7 +110,7 @@ fn main() {
     // Warm up
     for _ in 0..3 {
         let temp_file = NamedTempFile::new().unwrap();
-        let mut converter = ArrowToTsFileConverter::new(temp_file.path())
+        let mut converter = ArrowToTsFileConverter::builder(temp_file.path())
             .with_device_column("device_id")
             .with_timestamp_column("timestamp")
             .build()

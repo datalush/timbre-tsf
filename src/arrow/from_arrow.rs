@@ -38,7 +38,7 @@ use std::sync::Arc;
 /// use timbre_tsf::arrow::ArrowToTsFileConverter;
 /// use arrow::record_batch::RecordBatch;
 ///
-/// let mut converter = ArrowToTsFileConverter::new("output.timbreile")
+/// let mut converter = ArrowToTsFileConverter::builder("output.timbreile")
 ///     .with_device_column("device_id")
 ///     .with_timestamp_column("timestamp")
 ///     .build()?;
@@ -67,7 +67,7 @@ pub struct ArrowToTsFileConverterBuilder {
 
 impl ArrowToTsFileConverter {
     /// Create a new converter builder
-    pub fn new<P: AsRef<Path>>(path: P) -> ArrowToTsFileConverterBuilder {
+    pub fn builder<P: AsRef<Path>>(path: P) -> ArrowToTsFileConverterBuilder {
         ArrowToTsFileConverterBuilder {
             path: path.as_ref().to_string_lossy().to_string(),
             config: ArrowConversionConfig::default(),
@@ -98,7 +98,8 @@ impl ArrowToTsFileConverter {
         for field in arrow_schema.fields() {
             let field_name = field.name();
             if field_name != &self.device_column && field_name != &self.timestamp_column {
-                let column = batch.column_by_name(field_name).unwrap().clone();
+                let column = Arc::clone(batch.column_by_name(field_name).unwrap());
+                // Clones necessary: field_name and data_type stored in Vec for later use
                 measurement_cols.push((field_name.clone(), column, field.data_type().clone()));
             }
         }
@@ -198,7 +199,7 @@ impl ArrowToTsFileConverter {
             let encoding = self.get_encoding_for_field(field, ts_data_type);
 
             schemas.push(MeasurementSchema::new(
-                field_name.clone(),
+                field_name.as_str(),
                 ts_data_type,
                 encoding,
                 self.config.default_compression,
@@ -481,27 +482,27 @@ impl ArrowToTsFileConverter {
         let metadata = field.metadata();
 
         // Try "tsfile:encoding" key first (preferred)
-        if let Some(encoding_str) = metadata.get("tsfile:encoding") {
-            if let Some(encoding) = TSEncoding::from_str(encoding_str) {
-                log::debug!(
-                    "  Using metadata encoding hint for '{}': {} (from tsfile:encoding)",
-                    field.name(),
-                    encoding
-                );
-                return encoding;
-            }
+        if let Some(encoding_str) = metadata.get("tsfile:encoding")
+            && let Some(encoding) = TSEncoding::parse_encoding(encoding_str)
+        {
+            log::debug!(
+                "  Using metadata encoding hint for '{}': {} (from tsfile:encoding)",
+                field.name(),
+                encoding
+            );
+            return encoding;
         }
 
         // Try "encoding" key as fallback
-        if let Some(encoding_str) = metadata.get("encoding") {
-            if let Some(encoding) = TSEncoding::from_str(encoding_str) {
-                log::debug!(
-                    "  Using metadata encoding hint for '{}': {} (from encoding)",
-                    field.name(),
-                    encoding
-                );
-                return encoding;
-            }
+        if let Some(encoding_str) = metadata.get("encoding")
+            && let Some(encoding) = TSEncoding::parse_encoding(encoding_str)
+        {
+            log::debug!(
+                "  Using metadata encoding hint for '{}': {} (from encoding)",
+                field.name(),
+                encoding
+            );
+            return encoding;
         }
 
         // No hint found or parsing failed - use default encoding
@@ -595,7 +596,7 @@ mod tests {
         .unwrap();
 
         // Convert to TsFile
-        let mut converter = ArrowToTsFileConverter::new(path)
+        let mut converter = ArrowToTsFileConverter::builder(path)
             .with_device_column("device_id")
             .with_timestamp_column("timestamp")
             .build()
@@ -632,7 +633,7 @@ mod tests {
                 .unwrap();
 
         // Convert to TsFile
-        let mut converter = ArrowToTsFileConverter::new(path)
+        let mut converter = ArrowToTsFileConverter::builder(path)
             .with_device_column("device_id")
             .with_timestamp_column("timestamp")
             .build()
@@ -680,7 +681,7 @@ mod tests {
         .unwrap();
 
         // Convert to TsFile
-        let mut converter = ArrowToTsFileConverter::new(path)
+        let mut converter = ArrowToTsFileConverter::builder(path)
             .with_device_column("device_id")
             .with_timestamp_column("timestamp")
             .build()
@@ -726,7 +727,7 @@ mod tests {
         .unwrap();
 
         // Convert to TsFile (should trigger parallel processing path)
-        let mut converter = ArrowToTsFileConverter::new(path)
+        let mut converter = ArrowToTsFileConverter::builder(path)
             .with_device_column("device_id")
             .with_timestamp_column("timestamp")
             .build()

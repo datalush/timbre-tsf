@@ -123,7 +123,7 @@ fn main() {
     let different_values_bits = different_values * 12;  // ~12 bits promedio para valores diferentes
 
     let theoretical_bits = first_value_bits + identical_values_bits + different_values_bits;
-    let theoretical_bytes = (theoretical_bits + 7) / 8;
+    let theoretical_bytes = theoretical_bits.div_ceil(8);
     let theoretical_bits_per_value = theoretical_bits as f64 / data.len() as f64;
 
     println!("  Primera valor:        {} bits", first_value_bits);

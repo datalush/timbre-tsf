@@ -20,7 +20,7 @@ use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::ArrowWriter;
 use parquet::file::properties::WriterProperties;
-use parquet::basic::{Compression as ParquetCompression, Encoding as ParquetEncoding};
+use parquet::basic::Compression as ParquetCompression;
 
 use std::fs::File;
 use std::sync::Arc;
@@ -65,7 +65,7 @@ fn write_timbre_file(
     timestamps: &[i64],
     temperatures: &[f32],
     pressures: &[f64],
-    device_ids: &[String],
+    _device_ids: &[String],
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut writer = TsFileWriter::new(path)?;
 

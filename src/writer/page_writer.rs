@@ -1,10 +1,10 @@
-//! PageWriter con soporte nativo para mini-blocks (Timbre format)
+//! PageWriter with native support for mini-blocks (Timbre format)
 //!
-//! Innovación core de Timbre:
-//! - Acumula datos RAW (timestamps + values sin encodear)
-//! - En finish(), divide en 4-8 mini-blocks
-//! - Cada mini-block se encodea y comprime independientemente
-//! - Permite decodificación paralela (8x speedup potencial)
+//! Timbre's core innovation:
+//! - Accumulates RAW data (timestamps + unencoded values)
+//! - On finish(), divides into 4-8 mini-blocks
+//! - Each mini-block is encoded and compressed independently
+//! - Enables parallel decoding (potential 8x speedup)
 
 use crate::common::statistic::{Statistic, create_statistic};
 use crate::common::{CompressionType, TSDataType, TSEncoding};
@@ -13,22 +13,22 @@ use crate::encoding::create_encoder;
 use crate::error::{Result, TsFileError};
 use crate::file::{MiniBlock, MiniBlockConfig, MiniBlockHeader, PageData, PageHeader};
 
-/// Writer para páginas con mini-blocks (Timbre format)
+/// Writer for pages with mini-blocks (Timbre format)
 pub struct PageWriter {
     data_type: TSDataType,
     encoding: TSEncoding,
     compression_type: CompressionType,
     pub miniblock_config: MiniBlockConfig,
 
-    // Datos RAW acumulados (sin encodear)
+    // Accumulated RAW data (unencoded)
     timestamps: Vec<i64>,
-    // ValueData es un enum para diferentes tipos
+    // ValueData is an enum for different types
     value_data: ValueData,
 
     statistic: Box<dyn Statistic>,
 }
 
-/// Datos de valores acumulados por tipo
+/// Accumulated value data by type
 #[derive(Debug)]
 enum ValueData {
     Boolean(Vec<bool>),
@@ -51,17 +51,6 @@ impl ValueData {
             _ => ValueData::Int32(Vec::new()), // Default
         }
     }
-
-    fn len(&self) -> usize {
-        match self {
-            ValueData::Boolean(v) => v.len(),
-            ValueData::Int32(v) => v.len(),
-            ValueData::Int64(v) => v.len(),
-            ValueData::Float(v) => v.len(),
-            ValueData::Double(v) => v.len(),
-            ValueData::String(v) => v.len(),
-        }
-    }
 }
 
 impl PageWriter {
@@ -81,7 +70,7 @@ impl PageWriter {
         }
     }
 
-    /// Escribe un valor booleano
+    /// Writes a boolean value
     pub fn write_bool(&mut self, timestamp: i64, value: bool) -> Result<()> {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
@@ -95,7 +84,7 @@ impl PageWriter {
         Ok(())
     }
 
-    /// Escribe un valor i32
+    /// Writes an i32 value
     pub fn write_i32(&mut self, timestamp: i64, value: i32) -> Result<()> {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
@@ -109,7 +98,7 @@ impl PageWriter {
         Ok(())
     }
 
-    /// Escribe un valor i64
+    /// Writes an i64 value
     pub fn write_i64(&mut self, timestamp: i64, value: i64) -> Result<()> {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
@@ -123,7 +112,7 @@ impl PageWriter {
         Ok(())
     }
 
-    /// Escribe un valor f32
+    /// Writes an f32 value
     pub fn write_f32(&mut self, timestamp: i64, value: f32) -> Result<()> {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
@@ -137,7 +126,7 @@ impl PageWriter {
         Ok(())
     }
 
-    /// Escribe un valor f64
+    /// Writes an f64 value
     pub fn write_f64(&mut self, timestamp: i64, value: f64) -> Result<()> {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
@@ -151,7 +140,7 @@ impl PageWriter {
         Ok(())
     }
 
-    /// Escribe un valor string
+    /// Writes a string value
     pub fn write_string(&mut self, timestamp: i64, value: &str) -> Result<()> {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
@@ -272,12 +261,12 @@ impl PageWriter {
         Ok(MiniBlock::new(header, timestamp_data, value_data))
     }
 
-    /// Retorna el número de valores escritos
+    /// Returns the number of values written
     pub fn value_count(&self) -> i32 {
         self.timestamps.len() as i32
     }
 
-    /// Retorna las estadísticas actuales
+    /// Returns current statistics
     pub fn statistic(&self) -> &dyn Statistic {
         self.statistic.as_ref()
     }

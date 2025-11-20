@@ -63,7 +63,7 @@ impl TsFileWriter {
         // OPT-1: Agregar a Vec en lugar de HashMap (mantener orden de registro)
         self.schemas
             .entry(device_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(schema);
 
         Ok(())
@@ -77,7 +77,7 @@ impl TsFileWriter {
     ) -> Result<()> {
         let device_id = device_id.into();
         for schema in schemas {
-            self.register_timeseries(device_id.clone(), schema)?;
+            self.register_timeseries(&device_id, schema)?;
         }
         Ok(())
     }
@@ -94,20 +94,20 @@ impl TsFileWriter {
             .unwrap_or(false)
     }
 
-    /// Escribe un registro (TsRecord)
+    /// Writes a record (TsRecord)
     pub fn write_record(&mut self, record: TsRecord) -> Result<()> {
-        let device_id = record.device_id.clone();
+        let device_id = &record.device_id;
 
         // Iniciar chunk group si es necesario
-        if self.current_device.as_ref() != Some(&device_id) {
-            if let Some(prev_device) = self.current_device.clone() {
+        if self.current_device.as_deref() != Some(device_id.as_str()) {
+            if let Some(prev_device) = self.current_device.take() {
                 self.flush_device(&prev_device)?;
             }
-            self.io_writer.start_chunk_group(&device_id)?;
-            self.current_device = Some(device_id.clone());
+            self.io_writer.start_chunk_group(device_id)?;
+            self.current_device = Some(device_id.to_string());
 
             // Inicializar writers para este device
-            let device_schemas = self.schemas.get(&device_id).ok_or_else(|| {
+            let device_schemas = self.schemas.get(device_id).ok_or_else(|| {
                 TsFileError::SchemaError(format!("No schemas registered for device {}", device_id))
             })?;
 
@@ -116,7 +116,7 @@ impl TsFileWriter {
 
             for schema in device_schemas.iter() {
                 let writer = ChunkWriter::with_page_size(
-                    schema.measurement_name.clone(),
+                    &schema.measurement_name,
                     schema.data_type,
                     schema.encoding,
                     schema.compression,
@@ -127,7 +127,7 @@ impl TsFileWriter {
         }
 
         // Obtener schemas del device
-        let device_schemas = self.schemas.get(&device_id).ok_or_else(|| {
+        let device_schemas = self.schemas.get(device_id).ok_or_else(|| {
             TsFileError::SchemaError(format!("No schemas registered for device {}", device_id))
         })?;
 
@@ -155,17 +155,17 @@ impl TsFileWriter {
         Ok(())
     }
 
-    /// Escribe un tablet (batch writing)
+    /// Writes a tablet (batch writing)
     pub fn write_tablet(&mut self, tablet: &Tablet) -> Result<()> {
-        let device_id = tablet.device_name.clone();
+        let device_id = &tablet.device_name;
 
         // Iniciar chunk group si es necesario
-        if self.current_device.as_ref() != Some(&device_id) {
-            if let Some(prev_device) = self.current_device.clone() {
+        if self.current_device.as_deref() != Some(device_id.as_str()) {
+            if let Some(prev_device) = self.current_device.take() {
                 self.flush_device(&prev_device)?;
             }
-            self.io_writer.start_chunk_group(&device_id)?;
-            self.current_device = Some(device_id.clone());
+            self.io_writer.start_chunk_group(device_id)?;
+            self.current_device = Some(device_id.to_string());
 
             // OPT-1: Inicializar writers para el nuevo device
             self.current_writers.clear();
@@ -173,7 +173,7 @@ impl TsFileWriter {
 
             for schema in tablet.schemas.iter() {
                 let writer = ChunkWriter::with_page_size(
-                    schema.measurement_name.clone(),
+                    &schema.measurement_name,
                     schema.data_type,
                     schema.encoding,
                     schema.compression,
@@ -262,9 +262,8 @@ impl TsFileWriter {
 
     /// Hace flush de todos los datos pendientes
     pub fn flush(&mut self) -> Result<()> {
-        if let Some(device_id) = self.current_device.clone() {
+        if let Some(device_id) = self.current_device.take() {
             self.flush_device(&device_id)?;
-            self.current_device = None;
         }
         Ok(())
     }

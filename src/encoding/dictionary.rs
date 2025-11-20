@@ -351,6 +351,7 @@ impl Decoder for DictionaryDecoder {
             )));
         }
 
+        // Clone necessary: returning owned String from dictionary lookup
         Ok(self.dictionary[id].clone())
     }
 

@@ -239,9 +239,7 @@ impl Int32SprintzDecoder {
             let mut unpacked = Vec::new();
             unpack_8values_i32(pack_buf, bit_width, &mut unpacked);
 
-            for i in 0..8 {
-                self.current_buffer[i + 1] = unpacked[i];
-            }
+            self.current_buffer[1..9].copy_from_slice(&unpacked[..8]);
 
             self.recalculate()?;
         }

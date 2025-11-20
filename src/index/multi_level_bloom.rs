@@ -133,7 +133,7 @@ impl MultiLevelBloomFilter {
         // Track which chunk this page belongs to
         self.chunk_to_pages
             .entry(chunk_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(page_id);
     }
 
@@ -164,10 +164,10 @@ impl MultiLevelBloomFilter {
 
         // Check if any page in this chunk contains the item
         for &page_id in pages {
-            if let Some(filter) = self.page_filters.get(&page_id) {
-                if filter.might_contain(item) {
-                    return true;
-                }
+            if let Some(filter) = self.page_filters.get(&page_id)
+                && filter.might_contain(item)
+            {
+                return true;
             }
         }
         false
