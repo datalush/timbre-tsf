@@ -1,7 +1,8 @@
 use crate::common::{CompressionType, TSDataType, TSEncoding};
+use crate::constants::{FOOTER_SIZE, HEADER_SIZE};
 use crate::error::{Result, TsFileError};
+use crate::file::{FileFooter, FileHeader};
 use crate::reader::ChunkReader;
-use crate::writer::tsfile_io_writer::{MAGIC_STRING, VERSION};
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::collections::HashMap;
 use std::fs::File;
@@ -36,49 +37,25 @@ impl TsFileIOReader {
         // Obtener tamaño del archivo
         let file_size = file.seek(SeekFrom::End(0))?;
 
-        // Verificar tamaño mínimo
-        if file_size < 21 {
-            // Magic(6) + Version(1) + MetadataOffset(8) + Magic(6)
-            return Err(TsFileError::InvalidFile(
-                "File too small to be a valid TsFile".to_string(),
-            ));
-        }
-
-        // Leer y verificar magic string al inicio
-        file.seek(SeekFrom::Start(0))?;
-        let mut magic_start = vec![0u8; MAGIC_STRING.len()];
-        file.read_exact(&mut magic_start)?;
-
-        if magic_start != MAGIC_STRING {
-            return Err(TsFileError::InvalidFile(
-                "Invalid magic string at start".to_string(),
-            ));
-        }
-
-        // Leer versión
-        let version = file.read_u8()?;
-        if version != VERSION {
+        // Verificar tamaño mínimo (HEADER + FOOTER)
+        let min_size = (HEADER_SIZE + FOOTER_SIZE) as u64;
+        if file_size < min_size {
             return Err(TsFileError::InvalidFile(format!(
-                "Unsupported version: {} (expected {})",
-                version, VERSION
+                "File too small to be a valid Timbre file: {} bytes (min {})",
+                file_size, min_size
             )));
         }
 
-        // Leer offset de metadata desde el final
-        file.seek(SeekFrom::End(-(MAGIC_STRING.len() as i64 + 8)))?;
-        let metadata_offset = file.read_u64::<LittleEndian>()?;
+        // Leer FileHeader al inicio (128 bytes) con magic TMB1
+        file.seek(SeekFrom::Start(0))?;
+        let _header = FileHeader::deserialize(&mut file)?;
 
-        // Verificar magic string al final
-        let mut magic_end = vec![0u8; MAGIC_STRING.len()];
-        file.read_exact(&mut magic_end)?;
+        // Leer FileFooter al final (132 bytes) con magic TMB1
+        file.seek(SeekFrom::End(-(FOOTER_SIZE as i64)))?;
+        let footer = FileFooter::deserialize(&mut file)?;
 
-        if magic_end != MAGIC_STRING {
-            return Err(TsFileError::InvalidFile(
-                "Invalid magic string at end".to_string(),
-            ));
-        }
-
-        // Leer metadata
+        // Usar metadata_offset del footer para leer metadata
+        let metadata_offset = footer.metadata_offset;
         file.seek(SeekFrom::Start(metadata_offset))?;
         let device_metadata = Self::read_metadata(&mut file)?;
 

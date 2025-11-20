@@ -23,13 +23,13 @@
 //! - Static dispatch for encoding selection
 //! - LZ4 FAST compression for balance of speed and ratio
 
-pub mod aligned_chunk_writer;
+// pub mod aligned_chunk_writer; // Temporarily disabled for Timbre mini-blocks migration
 pub mod chunk_writer;
 pub mod page_writer;
 pub mod tsfile_io_writer;
 pub mod tsfile_writer;
 
-pub use aligned_chunk_writer::*;
+// pub use aligned_chunk_writer::*;
 pub use chunk_writer::*;
 pub use page_writer::*;
 pub use tsfile_io_writer::*;

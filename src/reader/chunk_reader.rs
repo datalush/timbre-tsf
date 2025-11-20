@@ -40,16 +40,25 @@ impl ChunkReader {
         let header = ChunkHeader::deserialize(reader)?;
 
         // Paso 1: Leer todos los page data secuencialmente (I/O)
+        // Timbre: Cada página contiene 4-8 mini-blocks
         let mut page_data_list = Vec::with_capacity(header.num_of_pages as usize);
         for _ in 0..header.num_of_pages {
             let page_header = PageHeader::deserialize(reader)?;
-            let mut compressed_data = vec![0u8; page_header.compressed_size as usize];
-            reader.read_exact(&mut compressed_data)?;
+
+            // Leer número de mini-blocks
+            use byteorder::{LittleEndian, ReadBytesExt};
+            let miniblock_count = reader.read_u32::<LittleEndian>()? as usize;
+
+            // Leer cada mini-block
+            let mut miniblocks = Vec::with_capacity(miniblock_count);
+            for _ in 0..miniblock_count {
+                let miniblock = crate::file::MiniBlock::deserialize(reader)?;
+                miniblocks.push(miniblock);
+            }
 
             page_data_list.push(PageData {
                 header: page_header,
-                compressed_data,
-                uncompressed_data: Vec::new(), // Se descomprimirá durante el decode
+                miniblocks,
             });
         }
 

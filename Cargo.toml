@@ -1,12 +1,12 @@
 [package]
 name = "timbre-tsf"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
-authors = ["Juan José de las Heras Herrera"]
-description = "High-performance Rust implementation of the Timbre columnar storage format for time series data"
+authors = ["Juan José de las Heras"]
+description = "High-performance columnar file format for IoT time series"
 license = "Apache-2.0"
-repository = "https://github.com/datalush/timbre-tsf"
-keywords = ["timbre", "timeseries", "iot", "columnar", "storage"]
+repository = "https://github.com/juanjodelasheras/timbre-tsf"
+keywords = ["timeseries", "iot", "columnar", "compression", "timbre"]
 categories = ["database", "compression", "encoding"]
 readme = "README.md"
 
@@ -18,23 +18,34 @@ thiserror = "1.0"
 log = "0.4"
 
 # Compression
-lz4 = "1.28"
-snap = "1.1"  # Snappy
-flate2 = "1.0"  # GZIP
+zstd = "0.13"           # Zstd compression (default, 2-3x better than Snappy)
+lz4 = "1.28"            # LZ4 (low latency option)
+snap = "1.1"            # Snappy (compatibility)
+flate2 = "1.0"          # GZIP (maximum compression)
 
 # Serialization
 byteorder = "1.5"
+
+# Hashing and checksums
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+blake3 = "1.5"
+
+# Indexes
+roaring = "0.10"        # Roaring bitmaps for inverted index
 
 # Utilities
 bitflags = "2.6"
 bit-vec = "0.6"
 
 # Arrow integration
-arrow = "56.0"
-arrow-array = "56.0"
-arrow-schema = "56.0"
-arrow-buffer = "56.0"
-parquet = "56.0"
+arrow = "53"
+arrow-array = "53.0"
+arrow-schema = "53.0"
+arrow-buffer = "53.0"
+parquet = "53.0"
+
+# Memory mapping
+memmap2 = "0.9"
 
 # Parallelism
 rayon = "1.8"

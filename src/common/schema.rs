@@ -132,10 +132,10 @@ impl MeasurementSchema {
     /// This is the recommended way to create schemas as it automatically selects
     /// optimal settings based on the data type:
     ///
-    /// - Float/Double → Gorilla + LZ4
-    /// - Int32/Int64/Timestamp → TS_2DIFF + LZ4
-    /// - Boolean → RLE + LZ4
-    /// - Text/String → Dictionary + LZ4
+    /// - Float/Double → Chimp128 + Zstd
+    /// - Int32/Int64/Timestamp → Simple8b + Zstd
+    /// - Boolean → RLE + Zstd
+    /// - Text/String → Dictionary + Zstd
     ///
     /// # Examples
     ///
@@ -143,8 +143,8 @@ impl MeasurementSchema {
     /// use timbre_tsf::common::*;
     ///
     /// let schema = MeasurementSchema::with_defaults("temperature", TSDataType::Float);
-    /// assert_eq!(schema.encoding, TSEncoding::Gorilla);
-    /// assert_eq!(schema.compression, CompressionType::Lz4);
+    /// assert_eq!(schema.encoding, TSEncoding::Chimp128);
+    /// assert_eq!(schema.compression, CompressionType::Zstd);
     /// ```
     pub fn with_defaults(measurement_name: impl Into<String>, data_type: TSDataType) -> Self {
         Self::new(
@@ -467,7 +467,7 @@ mod tests {
 
         assert_eq!(schema.measurement_name, "temperature");
         assert_eq!(schema.data_type, TSDataType::Float);
-        assert_eq!(schema.encoding, TSEncoding::Gorilla);
+        assert_eq!(schema.encoding, TSEncoding::Chimp128);
         assert_eq!(schema.props.get("unit").unwrap(), "celsius");
     }
 

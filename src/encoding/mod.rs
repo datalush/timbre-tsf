@@ -45,18 +45,22 @@
 //! // Encoded data is now in `output`
 //! ```
 
+mod chimp128;
 mod dictionary;
 mod gorilla;
 mod plain;
 mod rle;
+mod simple8b;
 mod sprintz;
 mod ts2diff;
 mod zigzag;
 
+pub use chimp128::*;
 pub use dictionary::*;
 pub use gorilla::*;
 pub use plain::*;
 pub use rle::*;
+pub use simple8b::*;
 pub use sprintz::*;
 pub use ts2diff::*;
 pub use zigzag::*;
@@ -146,6 +150,8 @@ pub trait Encoder: Send + Sync {
 pub enum EncoderImpl {
     Plain(PlainEncoder),
     Dictionary(DictionaryEncoder),
+    Chimp128(Chimp128Encoder),
+    Simple8b(Simple8bEncoder),
     Gorilla(GorillaEncoder),
     Ts2Diff(Ts2DiffEncoder),
     Rle(RleEncoder),
@@ -159,6 +165,8 @@ impl EncoderImpl {
         match self {
             Self::Plain(e) => e.encode_bool(value, out),
             Self::Dictionary(e) => e.encode_bool(value, out),
+            Self::Chimp128(e) => e.encode_bool(value, out),
+            Self::Simple8b(e) => e.encode_bool(value, out),
             Self::Gorilla(e) => e.encode_bool(value, out),
             Self::Ts2Diff(e) => e.encode_bool(value, out),
             Self::Rle(e) => e.encode_bool(value, out),
@@ -172,6 +180,8 @@ impl EncoderImpl {
         match self {
             Self::Plain(e) => e.encode_i32(value, out),
             Self::Dictionary(e) => e.encode_i32(value, out),
+            Self::Chimp128(e) => e.encode_i32(value, out),
+            Self::Simple8b(e) => e.encode_i32(value, out),
             Self::Gorilla(e) => e.encode_i32(value, out),
             Self::Ts2Diff(e) => e.encode_i32(value, out),
             Self::Rle(e) => e.encode_i32(value, out),
@@ -185,6 +195,8 @@ impl EncoderImpl {
         match self {
             Self::Plain(e) => e.encode_i64(value, out),
             Self::Dictionary(e) => e.encode_i64(value, out),
+            Self::Chimp128(e) => e.encode_i64(value, out),
+            Self::Simple8b(e) => e.encode_i64(value, out),
             Self::Gorilla(e) => e.encode_i64(value, out),
             Self::Ts2Diff(e) => e.encode_i64(value, out),
             Self::Rle(e) => e.encode_i64(value, out),
@@ -198,6 +210,8 @@ impl EncoderImpl {
         match self {
             Self::Plain(e) => e.encode_f32(value, out),
             Self::Dictionary(e) => e.encode_f32(value, out),
+            Self::Chimp128(e) => e.encode_f32(value, out),
+            Self::Simple8b(e) => e.encode_f32(value, out),
             Self::Gorilla(e) => e.encode_f32(value, out),
             Self::Ts2Diff(e) => e.encode_f32(value, out),
             Self::Rle(e) => e.encode_f32(value, out),
@@ -211,6 +225,8 @@ impl EncoderImpl {
         match self {
             Self::Plain(e) => e.encode_f64(value, out),
             Self::Dictionary(e) => e.encode_f64(value, out),
+            Self::Chimp128(e) => e.encode_f64(value, out),
+            Self::Simple8b(e) => e.encode_f64(value, out),
             Self::Gorilla(e) => e.encode_f64(value, out),
             Self::Ts2Diff(e) => e.encode_f64(value, out),
             Self::Rle(e) => e.encode_f64(value, out),
@@ -224,6 +240,8 @@ impl EncoderImpl {
         match self {
             Self::Plain(e) => e.encode_string(value, out),
             Self::Dictionary(e) => e.encode_string(value, out),
+            Self::Chimp128(e) => e.encode_string(value, out),
+            Self::Simple8b(e) => e.encode_string(value, out),
             Self::Gorilla(e) => e.encode_string(value, out),
             Self::Ts2Diff(e) => e.encode_string(value, out),
             Self::Rle(e) => e.encode_string(value, out),
@@ -237,6 +255,8 @@ impl EncoderImpl {
         match self {
             Self::Plain(e) => e.flush(out),
             Self::Dictionary(e) => e.flush(out),
+            Self::Chimp128(e) => e.flush(out),
+            Self::Simple8b(e) => e.flush(out),
             Self::Gorilla(e) => e.flush(out),
             Self::Ts2Diff(e) => e.flush(out),
             Self::Rle(e) => e.flush(out),
@@ -250,6 +270,8 @@ impl EncoderImpl {
         match self {
             Self::Plain(e) => e.buffered_size(),
             Self::Dictionary(e) => e.buffered_size(),
+            Self::Chimp128(e) => e.buffered_size(),
+            Self::Simple8b(e) => e.buffered_size(),
             Self::Gorilla(e) => e.buffered_size(),
             Self::Ts2Diff(e) => e.buffered_size(),
             Self::Rle(e) => e.buffered_size(),
@@ -263,6 +285,8 @@ impl EncoderImpl {
         match self {
             Self::Plain(e) => e.encoding_type(),
             Self::Dictionary(e) => e.encoding_type(),
+            Self::Chimp128(e) => e.encoding_type(),
+            Self::Simple8b(e) => e.encoding_type(),
             Self::Gorilla(e) => e.encoding_type(),
             Self::Ts2Diff(e) => e.encoding_type(),
             Self::Rle(e) => e.encoding_type(),
@@ -348,6 +372,8 @@ pub trait Decoder: Send + Sync {
 pub enum DecoderImpl {
     Plain(PlainDecoder),
     Dictionary(DictionaryDecoder),
+    Chimp128(Chimp128Decoder),
+    Simple8b(Simple8bDecoder),
     Gorilla(GorillaDecoder),
     Ts2Diff(Ts2DiffDecoder),
     Rle(RleDecoder),
@@ -361,6 +387,8 @@ impl DecoderImpl {
         match self {
             Self::Plain(d) => d.read_bool(input, pos),
             Self::Dictionary(d) => d.read_bool(input, pos),
+            Self::Chimp128(d) => d.read_bool(input, pos),
+            Self::Simple8b(d) => d.read_bool(input, pos),
             Self::Gorilla(d) => d.read_bool(input, pos),
             Self::Ts2Diff(d) => d.read_bool(input, pos),
             Self::Rle(d) => d.read_bool(input, pos),
@@ -374,6 +402,8 @@ impl DecoderImpl {
         match self {
             Self::Plain(d) => d.read_i32(input, pos),
             Self::Dictionary(d) => d.read_i32(input, pos),
+            Self::Chimp128(d) => d.read_i32(input, pos),
+            Self::Simple8b(d) => d.read_i32(input, pos),
             Self::Gorilla(d) => d.read_i32(input, pos),
             Self::Ts2Diff(d) => d.read_i32(input, pos),
             Self::Rle(d) => d.read_i32(input, pos),
@@ -387,6 +417,8 @@ impl DecoderImpl {
         match self {
             Self::Plain(d) => d.read_i64(input, pos),
             Self::Dictionary(d) => d.read_i64(input, pos),
+            Self::Chimp128(d) => d.read_i64(input, pos),
+            Self::Simple8b(d) => d.read_i64(input, pos),
             Self::Gorilla(d) => d.read_i64(input, pos),
             Self::Ts2Diff(d) => d.read_i64(input, pos),
             Self::Rle(d) => d.read_i64(input, pos),
@@ -400,6 +432,8 @@ impl DecoderImpl {
         match self {
             Self::Plain(d) => d.read_f32(input, pos),
             Self::Dictionary(d) => d.read_f32(input, pos),
+            Self::Chimp128(d) => d.read_f32(input, pos),
+            Self::Simple8b(d) => d.read_f32(input, pos),
             Self::Gorilla(d) => d.read_f32(input, pos),
             Self::Ts2Diff(d) => d.read_f32(input, pos),
             Self::Rle(d) => d.read_f32(input, pos),
@@ -413,6 +447,8 @@ impl DecoderImpl {
         match self {
             Self::Plain(d) => d.read_f64(input, pos),
             Self::Dictionary(d) => d.read_f64(input, pos),
+            Self::Chimp128(d) => d.read_f64(input, pos),
+            Self::Simple8b(d) => d.read_f64(input, pos),
             Self::Gorilla(d) => d.read_f64(input, pos),
             Self::Ts2Diff(d) => d.read_f64(input, pos),
             Self::Rle(d) => d.read_f64(input, pos),
@@ -426,6 +462,8 @@ impl DecoderImpl {
         match self {
             Self::Plain(d) => d.read_string(input, pos),
             Self::Dictionary(d) => d.read_string(input, pos),
+            Self::Chimp128(d) => d.read_string(input, pos),
+            Self::Simple8b(d) => d.read_string(input, pos),
             Self::Gorilla(d) => d.read_string(input, pos),
             Self::Ts2Diff(d) => d.read_string(input, pos),
             Self::Rle(d) => d.read_string(input, pos),
@@ -439,6 +477,8 @@ impl DecoderImpl {
         match self {
             Self::Plain(d) => d.has_remaining(input, pos),
             Self::Dictionary(d) => d.has_remaining(input, pos),
+            Self::Chimp128(d) => d.has_remaining(input, pos),
+            Self::Simple8b(d) => d.has_remaining(input, pos),
             Self::Gorilla(d) => d.has_remaining(input, pos),
             Self::Ts2Diff(d) => d.has_remaining(input, pos),
             Self::Rle(d) => d.has_remaining(input, pos),
@@ -452,6 +492,8 @@ impl DecoderImpl {
         match self {
             Self::Plain(d) => d.encoding_type(),
             Self::Dictionary(d) => d.encoding_type(),
+            Self::Chimp128(d) => d.encoding_type(),
+            Self::Simple8b(d) => d.encoding_type(),
             Self::Gorilla(d) => d.encoding_type(),
             Self::Ts2Diff(d) => d.encoding_type(),
             Self::Rle(d) => d.encoding_type(),
@@ -516,6 +558,8 @@ pub fn create_encoder(encoding: TSEncoding, data_type: TSDataType) -> EncoderImp
     match encoding {
         TSEncoding::Plain => EncoderImpl::Plain(PlainEncoder::new(data_type)),
         TSEncoding::Dictionary => EncoderImpl::Dictionary(DictionaryEncoder::new(data_type)),
+        TSEncoding::Chimp128 => EncoderImpl::Chimp128(Chimp128Encoder::new(data_type)),
+        TSEncoding::Simple8b => EncoderImpl::Simple8b(Simple8bEncoder::new(data_type)),
         TSEncoding::Gorilla => EncoderImpl::Gorilla(GorillaEncoder::new(data_type)),
         TSEncoding::Ts2Diff => EncoderImpl::Ts2Diff(Ts2DiffEncoder::new(data_type)),
         TSEncoding::Rle => EncoderImpl::Rle(RleEncoder::new(data_type)),
@@ -580,6 +624,7 @@ pub fn create_decoder(encoding: TSEncoding, data_type: TSDataType) -> DecoderImp
     match encoding {
         TSEncoding::Plain => DecoderImpl::Plain(PlainDecoder::new(data_type)),
         TSEncoding::Dictionary => DecoderImpl::Dictionary(DictionaryDecoder::new(data_type)),
+        TSEncoding::Chimp128 => DecoderImpl::Chimp128(Chimp128Decoder::new(data_type)),
         TSEncoding::Gorilla => DecoderImpl::Gorilla(GorillaDecoder::new(data_type)),
         TSEncoding::Ts2Diff => DecoderImpl::Ts2Diff(Ts2DiffDecoder::new(data_type)),
         TSEncoding::Rle => DecoderImpl::Rle(RleDecoder::new(data_type)),

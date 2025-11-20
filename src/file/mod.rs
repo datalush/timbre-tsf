@@ -20,7 +20,11 @@
 //! - Compatibility with Apache IoTDB
 
 pub mod byte_stream;
+pub mod dictionary;
 pub mod metadata;
+pub mod miniblock;
 
 pub use byte_stream::*;
+pub use dictionary::*;
 pub use metadata::*;
+pub use miniblock::*;

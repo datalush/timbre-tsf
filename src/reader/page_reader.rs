@@ -1,7 +1,7 @@
 use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::compress::{CompressorImpl, create_compressor};
 use crate::encoding::{DecoderImpl, create_decoder};
-use crate::error::Result;
+use crate::error::{Result, TsFileError};
 use crate::file::{PageData, PageHeader};
 use std::io::Read;
 
@@ -90,60 +90,151 @@ impl PageReader {
         })
     }
 
-    /// Lee una página desde PageData (ya tiene datos comprimidos)
+    /// Lee una página desde PageData con mini-blocks (Timbre format)
+    ///
+    /// **Innovación core de Timbre**: Decodifica 4-8 mini-blocks en PARALELO con Rayon.
+    /// Speedup potencial: 8x en máquinas con 8+ cores.
     pub fn read_page_data(&mut self, page_data: &PageData) -> Result<DecodedPage> {
-        // Descomprimir (reutilizando compressor instance)
-        let uncompressed = self.compressor.decompress(
-            &page_data.compressed_data,
-            page_data.header.uncompressed_size as usize,
-        )?;
+        use rayon::prelude::*;
 
-        // Leer tamaños y decodificar
-        use byteorder::{LittleEndian, ReadBytesExt};
-        let mut cursor = std::io::Cursor::new(&uncompressed);
+        // Decodificar cada mini-block en paralelo
+        let decoded_miniblocks: Vec<(Vec<i64>, DecodedValues)> = page_data
+            .miniblocks
+            .par_iter()
+            .map(|miniblock| {
+                // Crear instancias fresh de compressor y decoders (thread-local)
+                let compression_type = self.compressor.compression_type();
+                let mut mb_compressor = create_compressor(compression_type);
 
-        // Leer tamaño del time buffer
-        let time_size = cursor.read_u32::<LittleEndian>()? as usize;
-        let time_start = cursor.position() as usize;
-        let time_end = time_start + time_size;
+                // Descomprimir timestamps y values independientemente usando tamaños del header
+                let time_uncompressed = mb_compressor
+                    .decompress(&miniblock.timestamp_data, miniblock.header.timestamp_uncompressed_size as usize)
+                    .map_err(|e| TsFileError::DecompressionError(format!("Timestamp decompression failed: {}", e)))?;
 
-        // Decodificar timestamps - OPT-READ-5: static dispatch decoder
-        let time_buffer = &uncompressed[time_start..time_end];
-        let mut time_decoder = create_decoder(TSEncoding::Ts2Diff, TSDataType::Int64);
-        let mut timestamps = Vec::with_capacity(page_data.header.num_of_values as usize);
-        let mut pos = 0;
+                let value_uncompressed = mb_compressor
+                    .decompress(&miniblock.value_data, miniblock.header.value_uncompressed_size as usize)
+                    .map_err(|e| TsFileError::DecompressionError(format!("Value decompression failed: {}", e)))?;
 
-        while time_decoder.has_remaining(time_buffer, pos)
-            && timestamps.len() < page_data.header.num_of_values as usize
-        {
-            let ts = time_decoder.read_i64(time_buffer, &mut pos)?;
-            timestamps.push(ts);
+                // Decodificar timestamps
+                let mut time_decoder = create_decoder(TSEncoding::Ts2Diff, TSDataType::Int64);
+                let mut timestamps = Vec::with_capacity(miniblock.header.point_count as usize);
+                let mut pos = 0;
+
+                while time_decoder.has_remaining(&time_uncompressed, pos)
+                    && timestamps.len() < miniblock.header.point_count as usize
+                {
+                    let ts = time_decoder.read_i64(&time_uncompressed, &mut pos)
+                        .map_err(|e| TsFileError::EncodingError(format!("Timestamp decode failed: {}", e)))?;
+                    timestamps.push(ts);
+                }
+
+                // Decodificar values
+                let mut value_decoder = create_decoder(self.encoding, self.data_type);
+                let mut value_pos = 0;
+                let values = self.decode_values(
+                    &mut value_decoder,
+                    &value_uncompressed,
+                    &mut value_pos,
+                    miniblock.header.point_count as usize,
+                )?;
+
+                Ok::<_, crate::error::TsFileError>((timestamps, values))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        // Concatenar resultados de mini-blocks (mantener orden)
+        let mut all_timestamps = Vec::with_capacity(page_data.header.num_of_values as usize);
+        let mut all_values_vecs: Vec<DecodedValues> = Vec::new();
+
+        for (ts, vals) in decoded_miniblocks {
+            all_timestamps.extend(ts);
+            all_values_vecs.push(vals);
         }
 
-        // Posicionar cursor después del time buffer
-        cursor.set_position((time_end) as u64);
-
-        // Leer tamaño del value buffer
-        let value_size = cursor.read_u32::<LittleEndian>()? as usize;
-        let value_start = cursor.position() as usize;
-        let value_end = value_start + value_size;
-
-        // Decodificar valores - OPT-READ-5: static dispatch decoder
-        let value_buffer = &uncompressed[value_start..value_end];
-        let mut value_decoder = create_decoder(self.encoding, self.data_type);
-        let mut value_pos = 0;
-        let values = self.decode_values(
-            &mut value_decoder,
-            value_buffer,
-            &mut value_pos,
-            page_data.header.num_of_values as usize,
-        )?;
+        // Merge values según tipo
+        let merged_values = Self::merge_decoded_values(all_values_vecs, self.data_type)?;
 
         Ok(DecodedPage {
-            timestamps,
-            values,
+            timestamps: all_timestamps,
+            values: merged_values,
             num_of_values: page_data.header.num_of_values as usize,
         })
+    }
+
+    /// Merge múltiples DecodedValues en uno solo
+    fn merge_decoded_values(
+        mut values_vec: Vec<DecodedValues>,
+        data_type: TSDataType,
+    ) -> Result<DecodedValues> {
+        if values_vec.is_empty() {
+            return Err(TsFileError::InvalidState("No values to merge".to_string()));
+        }
+
+        if values_vec.len() == 1 {
+            return Ok(values_vec.pop().unwrap());
+        }
+
+        // Merge según tipo
+        match data_type {
+            TSDataType::Boolean => {
+                let mut merged = Vec::new();
+                for dv in values_vec {
+                    if let DecodedValues::Boolean(v) = dv {
+                        merged.extend(v);
+                    }
+                }
+                Ok(DecodedValues::Boolean(merged))
+            }
+            TSDataType::Int32 | TSDataType::Date => {
+                let mut merged = Vec::new();
+                for dv in values_vec {
+                    if let DecodedValues::Int32(v) = dv {
+                        merged.extend(v);
+                    }
+                }
+                Ok(DecodedValues::Int32(merged))
+            }
+            TSDataType::Int64 | TSDataType::Timestamp => {
+                let mut merged = Vec::new();
+                for dv in values_vec {
+                    if let DecodedValues::Int64(v) = dv {
+                        merged.extend(v);
+                    }
+                }
+                Ok(DecodedValues::Int64(merged))
+            }
+            TSDataType::Float => {
+                let mut merged = Vec::new();
+                for dv in values_vec {
+                    if let DecodedValues::Float(v) = dv {
+                        merged.extend(v);
+                    }
+                }
+                Ok(DecodedValues::Float(merged))
+            }
+            TSDataType::Double => {
+                let mut merged = Vec::new();
+                for dv in values_vec {
+                    if let DecodedValues::Double(v) = dv {
+                        merged.extend(v);
+                    }
+                }
+                Ok(DecodedValues::Double(merged))
+            }
+            TSDataType::Text | TSDataType::String => {
+                let mut merged = Vec::new();
+                for dv in values_vec {
+                    if let DecodedValues::Text(v) = dv {
+                        merged.extend(v);
+                    }
+                }
+                Ok(DecodedValues::Text(merged))
+            }
+            _ => Err(TsFileError::TypeMismatch {
+                expected: "supported type".to_string(),
+                actual: format!("{:?}", data_type),
+            }),
+        }
     }
 
     /// Decodifica valores según el tipo de dato

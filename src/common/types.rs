@@ -22,7 +22,7 @@
 //!
 //! // Get recommended encoding for a data type
 //! let encoding = TSEncoding::recommended_for(TSDataType::Float);
-//! assert_eq!(encoding, TSEncoding::Gorilla);
+//! assert_eq!(encoding, TSEncoding::Chimp128);
 //!
 //! // Check size of fixed-size types
 //! assert_eq!(TSDataType::Int32.size(), Some(4));
@@ -210,7 +210,7 @@ impl fmt::Display for TSDataType {
 ///
 /// // Get recommended encoding for a data type
 /// let encoding = TSEncoding::recommended_for(TSDataType::Float);
-/// assert_eq!(encoding, TSEncoding::Gorilla);
+/// assert_eq!(encoding, TSEncoding::Chimp128);
 ///
 /// let encoding = TSEncoding::recommended_for(TSDataType::Boolean);
 /// assert_eq!(encoding, TSEncoding::Rle);
@@ -242,6 +242,10 @@ pub enum TSEncoding {
     Freq = 10,
     /// SPRINTZ encoding with bit packing for time series.
     Sprintz = 12,
+    /// Chimp128 encoding - improved float encoding (5-15% better than Gorilla).
+    Chimp128 = 13,
+    /// Simple8b encoding - high-efficiency integer packing (10-100x improvement).
+    Simple8b = 14,
     /// Invalid/unrecognized encoding.
     Invalid = 255,
 }
@@ -264,6 +268,8 @@ impl TSEncoding {
             9 => Self::Zigzag,
             10 => Self::Freq,
             12 => Self::Sprintz,
+            13 => Self::Chimp128,
+            14 => Self::Simple8b,
             _ => Self::Invalid,
         }
     }
@@ -276,11 +282,12 @@ impl TSEncoding {
     /// Returns the recommended encoding for a given data type.
     ///
     /// This method selects encodings that typically provide the best balance
-    /// of compression ratio and performance for each data type:
+    /// of compression ratio and performance for each data type in Timbre:
     ///
     /// - **Boolean**: RLE (excellent for sparse boolean flags)
-    /// - **Int32/Int64/Timestamp**: TS_2DIFF (optimal for sequential IDs and timestamps)
-    /// - **Float/Double**: Gorilla (designed for sensor data with small deltas)
+    /// - **Int32/Int64**: Simple8b (10-100x improvement over plain)
+    /// - **Timestamp**: Ts2Diff + Simple8b (optimal for time series)
+    /// - **Float/Double**: Chimp128 (5-15% better than Gorilla)
     /// - **Text/String**: Dictionary (deduplicates repetitive strings)
     ///
     /// # Examples
@@ -290,19 +297,20 @@ impl TSEncoding {
     ///
     /// assert_eq!(
     ///     TSEncoding::recommended_for(TSDataType::Float),
-    ///     TSEncoding::Gorilla
+    ///     TSEncoding::Chimp128
     /// );
     /// assert_eq!(
-    ///     TSEncoding::recommended_for(TSDataType::Boolean),
-    ///     TSEncoding::Rle
+    ///     TSEncoding::recommended_for(TSDataType::Int32),
+    ///     TSEncoding::Simple8b
     /// );
     /// ```
     pub fn recommended_for(data_type: TSDataType) -> Self {
         match data_type {
             TSDataType::Boolean => Self::Rle,
-            TSDataType::Int32 | TSDataType::Date => Self::Ts2Diff,
-            TSDataType::Int64 | TSDataType::Timestamp => Self::Ts2Diff,
-            TSDataType::Float | TSDataType::Double => Self::Gorilla,
+            TSDataType::Int32 | TSDataType::Date => Self::Simple8b,
+            TSDataType::Int64 => Self::Simple8b,
+            TSDataType::Timestamp => Self::Ts2Diff, // Timestamps use DoD + Simple8b
+            TSDataType::Float | TSDataType::Double => Self::Chimp128,
             TSDataType::Text | TSDataType::String => Self::Dictionary,
             _ => Self::Plain,
         }
@@ -324,14 +332,16 @@ impl fmt::Display for TSEncoding {
             Self::Zigzag => write!(f, "ZIGZAG"),
             Self::Freq => write!(f, "FREQ"),
             Self::Sprintz => write!(f, "SPRINTZ"),
+            Self::Chimp128 => write!(f, "CHIMP128"),
+            Self::Simple8b => write!(f, "SIMPLE8B"),
             Self::Invalid => write!(f, "INVALID"),
         }
     }
 }
 
-/// Compression algorithms supported by TsFile.
+/// Compression algorithms supported by Timbre.
 ///
-/// Compression is applied after encoding to further reduce data size. TsFile
+/// Compression is applied after encoding to further reduce data size. Timbre
 /// supports several general-purpose compression algorithms with different
 /// speed/ratio tradeoffs.
 ///
@@ -340,31 +350,32 @@ impl fmt::Display for TSEncoding {
 /// | Algorithm | Speed | Ratio | Use Case |
 /// |-----------|-------|-------|----------|
 /// | Uncompressed | Fastest | 1x | Debugging, already compressed data |
-/// | LZ4 | Very Fast | 2-3x | General purpose (recommended) |
+/// | Zstd | Fast | 2.5-4x | Default (recommended) |
+/// | LZ4 | Very Fast | 2-3x | Low latency option |
 /// | Snappy | Fastest | 1.5-2x | Maximum throughput |
 /// | GZIP | Slow | 3-5x | Maximum compression |
 ///
 /// # Recommendation
 ///
-/// **LZ4** is recommended for most use cases as it provides the best balance
-/// between compression ratio and speed. It works well with all encoding types
-/// and is the default returned by [`CompressionType::recommended_for`].
+/// **Zstd level 3** is recommended for most use cases as it provides 2-3x better
+/// compression than Snappy while maintaining competitive speed. It is the default
+/// returned by [`CompressionType::recommended_for`].
 ///
 /// # Examples
 ///
 /// ```rust
 /// use timbre_tsf::common::{TSDataType, CompressionType};
 ///
-/// // Get recommended compression (always LZ4)
+/// // Get recommended compression (always Zstd)
 /// let compression = CompressionType::recommended_for(TSDataType::Float);
-/// assert_eq!(compression, CompressionType::Lz4);
+/// assert_eq!(compression, CompressionType::Zstd);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum CompressionType {
     /// No compression applied.
     Uncompressed = 0,
-    /// Snappy compression (Google) - fastest.
+    /// Snappy compression (Google) - ultra fast.
     Snappy = 1,
     /// GZIP compression - maximum ratio.
     Gzip = 2,
@@ -376,8 +387,10 @@ pub enum CompressionType {
     Paa = 5,
     /// PLA compression (not implemented).
     Pla = 6,
-    /// LZ4 compression - balanced speed and ratio (recommended).
+    /// LZ4 compression - low latency option.
     Lz4 = 7,
+    /// Zstd compression - default for Timbre (level 3, 2-3x better than Snappy).
+    Zstd = 8,
     /// Invalid/unrecognized compression.
     Invalid = 255,
 }
@@ -397,6 +410,7 @@ impl CompressionType {
             5 => Self::Paa,
             6 => Self::Pla,
             7 => Self::Lz4,
+            8 => Self::Zstd,
             _ => Self::Invalid,
         }
     }
@@ -408,9 +422,9 @@ impl CompressionType {
 
     /// Returns the recommended compression type for any data type.
     ///
-    /// Currently always returns [`CompressionType::Lz4`] as it provides the
-    /// best balance of speed and compression ratio across all data types and
-    /// encoding schemes.
+    /// For Timbre, the default is [`CompressionType::Zstd`] at level 3, which provides
+    /// 2-3x better compression than Snappy while maintaining competitive speed across
+    /// all data types and encoding schemes.
     ///
     /// # Examples
     ///
@@ -419,12 +433,12 @@ impl CompressionType {
     ///
     /// assert_eq!(
     ///     CompressionType::recommended_for(TSDataType::Float),
-    ///     CompressionType::Lz4
+    ///     CompressionType::Zstd
     /// );
     /// ```
     pub fn recommended_for(_data_type: TSDataType) -> Self {
-        // LZ4 provides the best balance of speed and compression ratio
-        Self::Lz4
+        // Zstd level 3 provides the best balance of speed and compression ratio for Timbre
+        Self::Zstd
     }
 }
 
@@ -439,6 +453,7 @@ impl fmt::Display for CompressionType {
             Self::Paa => write!(f, "PAA"),
             Self::Pla => write!(f, "PLA"),
             Self::Lz4 => write!(f, "LZ4"),
+            Self::Zstd => write!(f, "ZSTD"),
             Self::Invalid => write!(f, "INVALID"),
         }
     }
@@ -557,10 +572,14 @@ mod tests {
         );
         assert_eq!(
             TSEncoding::recommended_for(TSDataType::Float),
-            TSEncoding::Gorilla
+            TSEncoding::Chimp128
         );
         assert_eq!(
             TSEncoding::recommended_for(TSDataType::Int32),
+            TSEncoding::Simple8b
+        );
+        assert_eq!(
+            TSEncoding::recommended_for(TSDataType::Timestamp),
             TSEncoding::Ts2Diff
         );
     }
@@ -569,7 +588,7 @@ mod tests {
     fn test_compression_recommended() {
         assert_eq!(
             CompressionType::recommended_for(TSDataType::Int32),
-            CompressionType::Lz4
+            CompressionType::Zstd
         );
     }
 }

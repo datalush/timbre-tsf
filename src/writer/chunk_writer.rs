@@ -166,15 +166,22 @@ impl ChunkWriter {
         header.serialize(writer)?;
         total_bytes += header.serialized_size();
 
-        // Escribir todas las páginas
+        // Escribir todas las páginas con mini-blocks
         for page in &self.pages {
             // Escribir page header
             page.header.serialize(writer)?;
             total_bytes += crate::file::PageHeader::SERIALIZED_SIZE;
 
-            // Escribir datos comprimidos
-            writer.write_all(&page.compressed_data)?;
-            total_bytes += page.compressed_data.len();
+            // Escribir número de mini-blocks
+            use byteorder::{LittleEndian, WriteBytesExt};
+            writer.write_u32::<LittleEndian>(page.miniblocks.len() as u32)?;
+            total_bytes += 4;
+
+            // Escribir cada mini-block
+            for miniblock in &page.miniblocks {
+                let mb_bytes = miniblock.serialize(writer)?;
+                total_bytes += mb_bytes;
+            }
         }
 
         Ok(total_bytes)
@@ -196,10 +203,13 @@ impl ChunkWriter {
         // Header del chunk
         size += 1 + 4 + self.measurement_name.len() + 4 + 1 + 1 + 1 + 4;
 
-        // Páginas selladas
+        // Páginas selladas con mini-blocks
         for page in &self.pages {
             size += crate::file::PageHeader::SERIALIZED_SIZE;
-            size += page.compressed_data.len();
+            size += 4; // miniblock count
+            for miniblock in &page.miniblocks {
+                size += miniblock.size();
+            }
         }
 
         // Página actual

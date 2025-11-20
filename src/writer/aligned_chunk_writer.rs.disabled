@@ -153,6 +153,7 @@ impl ValueColumnWriter {
             uncompressed_data,
             compressed_data,
             header,
+            miniblocks: Vec::new(),
         })
     }
 
@@ -340,6 +341,7 @@ impl AlignedChunkWriter {
             uncompressed_data,
             compressed_data,
             header,
+            miniblocks: Vec::new(),
         })
     }
 

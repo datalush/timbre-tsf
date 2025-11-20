@@ -1,28 +1,31 @@
-//! Apache TsFile - Columnar Storage for Time Series Data
+//! Timbre - High-Performance Columnar Format for IoT Time Series
 //!
-//! `tsfile` is a high-performance Rust implementation of the Apache TsFile columnar file format,
-//! specifically designed for efficient storage and querying of time series data in IoT and
-//! monitoring systems.
+//! `timbre-tsf` is a next-generation columnar file format specifically designed for
+//! efficient storage and querying of IoT time series data, combining proven architectural
+//! principles with modern compression and indexing innovations.
 //!
 //! # Overview
 //!
-//! TsFile organizes time series data in a columnar hierarchy that enables:
-//! - **Efficient compression** through specialized encodings (Gorilla, TS2DIFF, RLE, SPRINTZ)
-//! - **Fast queries** via bloom filters, statistics, and predicate pushdown
-//! - **Batch operations** using the Tablet API for high-throughput writes
-//! - **Type safety** with compile-time guarantees through Rust's type system
+//! Timbre organizes time series data in a columnar hierarchy that enables:
+//! - **Superior compression** through modern encodings (Chimp128, Simple8b) and Zstd
+//! - **Fast queries** via ART indexes, inverted indexes, and multi-level bloom filters
+//! - **Parallel processing** with mini-blocks for fine-grained parallelism
+//! - **Zero-copy reads** with Arrow-native layout for maximum performance
 //!
 //! # Architecture
 //!
 //! The format follows a hierarchical structure:
 //!
 //! ```text
-//! TsFile
-//! ├── ChunkGroup (per device/entity)
-//! │   ├── Chunk (per measurement/metric)
-//! │   │   └── Page (compressed & encoded data blocks)
+//! Timbre File (.timbre)
+//! ├── File Header (128 bytes, TMB1 magic)
+//! ├── Device Groups (per device/entity)
+//! │   ├── Series Chunks (per measurement/metric)
+//! │   │   └── Pages (64KB-1MB compressed)
+//! │   │       └── Mini-Blocks (4-8 blocks, parallel decode)
 //! │   └── ...
-//! └── Metadata (statistics, bloom filters, indices)
+//! ├── Index Area (ART, inverted index, bloom filters)
+//! └── Footer (128 bytes + TMB1 magic)
 //! ```
 //!
 //! # Quick Start
@@ -34,16 +37,16 @@
 //! use timbre_tsf::writer::TsFileWriter;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // Define schema for temperature measurements
+//! // Define schema for temperature measurements with modern Timbre encodings
 //! let schema = MeasurementSchema::new(
 //!     "temperature",
 //!     TSDataType::Float,
-//!     TSEncoding::Gorilla,
-//!     CompressionType::Lz4,
+//!     TSEncoding::Chimp128,  // Modern float encoding
+//!     CompressionType::Zstd, // Default Zstd compression
 //! );
 //!
 //! // Create writer and register schema
-//! let mut writer = TsFileWriter::new("sensor.timbreile")?;
+//! let mut writer = TsFileWriter::new("sensor.timbre")?;
 //! writer.register_timeseries("device_001", schema)?;
 //!
 //! // Write time series data
@@ -86,7 +89,7 @@
 //! use timbre_tsf::reader::TsFileReader;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let mut reader = TsFileReader::open("sensor.timbreile")?;
+//! let mut reader = TsFileReader::open("sensor.timbre")?;
 //! let chunk = reader.read("device_001", "temperature")?;
 //!
 //! for (timestamp, value) in chunk.iter() {
@@ -100,17 +103,19 @@
 //!
 //! ## Encodings
 //!
-//! - **PLAIN**: Direct encoding without transformation
-//! - **RLE**: Run-length encoding for repetitive values
-//! - **TS_2DIFF**: Second-order delta encoding for timestamps/counters
+//! - **CHIMP128**: State-of-the-art float encoding (5-15% better than Gorilla)
+//! - **SIMPLE8B**: High-efficiency integer packing (10-100x improvement)
 //! - **GORILLA**: XOR-based delta encoding for floating-point (Facebook)
-//! - **DICTIONARY**: Dictionary encoding for string deduplication
+//! - **TS_2DIFF**: Second-order delta encoding for timestamps/counters
+//! - **RLE**: Run-length encoding for repetitive values
+//! - **DICTIONARY**: Dictionary encoding with global + local dictionaries
 //! - **ZIGZAG**: Signed integer optimization
 //! - **SPRINTZ**: Advanced time series compression with bit packing
 //!
 //! ## Compression
 //!
-//! - **LZ4**: Balanced speed and compression ratio
+//! - **Zstd**: Default compression (level 3, 2-3x better than Snappy)
+//! - **LZ4**: Low latency option
 //! - **Snappy**: Ultra-fast compression (Google)
 //! - **GZIP**: Maximum compression ratio
 //! - **Uncompressed**: No compression overhead
@@ -133,10 +138,11 @@
 //! - Efficient bit packing in SPRINTZ encoding
 //! - Static dispatch for encoding/compression selection
 //!
-//! # Compatibility
+//! # Timbre Format
 //!
-//! This library is binary compatible with Apache TsFile format version 2.1.0,
-//! ensuring interoperability with Java and C++ implementations.
+//! This library implements the Timbre Time Series Format v1.0, a next-generation
+//! columnar format optimized for IoT workloads. File extension: `.timbre`
+//! MIME type: `application/vnd.timbre`
 //!
 //! # Modules
 //!
@@ -167,28 +173,29 @@ pub use compress::{create_compressor, Compressor};
 pub use encoding::{create_decoder, create_encoder, Decoder, Encoder};
 pub use error::{Result, TsFileError};
 
-/// TsFile format constants and magic numbers.
+/// Timbre format constants and magic numbers.
 ///
 /// These constants define the binary format markers and version information
-/// used to identify and validate TsFile format files.
+/// used to identify and validate Timbre format files (.timbre extension).
 pub mod constants {
-    /// Magic string marker at the beginning of a TsFile.
+    /// Magic number marker for Timbre files (TMB1 - Timbre Binary v1).
     ///
-    /// This 6-byte sequence must appear at offset 0 of every valid TsFile
-    /// to identify the file format.
-    pub const MAGIC_STRING: &[u8] = b"TsFile";
+    /// This 4-byte sequence appears at both the beginning (header) and end (footer)
+    /// of every valid Timbre file, similar to Parquet's dual-marker approach.
+    /// This enables fast integrity validation without reading the entire file.
+    pub const MAGIC: &[u8] = b"TMB1";
 
-    /// Magic string marker at the end of a TsFile.
-    ///
-    /// This 6-byte sequence appears at the end of the file, immediately
-    /// before the metadata footer, to validate file integrity.
-    pub const MAGIC_STRING_END: &[u8] = b"TsFile";
+    /// Major version number (1.x).
+    pub const VERSION_MAJOR: u16 = 1;
 
-    /// TsFile format version number.
-    ///
-    /// This implementation supports format version 3, which is compatible
-    /// with Apache IoTDB 2.1.0 and later.
-    pub const VERSION: u8 = 3;
+    /// Minor version number (1.0).
+    pub const VERSION_MINOR: u16 = 0;
+
+    /// File header size in bytes (128 bytes, aligned).
+    pub const HEADER_SIZE: usize = 128;
+
+    /// File footer size in bytes (128 bytes + 4 byte magic).
+    pub const FOOTER_SIZE: usize = 132;
 }
 
 #[cfg(test)]
@@ -200,7 +207,7 @@ mod tests {
         // Schema
         let schema = MeasurementSchema::with_defaults("temp", TSDataType::Float);
         assert_eq!(schema.data_type, TSDataType::Float);
-        assert_eq!(schema.encoding, TSEncoding::Gorilla);
+        assert_eq!(schema.encoding, TSEncoding::Chimp128);
 
         // Tablet
         let mut tablet = Tablet::new(

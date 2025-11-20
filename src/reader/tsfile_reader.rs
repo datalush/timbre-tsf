@@ -72,7 +72,7 @@ impl TsFileReader {
         &mut self,
         device_id: &str,
         measurement_name: &str,
-    ) -> Result<impl Iterator<Item = (i64, DecodedValueData)>> {
+    ) -> Result<impl Iterator<Item = (i64, DecodedValueData)> + use<'_>> {
         let chunk = self.read(device_id, measurement_name)?;
         Ok(chunk.iter())
     }

@@ -7,8 +7,9 @@
 //! # Supported algorithms
 //!
 //! - **Uncompressed**: No compression (pass-through)
-//! - **Snappy**: Fast compression with moderate ratio, good for real-time ingestion
-//! - **LZ4**: Very fast compression/decompression, configurable speed/ratio trade-off
+//! - **Zstd**: Default compression (level 3, 2-3x better than Snappy)
+//! - **LZ4**: Very fast compression/decompression, low latency option
+//! - **Snappy**: Ultra-fast compression with moderate ratio
 //! - **GZIP**: Slower but higher compression ratio, good for archival data
 //!
 //! # Performance considerations
@@ -286,6 +287,69 @@ impl Compressor for GzipCompressor {
     }
 }
 
+/// Zstd compressor implementation with configurable compression level.
+///
+/// Zstd (Zstandard) is the default compression algorithm for Timbre, providing
+/// excellent balance between speed and compression ratio. It achieves 2-3x better
+/// compression than Snappy while maintaining competitive speed.
+///
+/// # Performance
+///
+/// - Compression: ~200-400 MB/s (level 3, default)
+/// - Decompression: ~600-1200 MB/s
+/// - Ratio: ~65-80% size reduction
+///
+/// # Compression levels
+///
+/// - Level 1: Fastest, lower ratio (~Snappy-like speed)
+/// - Level 3 (default): Balanced speed/ratio (recommended)
+/// - Level 9-19: Higher ratios, slower compression
+///
+/// # Use cases
+///
+/// - Default compression for Timbre files
+/// - High-throughput ingestion with excellent compression
+/// - Most workloads benefit from this algorithm
+pub struct ZstdCompressor {
+    compression_level: i32,
+}
+
+impl ZstdCompressor {
+    /// Creates a new Zstd compressor with the specified compression level.
+    ///
+    /// # Arguments
+    ///
+    /// * `level` - Compression level (1-22, where 3 is default for Timbre)
+    pub fn new(level: i32) -> Self {
+        Self {
+            compression_level: level,
+        }
+    }
+}
+
+impl Default for ZstdCompressor {
+    /// Creates a Zstd compressor with level 3 (Timbre default).
+    fn default() -> Self {
+        Self::new(3)
+    }
+}
+
+impl Compressor for ZstdCompressor {
+    fn compress(&mut self, input: &[u8]) -> Result<Vec<u8>> {
+        zstd::bulk::compress(input, self.compression_level)
+            .map_err(|e| TsFileError::CompressionError(e.to_string()))
+    }
+
+    fn decompress(&mut self, input: &[u8], _uncompressed_size: usize) -> Result<Vec<u8>> {
+        zstd::bulk::decompress(input, _uncompressed_size)
+            .map_err(|e| TsFileError::DecompressionError(e.to_string()))
+    }
+
+    fn compression_type(&self) -> CompressionType {
+        CompressionType::Zstd
+    }
+}
+
 /// Enum-based compressor for static dispatch optimization.
 ///
 /// This enum wraps all compressor types and provides static dispatch via monomorphization,
@@ -316,6 +380,7 @@ impl Compressor for GzipCompressor {
 /// ```
 pub enum CompressorImpl {
     Uncompressed(UncompressedCompressor),
+    Zstd(ZstdCompressor),
     Snappy(SnappyCompressor),
     Lz4(Lz4Compressor),
     Gzip(GzipCompressor),
@@ -330,6 +395,7 @@ impl CompressorImpl {
     pub fn compress(&mut self, input: &[u8]) -> Result<Vec<u8>> {
         match self {
             Self::Uncompressed(c) => c.compress(input),
+            Self::Zstd(c) => c.compress(input),
             Self::Snappy(c) => c.compress(input),
             Self::Lz4(c) => c.compress(input),
             Self::Gzip(c) => c.compress(input),
@@ -344,6 +410,7 @@ impl CompressorImpl {
     pub fn decompress(&mut self, input: &[u8], uncompressed_size: usize) -> Result<Vec<u8>> {
         match self {
             Self::Uncompressed(c) => c.decompress(input, uncompressed_size),
+            Self::Zstd(c) => c.decompress(input, uncompressed_size),
             Self::Snappy(c) => c.decompress(input, uncompressed_size),
             Self::Lz4(c) => c.decompress(input, uncompressed_size),
             Self::Gzip(c) => c.decompress(input, uncompressed_size),
@@ -355,6 +422,7 @@ impl CompressorImpl {
     pub fn compression_type(&self) -> CompressionType {
         match self {
             Self::Uncompressed(c) => c.compression_type(),
+            Self::Zstd(c) => c.compression_type(),
             Self::Snappy(c) => c.compression_type(),
             Self::Lz4(c) => c.compression_type(),
             Self::Gzip(c) => c.compression_type(),
@@ -392,6 +460,7 @@ impl CompressorImpl {
 pub fn create_compressor_boxed(compression_type: CompressionType) -> Box<dyn Compressor> {
     match compression_type {
         CompressionType::Uncompressed => Box::new(UncompressedCompressor),
+        CompressionType::Zstd => Box::new(ZstdCompressor::default()),
         CompressionType::Snappy => Box::new(SnappyCompressor),
         CompressionType::Lz4 => Box::new(Lz4Compressor),
         CompressionType::Gzip => Box::new(GzipCompressor::default()),
@@ -432,6 +501,7 @@ pub fn create_compressor_boxed(compression_type: CompressionType) -> Box<dyn Com
 pub fn create_compressor(compression_type: CompressionType) -> CompressorImpl {
     match compression_type {
         CompressionType::Uncompressed => CompressorImpl::Uncompressed(UncompressedCompressor),
+        CompressionType::Zstd => CompressorImpl::Zstd(ZstdCompressor::default()),
         CompressionType::Snappy => CompressorImpl::Snappy(SnappyCompressor),
         CompressionType::Lz4 => CompressorImpl::Lz4(Lz4Compressor),
         CompressionType::Gzip => CompressorImpl::Gzip(GzipCompressor::default()),
