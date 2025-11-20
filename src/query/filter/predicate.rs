@@ -77,14 +77,19 @@ impl Predicate {
     ) -> bool {
         match self {
             Predicate::Time(filter) => filter.might_match_range(time_range.0, time_range.1),
-            Predicate::Value(measurement, _filter) => {
+            Predicate::Value(measurement, filter) => {
                 // Conservative: if we don't have statistics, assume it might match
-                if !statistics.contains_key(measurement) {
-                    return true;
-                }
-                // TODO: Implement statistics-based evaluation using min/max from statistics
-                // For now, conservative approach
-                true
+                let stat = match statistics.get(measurement) {
+                    Some(s) => s,
+                    None => return true, // No stats available, cannot skip
+                };
+
+                // Get min/max from statistics
+                let min_val = stat.min_value();
+                let max_val = stat.max_value();
+
+                // Use filter's logic to check if chunk might contain matching values
+                filter.might_match_range(min_val.as_ref(), max_val.as_ref())
             }
             Predicate::And(predicates) => {
                 // All predicates must potentially match

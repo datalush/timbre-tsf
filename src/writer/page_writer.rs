@@ -205,7 +205,7 @@ impl PageWriter {
         let max_timestamp = timestamps[timestamps.len() - 1];
 
         // Encodear timestamps
-        let mut time_encoder = create_encoder(TSEncoding::Ts2Diff, TSDataType::Int64);
+        let mut time_encoder = create_encoder(TSEncoding::DeltaOfDelta, TSDataType::Int64);
         let mut time_buffer = Vec::new();
         for &ts in timestamps {
             time_encoder.encode_i64(ts, &mut time_buffer)?;

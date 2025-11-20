@@ -54,7 +54,7 @@ use std::collections::HashMap;
 /// efficiency and query performance:
 ///
 /// - Use [`TSEncoding::Gorilla`] for floating-point sensor data
-/// - Use [`TSEncoding::Ts2Diff`] for sequential integers or timestamps
+/// - Use [`TSEncoding::DeltaOfDelta`] for sequential integers or timestamps
 /// - Use [`TSEncoding::Dictionary`] for repetitive string values
 /// - Use [`CompressionType::Lz4`] for general-purpose compression
 ///

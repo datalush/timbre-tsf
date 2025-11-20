@@ -1,6 +1,6 @@
-//! Second-order difference encoding (TS2DIFF) for time series data
+//! Delta-of-Delta encoding for time series data
 //!
-//! TS2DIFF compresses time series by encoding the delta-of-deltas rather than
+//! Delta-of-Delta compresses time series by encoding the delta-of-deltas rather than
 //! the values themselves. This is highly effective for data with consistent
 //! trends or regular sampling intervals.
 //!
@@ -16,7 +16,7 @@
 //!
 //! - **First value**: 8 bytes (i64, little-endian)
 //! - **First delta**: 8 bytes (i64, little-endian)
-//! - **Subsequent delta-of-deltas**: 8 bytes each (i64, little-endian)
+//! - **Subsequent delta-of-deltas**: Compressed with Simple8b (1-8 bytes average)
 //!
 //! # Performance Characteristics
 //!
@@ -36,11 +36,11 @@
 //! # Example
 //!
 //! ```
-//! use timbre_tsf::encoding::{Ts2DiffEncoder, Ts2DiffDecoder, Encoder, Decoder};
-//! 
+//! use timbre_tsf::encoding::{DeltaOfDeltaEncoder, DeltaOfDeltaDecoder, Encoder, Decoder};
+//!
 //! use timbre_tsf::common::TSDataType;
 //!
-//! let mut encoder = Ts2DiffEncoder::new(TSDataType::Int64);
+//! let mut encoder = DeltaOfDeltaEncoder::new(TSDataType::Int64);
 //! let mut buffer = Vec::new();
 //!
 //! // Regular sequence: 1000, 1010, 1020, 1030 (constant delta of 10)
@@ -51,7 +51,7 @@
 //! encoder.flush(&mut buffer).unwrap();
 //!
 //! // Delta-of-deltas are all zero after the first two values
-//! let mut decoder = Ts2DiffDecoder::new(TSDataType::Int64);
+//! let mut decoder = DeltaOfDeltaDecoder::new(TSDataType::Int64);
 //! let mut pos = 0;
 //! for &expected in &values {
 //!     assert_eq!(decoder.read_i64(&buffer, &mut pos).unwrap(), expected);
@@ -60,38 +60,51 @@
 
 use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
+use crate::encoding::simple8b::{Simple8bDecoder, Simple8bEncoder};
 use crate::error::{Result, TsFileError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-/// Second-order difference encoder for time series with regular patterns
+/// Delta-of-Delta encoder for time series with regular patterns
 ///
 /// Stores the first value and first delta explicitly, then encodes each
 /// subsequent value as the difference from the expected value based on
-/// the previous delta.
-pub struct Ts2DiffEncoder {
+/// the previous delta. Delta-of-deltas are compressed using Simple8b.
+pub struct DeltaOfDeltaEncoder {
     /// The first value in the sequence (stored unmodified)
     first_value: Option<i64>,
     /// The most recent value encoded
     previous_value: i64,
     /// The delta between the two most recent values
     previous_delta: i64,
+    /// Simple8b encoder for delta-of-deltas
+    simple8b: Simple8bEncoder,
+    /// Flag to track if first delta has been written
+    first_delta_written: bool,
 }
 
-impl Ts2DiffEncoder {
-    /// Creates a new TS2DIFF encoder for the specified data type
-    pub fn new(_data_type: TSDataType) -> Self {
+impl DeltaOfDeltaEncoder {
+    /// Creates a new Delta-of-Delta encoder for the specified data type
+    pub fn new(data_type: TSDataType) -> Self {
         Self {
             first_value: None,
             previous_value: 0,
             previous_delta: 0,
+            simple8b: Simple8bEncoder::new(data_type),
+            first_delta_written: false,
         }
     }
 
-    /// Encodes a value using second-order differencing
+    /// Encodes a value using second-order differencing with Simple8b compression
+    ///
+    /// Format:
+    /// - First value: stored directly as i64 (8 bytes)
+    /// - First delta: stored directly as i64 (8 bytes)
+    /// - Subsequent delta-of-deltas: compressed with Simple8b
     ///
     /// The first value is stored directly, the second value's delta is stored,
-    /// and all subsequent values are encoded as delta-of-delta.
+    /// and all subsequent values are encoded as delta-of-delta compressed with Simple8b.
     fn encode_value(&mut self, value: i64, out: &mut Vec<u8>) -> Result<()> {
+        // First value: write directly
         if self.first_value.is_none() {
             self.first_value = Some(value);
             self.previous_value = value;
@@ -101,15 +114,20 @@ impl Ts2DiffEncoder {
 
         let delta = value - self.previous_value;
 
-        if self.previous_delta == 0 && delta != 0 {
+        // First delta: write directly
+        if !self.first_delta_written {
             self.previous_delta = delta;
+            self.first_delta_written = true;
             out.write_i64::<LittleEndian>(delta)?;
             self.previous_value = value;
             return Ok(());
         }
 
+        // Subsequent values: encode delta-of-delta with Simple8b
         let delta_of_delta = delta - self.previous_delta;
-        out.write_i64::<LittleEndian>(delta_of_delta)?;
+
+        // Simple8b will accumulate this value (no immediate write to out)
+        self.simple8b.encode_i64(delta_of_delta, out)?;
 
         self.previous_delta = delta;
         self.previous_value = value;
@@ -117,10 +135,10 @@ impl Ts2DiffEncoder {
     }
 }
 
-impl Encoder for Ts2DiffEncoder {
+impl Encoder for DeltaOfDeltaEncoder {
     fn encode_bool(&mut self, _value: bool, _out: &mut Vec<u8>) -> Result<()> {
         Err(TsFileError::EncodingError(
-            "TS2DIFF not supported for boolean".to_string(),
+            "DELTA_OF_DELTA not supported for boolean".to_string(),
         ))
     }
 
@@ -142,47 +160,62 @@ impl Encoder for Ts2DiffEncoder {
 
     fn encode_string(&mut self, _value: &str, _out: &mut Vec<u8>) -> Result<()> {
         Err(TsFileError::EncodingError(
-            "TS2DIFF not supported for strings".to_string(),
+            "DELTA_OF_DELTA not supported for strings".to_string(),
         ))
     }
 
-    fn flush(&mut self, _out: &mut Vec<u8>) -> Result<()> {
+    fn flush(&mut self, out: &mut Vec<u8>) -> Result<()> {
+        // Flush any remaining Simple8b-encoded delta-of-deltas
+        self.simple8b.flush(out)?;
         Ok(())
     }
 
     fn encoding_type(&self) -> TSEncoding {
-        TSEncoding::Ts2Diff
+        TSEncoding::DeltaOfDelta
     }
 }
 
-/// Second-order difference decoder for time series
+/// Delta-of-Delta decoder for time series
 ///
 /// Reconstructs original values by applying delta-of-delta operations,
 /// maintaining the previous value and delta to compute each new value.
-pub struct Ts2DiffDecoder {
+/// Delta-of-deltas are decompressed using Simple8b.
+pub struct DeltaOfDeltaDecoder {
     /// The first value in the sequence
     first_value: Option<i64>,
     /// The most recently decoded value
     previous_value: i64,
     /// The delta between the two most recent values
     previous_delta: i64,
+    /// Simple8b decoder for delta-of-deltas
+    simple8b: Simple8bDecoder,
+    /// Flag to track if first delta has been read
+    first_delta_read: bool,
 }
 
-impl Ts2DiffDecoder {
-    /// Creates a new TS2DIFF decoder for the specified data type
-    pub fn new(_data_type: TSDataType) -> Self {
+impl DeltaOfDeltaDecoder {
+    /// Creates a new Delta-of-Delta decoder for the specified data type
+    pub fn new(data_type: TSDataType) -> Self {
         Self {
             first_value: None,
             previous_value: 0,
             previous_delta: 0,
+            simple8b: Simple8bDecoder::new(data_type),
+            first_delta_read: false,
         }
     }
 
-    /// Decodes a value using second-order differencing
+    /// Decodes a value using second-order differencing with Simple8b decompression
+    ///
+    /// Format:
+    /// - First value: read directly as i64 (8 bytes)
+    /// - First delta: read directly as i64 (8 bytes)
+    /// - Subsequent delta-of-deltas: decompressed with Simple8b
     ///
     /// Reads the first value directly, then the first delta, and reconstructs
     /// all subsequent values by adding the computed delta to the previous value.
     fn decode_value(&mut self, input: &[u8], pos: &mut usize) -> Result<i64> {
+        // First value: read directly
         if self.first_value.is_none() {
             let value = (&input[*pos..]).read_i64::<LittleEndian>()?;
             *pos += 8;
@@ -191,14 +224,18 @@ impl Ts2DiffDecoder {
             return Ok(value);
         }
 
-        let delta_of_delta = (&input[*pos..]).read_i64::<LittleEndian>()?;
-        *pos += 8;
-
-        if self.previous_delta == 0 {
-            self.previous_delta = delta_of_delta;
-            self.previous_value += delta_of_delta;
+        // First delta: read directly
+        if !self.first_delta_read {
+            let delta = (&input[*pos..]).read_i64::<LittleEndian>()?;
+            *pos += 8;
+            self.previous_delta = delta;
+            self.first_delta_read = true;
+            self.previous_value += delta;
             return Ok(self.previous_value);
         }
+
+        // Subsequent values: decode delta-of-delta with Simple8b
+        let delta_of_delta = self.simple8b.read_i64(input, pos)?;
 
         let delta = self.previous_delta + delta_of_delta;
         let value = self.previous_value + delta;
@@ -210,10 +247,10 @@ impl Ts2DiffDecoder {
     }
 }
 
-impl Decoder for Ts2DiffDecoder {
+impl Decoder for DeltaOfDeltaDecoder {
     fn read_bool(&mut self, _input: &[u8], _pos: &mut usize) -> Result<bool> {
         Err(TsFileError::DecodingError(
-            "TS2DIFF not supported for boolean".to_string(),
+            "DELTA_OF_DELTA not supported for boolean".to_string(),
         ))
     }
 
@@ -237,7 +274,7 @@ impl Decoder for Ts2DiffDecoder {
 
     fn read_string(&mut self, _input: &[u8], _pos: &mut usize) -> Result<String> {
         Err(TsFileError::DecodingError(
-            "TS2DIFF not supported for strings".to_string(),
+            "DELTA_OF_DELTA not supported for strings".to_string(),
         ))
     }
 
@@ -246,7 +283,7 @@ impl Decoder for Ts2DiffDecoder {
     }
 
     fn encoding_type(&self) -> TSEncoding {
-        TSEncoding::Ts2Diff
+        TSEncoding::DeltaOfDelta
     }
 }
 
@@ -255,17 +292,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ts2diff_i64() {
-        let mut encoder = Ts2DiffEncoder::new(TSDataType::Int64);
+    fn test_delta_of_delta_i64() {
+        let mut encoder = DeltaOfDeltaEncoder::new(TSDataType::Int64);
         let mut out = Vec::new();
 
-        // Serie temporal regular: 1000, 1001, 1002, 1003 (delta=1, delta_of_delta=0)
+        // Regular time series: 1000, 1001, 1002, 1003 (delta=1, delta_of_delta=0)
         let values = vec![1000i64, 1001, 1002, 1003, 1004];
         for &val in &values {
             encoder.encode_i64(val, &mut out).unwrap();
         }
 
-        let mut decoder = Ts2DiffDecoder::new(TSDataType::Int64);
+        // Flush to write remaining Simple8b-encoded delta-of-deltas
+        encoder.flush(&mut out).unwrap();
+
+        let mut decoder = DeltaOfDeltaDecoder::new(TSDataType::Int64);
         let mut pos = 0;
         for &expected in &values {
             let decoded = decoder.read_i64(&out, &mut pos).unwrap();

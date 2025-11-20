@@ -3,7 +3,7 @@
 /// This example instruments the entire read path to identify ACTUAL bottlenecks:
 /// 1. I/O time (reading compressed data from disk)
 /// 2. Decompression time (LZ4 decompression)
-/// 3. Decoding time (Gorilla/TS2Diff decoding)
+/// 3. Decoding time (Gorilla/DeltaOfDelta decoding)
 /// 4. Arrow conversion time (building Arrow arrays)
 /// 5. Memory allocation overhead
 ///
@@ -64,7 +64,7 @@ impl ReadProfile {
 
         self.print_phase("I/O (disk read)", self.io_time, total_ms);
         self.print_phase("Decompression (LZ4)", self.decompress_time, total_ms);
-        self.print_phase("Decode timestamps (TS2Diff)", self.decode_timestamps_time, total_ms);
+        self.print_phase("Decode timestamps (DeltaOfDelta)", self.decode_timestamps_time, total_ms);
         self.print_phase("Decode values (Gorilla)", self.decode_values_time, total_ms);
         self.print_phase("Arrow conversion", self.arrow_conversion_time, total_ms);
         self.print_phase("Other overhead", self.other_time, total_ms);

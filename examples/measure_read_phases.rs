@@ -41,14 +41,14 @@ fn main() {
     println!("  Decoded values: {}", decoded_values.len());
     println!("  Decode time:    {:.2} ms\n", gorilla_decode_time.as_secs_f64() * 1000.0);
 
-    // PHASE 5: Measure TS2Diff timestamp encoding/decoding
-    println!("Phase 5: Encoding {} timestamps with TS2Diff...", num_values);
-    let (ts_encoded, ts_encode_time) = measure_ts2diff_encode(num_values);
+    // PHASE 5: Measure DeltaOfDelta timestamp encoding/decoding
+    println!("Phase 5: Encoding {} timestamps with DeltaOfDelta...", num_values);
+    let (ts_encoded, ts_encode_time) = measure_dod_encode(num_values);
     println!("  Encoded size: {} bytes", ts_encoded.len());
     println!("  Encode time:  {:.2} ms\n", ts_encode_time.as_secs_f64() * 1000.0);
 
-    println!("Phase 6: Decoding {} timestamps with TS2Diff...", num_values);
-    let (decoded_timestamps, ts_decode_time) = measure_ts2diff_decode(&ts_encoded, num_values);
+    println!("Phase 6: Decoding {} timestamps with DeltaOfDelta...", num_values);
+    let (decoded_timestamps, ts_decode_time) = measure_dod_decode(&ts_encoded, num_values);
     println!("  Decoded timestamps: {}", decoded_timestamps.len());
     println!("  Decode time:        {:.2} ms\n", ts_decode_time.as_secs_f64() * 1000.0);
 
@@ -71,7 +71,7 @@ fn main() {
     println!("Measured phases:");
     print_phase("LZ4 Decompression", total_decompress, total_measured);
     print_phase("  - Gorilla decode", gorilla_decode_time, total_measured);
-    print_phase("  - TS2Diff decode", ts_decode_time, total_measured);
+    print_phase("  - DeltaOfDelta decode", ts_decode_time, total_measured);
     print_phase("Arrow building", total_arrow, total_measured);
     println!("  ----------------------------------------");
     print_phase("TOTAL (measured)", total_measured, total_measured);
@@ -85,7 +85,7 @@ fn main() {
     println!("Throughput:");
     println!("  Decompression: {:.1} MB/s", decompress_mb_s);
     println!("  Gorilla decode: {:.1} M values/s", decode_mv_s);
-    println!("  TS2Diff decode: {:.1} M timestamps/s",
+    println!("  DeltaOfDelta decode: {:.1} M timestamps/s",
         (num_values as f64 / 1_000_000.0) / ts_decode_time.as_secs_f64());
 
     println!("\n========================================");
@@ -95,7 +95,7 @@ fn main() {
     let phases = vec![
         ("LZ4 Decompression", total_decompress),
         ("Gorilla Decoding", gorilla_decode_time),
-        ("TS2Diff Decoding", ts_decode_time),
+        ("DeltaOfDelta Decoding", ts_decode_time),
         ("Arrow Building", total_arrow),
     ];
 
@@ -179,10 +179,10 @@ fn measure_gorilla_decode(data: &[u8], num_values: usize) -> (Vec<f32>, Duration
     (values, elapsed)
 }
 
-fn measure_ts2diff_encode(num_values: usize) -> (Vec<u8>, Duration) {
-    use timbre_tsf::encoding::Ts2DiffEncoder;
+fn measure_dod_encode(num_values: usize) -> (Vec<u8>, Duration) {
+    use timbre_tsf::encoding::DeltaOfDeltaEncoder;
 
-    let mut encoder = Ts2DiffEncoder::new(TSDataType::Int64);
+    let mut encoder = DeltaOfDeltaEncoder::new(TSDataType::Int64);
     let mut out = Vec::new();
 
     let start = Instant::now();
@@ -197,8 +197,8 @@ fn measure_ts2diff_encode(num_values: usize) -> (Vec<u8>, Duration) {
     (out, elapsed)
 }
 
-fn measure_ts2diff_decode(data: &[u8], num_values: usize) -> (Vec<i64>, Duration) {
-    let mut decoder = create_decoder(TSEncoding::Ts2Diff, TSDataType::Int64);
+fn measure_dod_decode(data: &[u8], num_values: usize) -> (Vec<i64>, Duration) {
+    let mut decoder = create_decoder(TSEncoding::DeltaOfDelta, TSDataType::Int64);
     let mut timestamps = Vec::with_capacity(num_values);
     let mut pos = 0;
 

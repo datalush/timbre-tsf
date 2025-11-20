@@ -53,7 +53,7 @@ impl PageReader {
 
         // Decodificar timestamps - OPT-READ-5: static dispatch
         let time_buffer = &uncompressed[time_start..time_end];
-        let mut time_decoder = create_decoder(TSEncoding::Ts2Diff, TSDataType::Int64);
+        let mut time_decoder = create_decoder(TSEncoding::DeltaOfDelta, TSDataType::Int64);
         let mut timestamps = Vec::with_capacity(header.num_of_values as usize);
         let mut pos = 0;
 
@@ -116,7 +116,7 @@ impl PageReader {
                     .map_err(|e| TsFileError::DecompressionError(format!("Value decompression failed: {}", e)))?;
 
                 // Decodificar timestamps
-                let mut time_decoder = create_decoder(TSEncoding::Ts2Diff, TSDataType::Int64);
+                let mut time_decoder = create_decoder(TSEncoding::DeltaOfDelta, TSDataType::Int64);
                 let mut timestamps = Vec::with_capacity(miniblock.header.point_count as usize);
                 let mut pos = 0;
 

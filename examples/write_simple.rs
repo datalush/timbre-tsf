@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut humidity_writer = ChunkWriter::new(
         "humidity".to_string(),
         TSDataType::Int32,
-        TSEncoding::Ts2Diff,
+        TSEncoding::DeltaOfDelta,
         CompressionType::Lz4,
     );
 

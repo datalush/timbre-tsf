@@ -2,7 +2,7 @@
 ///
 /// This benchmark measures each phase INDIVIDUALLY to identify the actual bottleneck:
 /// - Decompression only (LZ4)
-/// - Timestamp decoding only (TS2Diff)
+/// - Timestamp decoding only (DeltaOfDelta)
 /// - Value decoding only (Gorilla)
 /// - Arrow array building only
 /// - Complete end-to-end read
@@ -157,9 +157,9 @@ fn bench_gorilla_decode(c: &mut Criterion) {
     group.finish();
 }
 
-/// Benchmark: TS2Diff decoding only (timestamp decoding)
-fn bench_ts2diff_decode(c: &mut Criterion) {
-    let mut group = c.benchmark_group("ts2diff_decode");
+/// Benchmark: DeltaOfDelta decoding only (timestamp decoding)
+fn bench_dod_decode(c: &mut Criterion) {
+    let mut group = c.benchmark_group("dod_decode");
     group.measurement_time(Duration::from_secs(10));
 
     let sizes = vec![1000, 10_000, 100_000];
@@ -167,7 +167,7 @@ fn bench_ts2diff_decode(c: &mut Criterion) {
     for size in sizes {
         // Encode timestamps first
         use timbre_tsf::encoding::Encoder;
-        let mut encoder = tsfile::encoding::Ts2DiffEncoder::new(TSDataType::Int64);
+        let mut encoder = tsfile::encoding::DeltaOfDeltaEncoder::new(TSDataType::Int64);
         let mut out = Vec::new();
 
         for i in 0..size {
@@ -181,7 +181,7 @@ fn bench_ts2diff_decode(c: &mut Criterion) {
             &(out, size),
             |b, (data, count)| {
                 b.iter(|| {
-                    let mut decoder = create_decoder(TSEncoding::Ts2Diff, TSDataType::Int64);
+                    let mut decoder = create_decoder(TSEncoding::DeltaOfDelta, TSDataType::Int64);
                     let mut pos = 0;
                     let mut timestamps = Vec::with_capacity(*count);
 
@@ -301,7 +301,7 @@ criterion_group!(
     benches,
     bench_lz4_decompress,
     bench_gorilla_decode,
-    bench_ts2diff_decode,
+    bench_dod_decode,
     bench_arrow_build,
     bench_end_to_end_read,
     bench_page_read,

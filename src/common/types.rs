@@ -226,8 +226,8 @@ pub enum TSEncoding {
     Rle = 2,
     /// First-order delta encoding.
     Diff = 3,
-    /// Second-order delta encoding for timestamps/counters.
-    Ts2Diff = 4,
+    /// Delta-of-Delta encoding for timestamps/counters (second-order differencing).
+    DeltaOfDelta = 4,
     /// Bitmap encoding.
     Bitmap = 5,
     /// Gorilla encoding version 1 (deprecated).
@@ -260,7 +260,7 @@ impl TSEncoding {
             1 => Self::Dictionary,
             2 => Self::Rle,
             3 => Self::Diff,
-            4 => Self::Ts2Diff,
+            4 => Self::DeltaOfDelta,
             5 => Self::Bitmap,
             6 => Self::GorillaV1,
             7 => Self::Regular,
@@ -286,7 +286,7 @@ impl TSEncoding {
     ///
     /// - **Boolean**: RLE (excellent for sparse boolean flags)
     /// - **Int32/Int64**: Simple8b (10-100x improvement over plain)
-    /// - **Timestamp**: Ts2Diff + Simple8b (optimal for time series)
+    /// - **Timestamp**: DeltaOfDelta + Simple8b (optimal for time series)
     /// - **Float/Double**: Chimp128 (5-15% better than Gorilla)
     /// - **Text/String**: Dictionary (deduplicates repetitive strings)
     ///
@@ -309,10 +309,46 @@ impl TSEncoding {
             TSDataType::Boolean => Self::Rle,
             TSDataType::Int32 | TSDataType::Date => Self::Simple8b,
             TSDataType::Int64 => Self::Simple8b,
-            TSDataType::Timestamp => Self::Ts2Diff, // Timestamps use DoD + Simple8b
+            TSDataType::Timestamp => Self::DeltaOfDelta, // Timestamps use Delta-of-Delta + Simple8b
             TSDataType::Float | TSDataType::Double => Self::Chimp128,
             TSDataType::Text | TSDataType::String => Self::Dictionary,
             _ => Self::Plain,
+        }
+    }
+
+    /// Parse an encoding from a string name (case-insensitive).
+    ///
+    /// Supports common encoding names like "plain", "gorilla", "chimp128", etc.
+    /// Returns `None` if the string doesn't match any known encoding.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use timbre_tsf::common::TSEncoding;
+    ///
+    /// assert_eq!(TSEncoding::from_str("gorilla"), Some(TSEncoding::Gorilla));
+    /// assert_eq!(TSEncoding::from_str("CHIMP128"), Some(TSEncoding::Chimp128));
+    /// assert_eq!(TSEncoding::from_str("plain"), Some(TSEncoding::Plain));
+    /// assert_eq!(TSEncoding::from_str("unknown"), None);
+    /// ```
+    pub fn from_str(s: &str) -> Option<Self> {
+        let s_upper = s.to_uppercase();
+        match s_upper.as_str() {
+            "PLAIN" => Some(Self::Plain),
+            "DICTIONARY" | "DICT" => Some(Self::Dictionary),
+            "RLE" => Some(Self::Rle),
+            "DIFF" => Some(Self::Diff),
+            "DELTAOFDELTA" | "DELTA_OF_DELTA" | "DOD" => Some(Self::DeltaOfDelta),
+            "BITMAP" => Some(Self::Bitmap),
+            "GORILLAV1" | "GORILLA_V1" => Some(Self::GorillaV1),
+            "REGULAR" => Some(Self::Regular),
+            "GORILLA" => Some(Self::Gorilla),
+            "ZIGZAG" => Some(Self::Zigzag),
+            "FREQ" => Some(Self::Freq),
+            "SPRINTZ" => Some(Self::Sprintz),
+            "CHIMP128" | "CHIMP" => Some(Self::Chimp128),
+            "SIMPLE8B" | "SIMPLE_8B" => Some(Self::Simple8b),
+            _ => None,
         }
     }
 }
@@ -324,7 +360,7 @@ impl fmt::Display for TSEncoding {
             Self::Dictionary => write!(f, "DICTIONARY"),
             Self::Rle => write!(f, "RLE"),
             Self::Diff => write!(f, "DIFF"),
-            Self::Ts2Diff => write!(f, "TS_2DIFF"),
+            Self::DeltaOfDelta => write!(f, "DELTA_OF_DELTA"),
             Self::Bitmap => write!(f, "BITMAP"),
             Self::GorillaV1 => write!(f, "GORILLA_V1"),
             Self::Regular => write!(f, "REGULAR"),
@@ -580,7 +616,7 @@ mod tests {
         );
         assert_eq!(
             TSEncoding::recommended_for(TSDataType::Timestamp),
-            TSEncoding::Ts2Diff
+            TSEncoding::DeltaOfDelta
         );
     }
 

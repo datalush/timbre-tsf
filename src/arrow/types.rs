@@ -49,8 +49,8 @@ impl Default for ArrowConversionConfig {
     fn default() -> Self {
         Self {
             default_compression: CompressionType::Lz4,
-            default_encoding_i32: TSEncoding::Ts2Diff,
-            default_encoding_i64: TSEncoding::Ts2Diff,
+            default_encoding_i32: TSEncoding::DeltaOfDelta,
+            default_encoding_i64: TSEncoding::DeltaOfDelta,
             default_encoding_f32: TSEncoding::Gorilla,
             default_encoding_f64: TSEncoding::Gorilla,
             default_encoding_bool: TSEncoding::Rle,
@@ -196,10 +196,10 @@ impl EncodingHint {
     /// Select the best encoding based on this hint
     pub fn select_encoding(&self) -> TSEncoding {
         match self {
-            EncodingHint::Timestamp => TSEncoding::Ts2Diff,
+            EncodingHint::Timestamp => TSEncoding::DeltaOfDelta,
             EncodingHint::FloatingPoint => TSEncoding::Gorilla,
-            EncodingHint::Counter => TSEncoding::Ts2Diff,
-            EncodingHint::IntegerWithSmallDeltas => TSEncoding::Ts2Diff,
+            EncodingHint::Counter => TSEncoding::DeltaOfDelta,
+            EncodingHint::IntegerWithSmallDeltas => TSEncoding::DeltaOfDelta,
             EncodingHint::Boolean => TSEncoding::Rle,
             EncodingHint::RepetitiveString => TSEncoding::Dictionary,
             EncodingHint::UniqueString => TSEncoding::Plain,
@@ -239,7 +239,7 @@ mod tests {
     fn test_encoding_hint_selection() {
         assert_eq!(
             EncodingHint::Timestamp.select_encoding(),
-            TSEncoding::Ts2Diff
+            TSEncoding::DeltaOfDelta
         );
         assert_eq!(
             EncodingHint::FloatingPoint.select_encoding(),

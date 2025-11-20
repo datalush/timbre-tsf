@@ -124,59 +124,106 @@ impl ArrowToTsFileConverter {
 
         log::debug!("  Grouped into {} devices", device_indices.len());
 
-        // Process each device with optimized bulk extraction (sequential for now)
-        // TODO: Parallel processing adds overhead for small device counts
-        for (device_id, indices) in device_indices {
-            if indices.is_empty() {
-                continue;
+        // Adaptive parallelization: use parallel processing only when beneficial
+        // Threshold: 4 devices (empirically determined - parallel overhead ~= 4 device processing)
+        const PARALLEL_THRESHOLD: usize = 4;
+
+        if device_indices.len() >= PARALLEL_THRESHOLD {
+            // Parallel path: process devices in parallel, then write sequentially
+            log::debug!("  Using parallel device processing ({} devices)", device_indices.len());
+
+            use rayon::prelude::*;
+
+            let tablets: Vec<Tablet> = device_indices
+                .par_iter()
+                .filter(|(_, indices)| !indices.is_empty())
+                .map(|(device_id, indices)| {
+                    self.build_tablet_for_device(
+                        device_id,
+                        indices,
+                        &arrow_schema,
+                        &measurement_cols,
+                        &timestamp_array,
+                    )
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            // Write tablets sequentially (writer requires mut access)
+            for tablet in tablets {
+                self.writer.write_tablet(&tablet)?;
             }
+        } else {
+            // Sequential path: process and write devices one at a time
+            log::debug!("  Using sequential device processing ({} devices)", device_indices.len());
 
-            log::debug!("  Device '{}': {} rows (bulk extraction)", device_id, indices.len());
+            for (device_id, indices) in device_indices {
+                if indices.is_empty() {
+                    continue;
+                }
 
-            // Build schemas from first row only once
-            let mut schemas = Vec::with_capacity(measurement_cols.len());
-            for (field_name, _column, data_type) in &measurement_cols {
-                let ts_data_type = crate::arrow::schema_mapping::arrow_type_to_tsfile(data_type)?;
-                let encoding = match ts_data_type {
-                    crate::common::TSDataType::Boolean => self.config.default_encoding_bool,
-                    crate::common::TSDataType::Int32 => self.config.default_encoding_i32,
-                    crate::common::TSDataType::Int64 => self.config.default_encoding_i64,
-                    crate::common::TSDataType::Float => self.config.default_encoding_f32,
-                    crate::common::TSDataType::Double => self.config.default_encoding_f64,
-                    crate::common::TSDataType::Text => self.config.default_encoding_string,
-                    _ => crate::common::TSEncoding::Plain,
-                };
-                schemas.push(MeasurementSchema::new(
-                    field_name.clone(),
-                    ts_data_type,
-                    encoding,
-                    self.config.default_compression,
-                ));
+                let tablet = self.build_tablet_for_device(
+                    &device_id,
+                    &indices,
+                    &arrow_schema,
+                    &measurement_cols,
+                    &timestamp_array,
+                )?;
+
+                self.writer.write_tablet(&tablet)?;
             }
-
-            // Create tablet with exact capacity
-            let column_categories = vec![ColumnCategory::Field; schemas.len()];
-            let mut tablet = Tablet::new(&device_id, schemas, column_categories, indices.len());
-
-            // OPTIMIZED: Extract data column-by-column (bulk operations)
-            let device_timestamps: Vec<i64> = indices.iter().map(|&idx| timestamp_array[idx]).collect();
-
-            let mut column_values: Vec<Vec<Option<TsValue>>> = Vec::with_capacity(measurement_cols.len());
-
-            // OPT #3: Optimized extract_column_bulk with fast-path null handling
-            for (_, column, data_type) in &measurement_cols {
-                let col_data = self.extract_column_bulk(column, &indices, data_type)?;
-                column_values.push(col_data);
-            }
-
-            // Use bulk API to write all data at once
-            tablet.add_rows_bulk(&device_timestamps, column_values)?;
-
-            // Write entire tablet at once
-            self.writer.write_tablet(&tablet)?;
         }
 
         Ok(())
+    }
+
+    /// Build a tablet for a single device (extracted for parallel/sequential processing)
+    fn build_tablet_for_device(
+        &self,
+        device_id: &str,
+        indices: &[usize],
+        arrow_schema: &arrow::datatypes::SchemaRef,
+        measurement_cols: &[(String, Arc<dyn arrow::array::Array>, DataType)],
+        timestamp_array: &[i64],
+    ) -> Result<Tablet> {
+        log::debug!("  Device '{}': {} rows (bulk extraction)", device_id, indices.len());
+
+        // Build schemas from first row only once
+        let mut schemas = Vec::with_capacity(measurement_cols.len());
+        for (field_name, _column, data_type) in measurement_cols {
+            let ts_data_type = crate::arrow::schema_mapping::arrow_type_to_tsfile(data_type)?;
+
+            // Check for encoding hint in field metadata
+            let field = arrow_schema.field_with_name(field_name)
+                .expect("field should exist");
+            let encoding = self.get_encoding_for_field(field, ts_data_type);
+
+            schemas.push(MeasurementSchema::new(
+                field_name.clone(),
+                ts_data_type,
+                encoding,
+                self.config.default_compression,
+            ));
+        }
+
+        // Create tablet with exact capacity
+        let column_categories = vec![ColumnCategory::Field; schemas.len()];
+        let mut tablet = Tablet::new(device_id, schemas, column_categories, indices.len());
+
+        // Extract data column-by-column (bulk operations)
+        let device_timestamps: Vec<i64> = indices.iter().map(|&idx| timestamp_array[idx]).collect();
+
+        let mut column_values: Vec<Vec<Option<TsValue>>> = Vec::with_capacity(measurement_cols.len());
+
+        // Optimized extract_column_bulk with fast-path null handling
+        for (_, column, data_type) in measurement_cols {
+            let col_data = self.extract_column_bulk(column, indices, data_type)?;
+            column_values.push(col_data);
+        }
+
+        // Use bulk API to write all data at once
+        tablet.add_rows_bulk(&device_timestamps, column_values)?;
+
+        Ok(tablet)
     }
 
     /// Extract an entire column's values for given row indices (bulk extraction)
@@ -416,6 +463,59 @@ impl ArrowToTsFileConverter {
         }
     }
 
+    /// Get encoding for a field, checking metadata hints first, then falling back to defaults
+    ///
+    /// Checks for encoding hints in Arrow field metadata with keys:
+    /// - "tsfile:encoding" (preferred)
+    /// - "encoding"
+    ///
+    /// If no hint is found or parsing fails, falls back to default encoding for the data type.
+    fn get_encoding_for_field(
+        &self,
+        field: &arrow::datatypes::Field,
+        ts_data_type: crate::common::TSDataType,
+    ) -> crate::common::TSEncoding {
+        use crate::common::TSEncoding;
+
+        // Check for encoding hint in field metadata
+        let metadata = field.metadata();
+
+        // Try "tsfile:encoding" key first (preferred)
+        if let Some(encoding_str) = metadata.get("tsfile:encoding") {
+            if let Some(encoding) = TSEncoding::from_str(encoding_str) {
+                log::debug!(
+                    "  Using metadata encoding hint for '{}': {} (from tsfile:encoding)",
+                    field.name(),
+                    encoding
+                );
+                return encoding;
+            }
+        }
+
+        // Try "encoding" key as fallback
+        if let Some(encoding_str) = metadata.get("encoding") {
+            if let Some(encoding) = TSEncoding::from_str(encoding_str) {
+                log::debug!(
+                    "  Using metadata encoding hint for '{}': {} (from encoding)",
+                    field.name(),
+                    encoding
+                );
+                return encoding;
+            }
+        }
+
+        // No hint found or parsing failed - use default encoding
+        match ts_data_type {
+            crate::common::TSDataType::Boolean => self.config.default_encoding_bool,
+            crate::common::TSDataType::Int32 => self.config.default_encoding_i32,
+            crate::common::TSDataType::Int64 => self.config.default_encoding_i64,
+            crate::common::TSDataType::Float => self.config.default_encoding_f32,
+            crate::common::TSDataType::Double => self.config.default_encoding_f64,
+            crate::common::TSDataType::Text => self.config.default_encoding_string,
+            _ => TSEncoding::Plain,
+        }
+    }
+
 }
 
 impl ArrowToTsFileConverterBuilder {
@@ -532,6 +632,100 @@ mod tests {
                 .unwrap();
 
         // Convert to TsFile
+        let mut converter = ArrowToTsFileConverter::new(path)
+            .with_device_column("device_id")
+            .with_timestamp_column("timestamp")
+            .build()
+            .unwrap();
+
+        converter.write_batch(&batch).unwrap();
+        converter.finish().unwrap();
+
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn test_arrow_encoding_hints_from_metadata() {
+        use std::collections::HashMap;
+
+        let temp_file = NamedTempFile::new().unwrap();
+        let path = temp_file.path();
+
+        // Create Arrow schema with encoding hints in metadata
+        let mut temp_metadata = HashMap::new();
+        temp_metadata.insert("tsfile:encoding".to_string(), "chimp128".to_string());
+
+        let mut humidity_metadata = HashMap::new();
+        humidity_metadata.insert("encoding".to_string(), "gorilla".to_string());
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("timestamp", DataType::Int64, false),
+            Field::new("device_id", DataType::Utf8, false),
+            Field::new("temperature", DataType::Float32, true)
+                .with_metadata(temp_metadata),
+            Field::new("humidity", DataType::Float32, true)
+                .with_metadata(humidity_metadata),
+        ]));
+
+        // Create RecordBatch
+        let timestamp_array = Arc::new(Int64Array::from(vec![1000, 2000, 3000]));
+        let device_array = Arc::new(StringArray::from(vec!["device1", "device1", "device1"]));
+        let temp_array = Arc::new(Float32Array::from(vec![25.5, 26.0, 26.5]));
+        let humid_array = Arc::new(Float32Array::from(vec![60.0, 65.0, 70.0]));
+
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![timestamp_array, device_array, temp_array, humid_array],
+        )
+        .unwrap();
+
+        // Convert to TsFile
+        let mut converter = ArrowToTsFileConverter::new(path)
+            .with_device_column("device_id")
+            .with_timestamp_column("timestamp")
+            .build()
+            .unwrap();
+
+        converter.write_batch(&batch).unwrap();
+        converter.finish().unwrap();
+
+        // Verify file exists (encoding verification would require reading back)
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn test_arrow_parallel_device_processing() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let path = temp_file.path();
+
+        // Create Arrow schema
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("timestamp", DataType::Int64, false),
+            Field::new("device_id", DataType::Utf8, false),
+            Field::new("value", DataType::Float32, true),
+        ]));
+
+        // Create RecordBatch with >= 4 devices to trigger parallel processing
+        let timestamp_array = Arc::new(Int64Array::from(vec![
+            1000, 1000, 1000, 1000, 1000,
+            2000, 2000, 2000, 2000, 2000,
+        ]));
+        let device_array = Arc::new(StringArray::from(vec![
+            "device1", "device2", "device3", "device4", "device5",
+            "device1", "device2", "device3", "device4", "device5",
+        ]));
+        let value_array = Arc::new(Float32Array::from(vec![
+            10.0, 20.0, 30.0, 40.0, 50.0,
+            11.0, 21.0, 31.0, 41.0, 51.0,
+        ]));
+
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![timestamp_array, device_array, value_array],
+        )
+        .unwrap();
+
+        // Convert to TsFile (should trigger parallel processing path)
         let mut converter = ArrowToTsFileConverter::new(path)
             .with_device_column("device_id")
             .with_timestamp_column("timestamp")

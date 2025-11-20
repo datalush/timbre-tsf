@@ -147,7 +147,7 @@
 //! # Modules
 //!
 //! - [`common`]: Core types, schemas, and data structures
-//! - [`encoding`]: Data encoding implementations (Gorilla, TS2DIFF, etc.)
+//! - [`encoding`]: Data encoding implementations (Gorilla, DeltaOfDelta, etc.)
 //! - [`compress`]: Compression algorithms (LZ4, Snappy, GZIP)
 //! - [`writer`]: TsFile writing and serialization
 //! - [`reader`]: TsFile reading and deserialization

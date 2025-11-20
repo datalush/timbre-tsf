@@ -116,7 +116,7 @@ impl ArrowSchemaMapping {
         // Default encoding based on data type
         match ts_data_type {
             TSDataType::Boolean => TSEncoding::Rle,
-            TSDataType::Int32 | TSDataType::Int64 => TSEncoding::Ts2Diff,
+            TSDataType::Int32 | TSDataType::Int64 => TSEncoding::DeltaOfDelta,
             TSDataType::Float | TSDataType::Double => TSEncoding::Gorilla,
             TSDataType::Text => TSEncoding::Dictionary,
             _ => TSEncoding::Plain, // Default for unsupported types
@@ -303,7 +303,7 @@ mod tests {
                 MeasurementSchema::new(
                     "humidity",
                     TSDataType::Int32,
-                    TSEncoding::Ts2Diff,
+                    TSEncoding::DeltaOfDelta,
                     crate::common::CompressionType::Lz4,
                 ),
             ),
@@ -360,7 +360,7 @@ mod tests {
         );
         assert_eq!(
             ArrowSchemaMapping::select_default_encoding(&TSDataType::Int32, &field_int),
-            TSEncoding::Ts2Diff
+            TSEncoding::DeltaOfDelta
         );
         assert_eq!(
             ArrowSchemaMapping::select_default_encoding(&TSDataType::Float, &field_float),

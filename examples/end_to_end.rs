@@ -37,11 +37,11 @@ fn main() -> timbre_tsf::error::Result<()> {
         );
         writer.register_timeseries("weather_station", temp_schema)?;
 
-        // Dispositivo 1: Humedad (Int32 con TS2DIFF encoding)
+        // Dispositivo 1: Humedad (Int32 con DeltaOfDelta encoding)
         let humidity_schema = MeasurementSchema::new(
             "humidity",
             TSDataType::Int32,
-            TSEncoding::Ts2Diff,
+            TSEncoding::DeltaOfDelta,
             CompressionType::Lz4,
         );
         writer.register_timeseries("weather_station", humidity_schema)?;

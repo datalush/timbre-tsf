@@ -42,6 +42,7 @@
 //! ```
 
 use super::types::TSDataType;
+use super::TsValue;
 use crate::error::Result;
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::Write;
@@ -139,6 +140,16 @@ pub trait Statistic: Send + Sync + std::fmt::Debug {
 
     /// Returns the data type associated with this statistic.
     fn data_type(&self) -> TSDataType;
+
+    /// Returns the minimum value observed, if applicable for this type.
+    ///
+    /// Returns None for types where min/max is not meaningful (Boolean, String).
+    fn min_value(&self) -> Option<TsValue>;
+
+    /// Returns the maximum value observed, if applicable for this type.
+    ///
+    /// Returns None for types where min/max is not meaningful (Boolean, String).
+    fn max_value(&self) -> Option<TsValue>;
 }
 
 /// Shared statistical metadata common to all data types.
@@ -274,6 +285,14 @@ impl Statistic for BooleanStatistic {
     fn data_type(&self) -> TSDataType {
         TSDataType::Boolean
     }
+
+    fn min_value(&self) -> Option<TsValue> {
+        None // Boolean doesn't have min/max
+    }
+
+    fn max_value(&self) -> Option<TsValue> {
+        None // Boolean doesn't have min/max
+    }
 }
 
 /// Statistical metadata for 32-bit integer time-series data.
@@ -368,6 +387,22 @@ impl Statistic for Int32Statistic {
     fn data_type(&self) -> TSDataType {
         TSDataType::Int32
     }
+
+    fn min_value(&self) -> Option<TsValue> {
+        if self.base.count > 0 {
+            Some(TsValue::Int32(self.min_value))
+        } else {
+            None
+        }
+    }
+
+    fn max_value(&self) -> Option<TsValue> {
+        if self.base.count > 0 {
+            Some(TsValue::Int32(self.max_value))
+        } else {
+            None
+        }
+    }
 }
 
 /// Statistical metadata for 64-bit integer time-series data.
@@ -461,6 +496,22 @@ impl Statistic for Int64Statistic {
 
     fn data_type(&self) -> TSDataType {
         TSDataType::Int64
+    }
+
+    fn min_value(&self) -> Option<TsValue> {
+        if self.base.count > 0 {
+            Some(TsValue::Int64(self.min_value))
+        } else {
+            None
+        }
+    }
+
+    fn max_value(&self) -> Option<TsValue> {
+        if self.base.count > 0 {
+            Some(TsValue::Int64(self.max_value))
+        } else {
+            None
+        }
     }
 }
 
@@ -566,6 +617,22 @@ impl Statistic for FloatStatistic {
     fn data_type(&self) -> TSDataType {
         TSDataType::Float
     }
+
+    fn min_value(&self) -> Option<TsValue> {
+        if self.base.count > 0 {
+            Some(TsValue::Float(self.min_value))
+        } else {
+            None
+        }
+    }
+
+    fn max_value(&self) -> Option<TsValue> {
+        if self.base.count > 0 {
+            Some(TsValue::Float(self.max_value))
+        } else {
+            None
+        }
+    }
 }
 
 /// Statistical metadata for 64-bit floating-point time-series data.
@@ -664,6 +731,22 @@ impl Statistic for DoubleStatistic {
     fn data_type(&self) -> TSDataType {
         TSDataType::Double
     }
+
+    fn min_value(&self) -> Option<TsValue> {
+        if self.base.count > 0 {
+            Some(TsValue::Double(self.min_value))
+        } else {
+            None
+        }
+    }
+
+    fn max_value(&self) -> Option<TsValue> {
+        if self.base.count > 0 {
+            Some(TsValue::Double(self.max_value))
+        } else {
+            None
+        }
+    }
 }
 
 /// Statistical metadata for String/Text time-series data.
@@ -741,6 +824,14 @@ impl Statistic for StringStatistic {
 
     fn data_type(&self) -> TSDataType {
         TSDataType::Text
+    }
+
+    fn min_value(&self) -> Option<TsValue> {
+        None // String doesn't have min/max
+    }
+
+    fn max_value(&self) -> Option<TsValue> {
+        None // String doesn't have min/max
     }
 }
 

@@ -10,7 +10,7 @@
 //! - **DICTIONARY**: Maps repeated values to small indices (good for low cardinality)
 //! - **RLE**: Run-length encoding for sequences of identical values
 //! - **ZIGZAG**: Efficient encoding of small signed integers
-//! - **TS2DIFF**: Delta-of-delta encoding for timestamps
+//! - **DELTA_OF_DELTA**: Delta-of-delta encoding for timestamps (compressed with Simple8b)
 //! - **GORILLA**: Facebook's Gorilla algorithm for floating-point values (excellent compression)
 //! - **SPRINTZ**: Forecast-based encoding for numeric time-series
 //!
@@ -46,23 +46,23 @@
 //! ```
 
 mod chimp128;
+mod delta_of_delta;
 mod dictionary;
 mod gorilla;
 mod plain;
 mod rle;
 mod simple8b;
 mod sprintz;
-mod ts2diff;
 mod zigzag;
 
 pub use chimp128::*;
+pub use delta_of_delta::*;
 pub use dictionary::*;
 pub use gorilla::*;
 pub use plain::*;
 pub use rle::*;
 pub use simple8b::*;
 pub use sprintz::*;
-pub use ts2diff::*;
 pub use zigzag::*;
 
 use crate::common::{TSDataType, TSEncoding};
@@ -153,7 +153,7 @@ pub enum EncoderImpl {
     Chimp128(Chimp128Encoder),
     Simple8b(Simple8bEncoder),
     Gorilla(GorillaEncoder),
-    Ts2Diff(Ts2DiffEncoder),
+    DeltaOfDelta(DeltaOfDeltaEncoder),
     Rle(RleEncoder),
     Zigzag(ZigzagEncoder),
     Sprintz(SprintzEncoder),
@@ -168,7 +168,7 @@ impl EncoderImpl {
             Self::Chimp128(e) => e.encode_bool(value, out),
             Self::Simple8b(e) => e.encode_bool(value, out),
             Self::Gorilla(e) => e.encode_bool(value, out),
-            Self::Ts2Diff(e) => e.encode_bool(value, out),
+            Self::DeltaOfDelta(e) => e.encode_bool(value, out),
             Self::Rle(e) => e.encode_bool(value, out),
             Self::Zigzag(e) => e.encode_bool(value, out),
             Self::Sprintz(e) => e.encode_bool(value, out),
@@ -183,7 +183,7 @@ impl EncoderImpl {
             Self::Chimp128(e) => e.encode_i32(value, out),
             Self::Simple8b(e) => e.encode_i32(value, out),
             Self::Gorilla(e) => e.encode_i32(value, out),
-            Self::Ts2Diff(e) => e.encode_i32(value, out),
+            Self::DeltaOfDelta(e) => e.encode_i32(value, out),
             Self::Rle(e) => e.encode_i32(value, out),
             Self::Zigzag(e) => e.encode_i32(value, out),
             Self::Sprintz(e) => e.encode_i32(value, out),
@@ -198,7 +198,7 @@ impl EncoderImpl {
             Self::Chimp128(e) => e.encode_i64(value, out),
             Self::Simple8b(e) => e.encode_i64(value, out),
             Self::Gorilla(e) => e.encode_i64(value, out),
-            Self::Ts2Diff(e) => e.encode_i64(value, out),
+            Self::DeltaOfDelta(e) => e.encode_i64(value, out),
             Self::Rle(e) => e.encode_i64(value, out),
             Self::Zigzag(e) => e.encode_i64(value, out),
             Self::Sprintz(e) => e.encode_i64(value, out),
@@ -213,7 +213,7 @@ impl EncoderImpl {
             Self::Chimp128(e) => e.encode_f32(value, out),
             Self::Simple8b(e) => e.encode_f32(value, out),
             Self::Gorilla(e) => e.encode_f32(value, out),
-            Self::Ts2Diff(e) => e.encode_f32(value, out),
+            Self::DeltaOfDelta(e) => e.encode_f32(value, out),
             Self::Rle(e) => e.encode_f32(value, out),
             Self::Zigzag(e) => e.encode_f32(value, out),
             Self::Sprintz(e) => e.encode_f32(value, out),
@@ -228,7 +228,7 @@ impl EncoderImpl {
             Self::Chimp128(e) => e.encode_f64(value, out),
             Self::Simple8b(e) => e.encode_f64(value, out),
             Self::Gorilla(e) => e.encode_f64(value, out),
-            Self::Ts2Diff(e) => e.encode_f64(value, out),
+            Self::DeltaOfDelta(e) => e.encode_f64(value, out),
             Self::Rle(e) => e.encode_f64(value, out),
             Self::Zigzag(e) => e.encode_f64(value, out),
             Self::Sprintz(e) => e.encode_f64(value, out),
@@ -243,7 +243,7 @@ impl EncoderImpl {
             Self::Chimp128(e) => e.encode_string(value, out),
             Self::Simple8b(e) => e.encode_string(value, out),
             Self::Gorilla(e) => e.encode_string(value, out),
-            Self::Ts2Diff(e) => e.encode_string(value, out),
+            Self::DeltaOfDelta(e) => e.encode_string(value, out),
             Self::Rle(e) => e.encode_string(value, out),
             Self::Zigzag(e) => e.encode_string(value, out),
             Self::Sprintz(e) => e.encode_string(value, out),
@@ -258,7 +258,7 @@ impl EncoderImpl {
             Self::Chimp128(e) => e.flush(out),
             Self::Simple8b(e) => e.flush(out),
             Self::Gorilla(e) => e.flush(out),
-            Self::Ts2Diff(e) => e.flush(out),
+            Self::DeltaOfDelta(e) => e.flush(out),
             Self::Rle(e) => e.flush(out),
             Self::Zigzag(e) => e.flush(out),
             Self::Sprintz(e) => e.flush(out),
@@ -273,7 +273,7 @@ impl EncoderImpl {
             Self::Chimp128(e) => e.buffered_size(),
             Self::Simple8b(e) => e.buffered_size(),
             Self::Gorilla(e) => e.buffered_size(),
-            Self::Ts2Diff(e) => e.buffered_size(),
+            Self::DeltaOfDelta(e) => e.buffered_size(),
             Self::Rle(e) => e.buffered_size(),
             Self::Zigzag(e) => e.buffered_size(),
             Self::Sprintz(e) => e.buffered_size(),
@@ -288,7 +288,7 @@ impl EncoderImpl {
             Self::Chimp128(e) => e.encoding_type(),
             Self::Simple8b(e) => e.encoding_type(),
             Self::Gorilla(e) => e.encoding_type(),
-            Self::Ts2Diff(e) => e.encoding_type(),
+            Self::DeltaOfDelta(e) => e.encoding_type(),
             Self::Rle(e) => e.encoding_type(),
             Self::Zigzag(e) => e.encoding_type(),
             Self::Sprintz(e) => e.encoding_type(),
@@ -375,7 +375,7 @@ pub enum DecoderImpl {
     Chimp128(Chimp128Decoder),
     Simple8b(Simple8bDecoder),
     Gorilla(GorillaDecoder),
-    Ts2Diff(Ts2DiffDecoder),
+    DeltaOfDelta(DeltaOfDeltaDecoder),
     Rle(RleDecoder),
     Zigzag(ZigzagDecoder),
     Sprintz(SprintzDecoder),
@@ -390,7 +390,7 @@ impl DecoderImpl {
             Self::Chimp128(d) => d.read_bool(input, pos),
             Self::Simple8b(d) => d.read_bool(input, pos),
             Self::Gorilla(d) => d.read_bool(input, pos),
-            Self::Ts2Diff(d) => d.read_bool(input, pos),
+            Self::DeltaOfDelta(d) => d.read_bool(input, pos),
             Self::Rle(d) => d.read_bool(input, pos),
             Self::Zigzag(d) => d.read_bool(input, pos),
             Self::Sprintz(d) => d.read_bool(input, pos),
@@ -405,7 +405,7 @@ impl DecoderImpl {
             Self::Chimp128(d) => d.read_i32(input, pos),
             Self::Simple8b(d) => d.read_i32(input, pos),
             Self::Gorilla(d) => d.read_i32(input, pos),
-            Self::Ts2Diff(d) => d.read_i32(input, pos),
+            Self::DeltaOfDelta(d) => d.read_i32(input, pos),
             Self::Rle(d) => d.read_i32(input, pos),
             Self::Zigzag(d) => d.read_i32(input, pos),
             Self::Sprintz(d) => d.read_i32(input, pos),
@@ -420,7 +420,7 @@ impl DecoderImpl {
             Self::Chimp128(d) => d.read_i64(input, pos),
             Self::Simple8b(d) => d.read_i64(input, pos),
             Self::Gorilla(d) => d.read_i64(input, pos),
-            Self::Ts2Diff(d) => d.read_i64(input, pos),
+            Self::DeltaOfDelta(d) => d.read_i64(input, pos),
             Self::Rle(d) => d.read_i64(input, pos),
             Self::Zigzag(d) => d.read_i64(input, pos),
             Self::Sprintz(d) => d.read_i64(input, pos),
@@ -435,7 +435,7 @@ impl DecoderImpl {
             Self::Chimp128(d) => d.read_f32(input, pos),
             Self::Simple8b(d) => d.read_f32(input, pos),
             Self::Gorilla(d) => d.read_f32(input, pos),
-            Self::Ts2Diff(d) => d.read_f32(input, pos),
+            Self::DeltaOfDelta(d) => d.read_f32(input, pos),
             Self::Rle(d) => d.read_f32(input, pos),
             Self::Zigzag(d) => d.read_f32(input, pos),
             Self::Sprintz(d) => d.read_f32(input, pos),
@@ -450,7 +450,7 @@ impl DecoderImpl {
             Self::Chimp128(d) => d.read_f64(input, pos),
             Self::Simple8b(d) => d.read_f64(input, pos),
             Self::Gorilla(d) => d.read_f64(input, pos),
-            Self::Ts2Diff(d) => d.read_f64(input, pos),
+            Self::DeltaOfDelta(d) => d.read_f64(input, pos),
             Self::Rle(d) => d.read_f64(input, pos),
             Self::Zigzag(d) => d.read_f64(input, pos),
             Self::Sprintz(d) => d.read_f64(input, pos),
@@ -465,7 +465,7 @@ impl DecoderImpl {
             Self::Chimp128(d) => d.read_string(input, pos),
             Self::Simple8b(d) => d.read_string(input, pos),
             Self::Gorilla(d) => d.read_string(input, pos),
-            Self::Ts2Diff(d) => d.read_string(input, pos),
+            Self::DeltaOfDelta(d) => d.read_string(input, pos),
             Self::Rle(d) => d.read_string(input, pos),
             Self::Zigzag(d) => d.read_string(input, pos),
             Self::Sprintz(d) => d.read_string(input, pos),
@@ -480,7 +480,7 @@ impl DecoderImpl {
             Self::Chimp128(d) => d.has_remaining(input, pos),
             Self::Simple8b(d) => d.has_remaining(input, pos),
             Self::Gorilla(d) => d.has_remaining(input, pos),
-            Self::Ts2Diff(d) => d.has_remaining(input, pos),
+            Self::DeltaOfDelta(d) => d.has_remaining(input, pos),
             Self::Rle(d) => d.has_remaining(input, pos),
             Self::Zigzag(d) => d.has_remaining(input, pos),
             Self::Sprintz(d) => d.has_remaining(input, pos),
@@ -495,7 +495,7 @@ impl DecoderImpl {
             Self::Chimp128(d) => d.encoding_type(),
             Self::Simple8b(d) => d.encoding_type(),
             Self::Gorilla(d) => d.encoding_type(),
-            Self::Ts2Diff(d) => d.encoding_type(),
+            Self::DeltaOfDelta(d) => d.encoding_type(),
             Self::Rle(d) => d.encoding_type(),
             Self::Zigzag(d) => d.encoding_type(),
             Self::Sprintz(d) => d.encoding_type(),
@@ -521,7 +521,7 @@ pub fn create_encoder_boxed(encoding: TSEncoding, data_type: TSDataType) -> Box<
         TSEncoding::Plain => Box::new(PlainEncoder::new(data_type)),
         TSEncoding::Dictionary => Box::new(DictionaryEncoder::new(data_type)),
         TSEncoding::Gorilla => Box::new(GorillaEncoder::new(data_type)),
-        TSEncoding::Ts2Diff => Box::new(Ts2DiffEncoder::new(data_type)),
+        TSEncoding::DeltaOfDelta => Box::new(DeltaOfDeltaEncoder::new(data_type)),
         TSEncoding::Rle => Box::new(RleEncoder::new(data_type)),
         TSEncoding::Zigzag => Box::new(ZigzagEncoder::new(data_type)),
         TSEncoding::Sprintz => Box::new(SprintzEncoder::new(data_type)),
@@ -561,7 +561,7 @@ pub fn create_encoder(encoding: TSEncoding, data_type: TSDataType) -> EncoderImp
         TSEncoding::Chimp128 => EncoderImpl::Chimp128(Chimp128Encoder::new(data_type)),
         TSEncoding::Simple8b => EncoderImpl::Simple8b(Simple8bEncoder::new(data_type)),
         TSEncoding::Gorilla => EncoderImpl::Gorilla(GorillaEncoder::new(data_type)),
-        TSEncoding::Ts2Diff => EncoderImpl::Ts2Diff(Ts2DiffEncoder::new(data_type)),
+        TSEncoding::DeltaOfDelta => EncoderImpl::DeltaOfDelta(DeltaOfDeltaEncoder::new(data_type)),
         TSEncoding::Rle => EncoderImpl::Rle(RleEncoder::new(data_type)),
         TSEncoding::Zigzag => EncoderImpl::Zigzag(ZigzagEncoder::new(data_type)),
         TSEncoding::Sprintz => EncoderImpl::Sprintz(SprintzEncoder::new(data_type)),
@@ -587,7 +587,7 @@ pub fn create_decoder_boxed(encoding: TSEncoding, data_type: TSDataType) -> Box<
         TSEncoding::Plain => Box::new(PlainDecoder::new(data_type)),
         TSEncoding::Dictionary => Box::new(DictionaryDecoder::new(data_type)),
         TSEncoding::Gorilla => Box::new(GorillaDecoder::new(data_type)),
-        TSEncoding::Ts2Diff => Box::new(Ts2DiffDecoder::new(data_type)),
+        TSEncoding::DeltaOfDelta => Box::new(DeltaOfDeltaDecoder::new(data_type)),
         TSEncoding::Rle => Box::new(RleDecoder::new(data_type)),
         TSEncoding::Zigzag => Box::new(ZigzagDecoder::new(data_type)),
         TSEncoding::Sprintz => Box::new(SprintzDecoder::new(data_type)),
@@ -626,7 +626,7 @@ pub fn create_decoder(encoding: TSEncoding, data_type: TSDataType) -> DecoderImp
         TSEncoding::Dictionary => DecoderImpl::Dictionary(DictionaryDecoder::new(data_type)),
         TSEncoding::Chimp128 => DecoderImpl::Chimp128(Chimp128Decoder::new(data_type)),
         TSEncoding::Gorilla => DecoderImpl::Gorilla(GorillaDecoder::new(data_type)),
-        TSEncoding::Ts2Diff => DecoderImpl::Ts2Diff(Ts2DiffDecoder::new(data_type)),
+        TSEncoding::DeltaOfDelta => DecoderImpl::DeltaOfDelta(DeltaOfDeltaDecoder::new(data_type)),
         TSEncoding::Rle => DecoderImpl::Rle(RleDecoder::new(data_type)),
         TSEncoding::Zigzag => DecoderImpl::Zigzag(ZigzagDecoder::new(data_type)),
         TSEncoding::Sprintz => DecoderImpl::Sprintz(SprintzDecoder::new(data_type)),

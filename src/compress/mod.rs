@@ -175,7 +175,7 @@ impl Compressor for SnappyCompressor {
 /// # Design choice: FAST vs HC mode
 ///
 /// LZ4 FAST mode is used instead of HIGHCOMPRESSION because:
-/// - Gorilla/TS2DIFF encoding already reduces data size significantly
+/// - Gorilla/DeltaOfDelta encoding already reduces data size significantly
 /// - LZ4-HC(9) is 3-10x slower with only ~5% better ratio on pre-encoded data
 /// - Decompression speed is identical between modes
 /// - Fast compression enables better write throughput

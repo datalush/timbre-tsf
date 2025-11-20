@@ -78,7 +78,7 @@ impl TimingData {
 
         self.print_phase("I/O (disk reads)", self.io_time, total_ms);
         self.print_phase("LZ4 Decompression", self.decompress_time, total_ms);
-        self.print_phase("TS2Diff Decode (timestamps)", self.decode_timestamp_time, total_ms);
+        self.print_phase("DeltaOfDelta Decode (timestamps)", self.decode_timestamp_time, total_ms);
         self.print_phase("Gorilla Decode (values)", self.decode_value_time, total_ms);
         self.print_phase("Merge/Concatenate", self.merge_time, total_ms);
         self.print_phase("Arrow Array Building", self.arrow_build_time, total_ms);
@@ -230,7 +230,7 @@ impl TimingData {
             println!("    Risk:     Medium");
             println!();
         } else if top.0 == "Timestamp Decoding" && top_pct > 20.0 {
-            println!("PRIMARY BOTTLENECK: TS2Diff Timestamp Decoding ({:.1}%)", top_pct);
+            println!("PRIMARY BOTTLENECK: DeltaOfDelta Timestamp Decoding ({:.1}%)", top_pct);
             println!();
             println!("Root Cause:");
             println!("  - Delta-of-delta encoding requires sequential processing");
