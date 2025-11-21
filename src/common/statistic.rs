@@ -346,15 +346,23 @@ impl Default for Int32Statistic {
 impl Statistic for Int32Statistic {
     fn update_bool(&mut self, _: i64, _: bool) {}
 
+    #[inline(always)]  // OPT: Inline hot path (2.96% of CPU in profiling)
     fn update_i32(&mut self, timestamp: i64, value: i32) {
-        if self.base.count == 0 {
-            self.first_value = value;
-        }
+        // OPT: Branchless first_value assignment using select pattern
+        let is_first = self.base.count == 0;
+        self.first_value = if is_first { value } else { self.first_value };
+
         self.last_value = value;
         self.sum_value += value as i64;
+
+        // OPT: Branchless min/max using i32::min/max (no branches on x86)
         self.min_value = self.min_value.min(value);
         self.max_value = self.max_value.max(value);
-        self.base.update_time(timestamp);
+
+        // OPT: Inline update_time to avoid call overhead
+        self.base.count += 1;
+        self.base.start_time = self.base.start_time.min(timestamp);
+        self.base.end_time = self.base.end_time.max(timestamp);
     }
 
     fn update_i64(&mut self, _: i64, _: i64) {}
@@ -457,15 +465,23 @@ impl Statistic for Int64Statistic {
     fn update_bool(&mut self, _: i64, _: bool) {}
     fn update_i32(&mut self, _: i64, _: i32) {}
 
+    #[inline(always)]  // OPT: Inline hot path (same pattern as update_i32)
     fn update_i64(&mut self, timestamp: i64, value: i64) {
-        if self.base.count == 0 {
-            self.first_value = value;
-        }
+        // OPT: Branchless first_value assignment using select pattern
+        let is_first = self.base.count == 0;
+        self.first_value = if is_first { value } else { self.first_value };
+
         self.last_value = value;
         self.sum_value += value as f64;
+
+        // OPT: Branchless min/max using i64::min/max (no branches on x86)
         self.min_value = self.min_value.min(value);
         self.max_value = self.max_value.max(value);
-        self.base.update_time(timestamp);
+
+        // OPT: Inline update_time to avoid call overhead
+        self.base.count += 1;
+        self.base.start_time = self.base.start_time.min(timestamp);
+        self.base.end_time = self.base.end_time.max(timestamp);
     }
 
     fn update_f32(&mut self, _: i64, _: f32) {}
