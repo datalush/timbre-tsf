@@ -238,6 +238,43 @@ impl BooleanStatistic {
             last_value: false,
         }
     }
+
+    /// Merges statistics from another `BooleanStatistic` into this one.
+    ///
+    /// This method combines statistics from two separate tracking sessions,
+    /// typically used to aggregate page-level statistics into chunk-level statistics.
+    ///
+    /// # Merging behavior
+    ///
+    /// - Timestamps: min of start_time, max of end_time
+    /// - Count: sum of counts
+    /// - Sum: sum of sums (count of true values)
+    /// - first_value: kept from self
+    /// - last_value: taken from other
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The statistic to merge into this one
+    pub fn merge(&mut self, other: &BooleanStatistic) {
+        if other.base.count == 0 {
+            return; // Nothing to merge
+        }
+
+        if self.base.count == 0 {
+            // First merge - copy everything
+            *self = other.clone();
+            return;
+        }
+
+        // Merge timestamps
+        self.base.start_time = self.base.start_time.min(other.base.start_time);
+        self.base.end_time = self.base.end_time.max(other.base.end_time);
+        self.base.count += other.base.count;
+
+        // Merge values
+        self.sum_value += other.sum_value;
+        self.last_value = other.last_value;
+    }
 }
 
 impl Default for BooleanStatistic {
@@ -334,6 +371,47 @@ impl Int32Statistic {
             first_value: 0,
             last_value: 0,
         }
+    }
+
+    /// Merges statistics from another `Int32Statistic` into this one.
+    ///
+    /// This method combines statistics from two separate tracking sessions,
+    /// typically used to aggregate page-level statistics into chunk-level statistics.
+    ///
+    /// # Merging behavior
+    ///
+    /// - Timestamps: min of start_time, max of end_time
+    /// - Count: sum of counts
+    /// - Sum: sum of sums
+    /// - Min: min of mins
+    /// - Max: max of maxs
+    /// - first_value: kept from self
+    /// - last_value: taken from other
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The statistic to merge into this one
+    pub fn merge(&mut self, other: &Int32Statistic) {
+        if other.base.count == 0 {
+            return; // Nothing to merge
+        }
+
+        if self.base.count == 0 {
+            // First merge - copy everything
+            *self = other.clone();
+            return;
+        }
+
+        // Merge timestamps
+        self.base.start_time = self.base.start_time.min(other.base.start_time);
+        self.base.end_time = self.base.end_time.max(other.base.end_time);
+        self.base.count += other.base.count;
+
+        // Merge values
+        self.sum_value += other.sum_value;
+        self.min_value = self.min_value.min(other.min_value);
+        self.max_value = self.max_value.max(other.max_value);
+        self.last_value = other.last_value;
     }
 }
 
@@ -452,6 +530,47 @@ impl Int64Statistic {
             first_value: 0,
             last_value: 0,
         }
+    }
+
+    /// Merges statistics from another `Int64Statistic` into this one.
+    ///
+    /// This method combines statistics from two separate tracking sessions,
+    /// typically used to aggregate page-level statistics into chunk-level statistics.
+    ///
+    /// # Merging behavior
+    ///
+    /// - Timestamps: min of start_time, max of end_time
+    /// - Count: sum of counts
+    /// - Sum: sum of sums (as f64)
+    /// - Min: min of mins
+    /// - Max: max of maxs
+    /// - first_value: kept from self
+    /// - last_value: taken from other
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The statistic to merge into this one
+    pub fn merge(&mut self, other: &Int64Statistic) {
+        if other.base.count == 0 {
+            return; // Nothing to merge
+        }
+
+        if self.base.count == 0 {
+            // First merge - copy everything
+            *self = other.clone();
+            return;
+        }
+
+        // Merge timestamps
+        self.base.start_time = self.base.start_time.min(other.base.start_time);
+        self.base.end_time = self.base.end_time.max(other.base.end_time);
+        self.base.count += other.base.count;
+
+        // Merge values
+        self.sum_value += other.sum_value;
+        self.min_value = self.min_value.min(other.min_value);
+        self.max_value = self.max_value.max(other.max_value);
+        self.last_value = other.last_value;
     }
 }
 
@@ -577,6 +696,47 @@ impl FloatStatistic {
             last_value: 0.0,
         }
     }
+
+    /// Merges statistics from another `FloatStatistic` into this one.
+    ///
+    /// This method combines statistics from two separate tracking sessions,
+    /// typically used to aggregate page-level statistics into chunk-level statistics.
+    ///
+    /// # Merging behavior
+    ///
+    /// - Timestamps: min of start_time, max of end_time
+    /// - Count: sum of counts
+    /// - Sum: sum of sums (as f64)
+    /// - Min: min of mins
+    /// - Max: max of maxs
+    /// - first_value: kept from self
+    /// - last_value: taken from other
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The statistic to merge into this one
+    pub fn merge(&mut self, other: &FloatStatistic) {
+        if other.base.count == 0 {
+            return; // Nothing to merge
+        }
+
+        if self.base.count == 0 {
+            // First merge - copy everything
+            *self = other.clone();
+            return;
+        }
+
+        // Merge timestamps
+        self.base.start_time = self.base.start_time.min(other.base.start_time);
+        self.base.end_time = self.base.end_time.max(other.base.end_time);
+        self.base.count += other.base.count;
+
+        // Merge values
+        self.sum_value += other.sum_value;
+        self.min_value = self.min_value.min(other.min_value);
+        self.max_value = self.max_value.max(other.max_value);
+        self.last_value = other.last_value;
+    }
 }
 
 impl Default for FloatStatistic {
@@ -699,6 +859,47 @@ impl DoubleStatistic {
             last_value: 0.0,
         }
     }
+
+    /// Merges statistics from another `DoubleStatistic` into this one.
+    ///
+    /// This method combines statistics from two separate tracking sessions,
+    /// typically used to aggregate page-level statistics into chunk-level statistics.
+    ///
+    /// # Merging behavior
+    ///
+    /// - Timestamps: min of start_time, max of end_time
+    /// - Count: sum of counts
+    /// - Sum: sum of sums
+    /// - Min: min of mins
+    /// - Max: max of maxs
+    /// - first_value: kept from self
+    /// - last_value: taken from other
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The statistic to merge into this one
+    pub fn merge(&mut self, other: &DoubleStatistic) {
+        if other.base.count == 0 {
+            return; // Nothing to merge
+        }
+
+        if self.base.count == 0 {
+            // First merge - copy everything
+            *self = other.clone();
+            return;
+        }
+
+        // Merge timestamps
+        self.base.start_time = self.base.start_time.min(other.base.start_time);
+        self.base.end_time = self.base.end_time.max(other.base.end_time);
+        self.base.count += other.base.count;
+
+        // Merge values
+        self.sum_value += other.sum_value;
+        self.min_value = self.min_value.min(other.min_value);
+        self.max_value = self.max_value.max(other.max_value);
+        self.last_value = other.last_value;
+    }
 }
 
 impl Default for DoubleStatistic {
@@ -805,6 +1006,44 @@ impl StringStatistic {
             first_value: String::new(),
             last_value: String::new(),
         }
+    }
+
+    /// Merges statistics from another `StringStatistic` into this one.
+    ///
+    /// This method combines statistics from two separate tracking sessions,
+    /// typically used to aggregate page-level statistics into chunk-level statistics.
+    ///
+    /// # Merging behavior
+    ///
+    /// - Timestamps: min of start_time, max of end_time
+    /// - Count: sum of counts
+    /// - first_value: kept from self
+    /// - last_value: taken from other
+    ///
+    /// Note: String statistics do not track min/max/sum as these operations
+    /// are not well-defined for string data.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The statistic to merge into this one
+    pub fn merge(&mut self, other: &StringStatistic) {
+        if other.base.count == 0 {
+            return; // Nothing to merge
+        }
+
+        if self.base.count == 0 {
+            // First merge - copy everything
+            *self = other.clone();
+            return;
+        }
+
+        // Merge timestamps
+        self.base.start_time = self.base.start_time.min(other.base.start_time);
+        self.base.end_time = self.base.end_time.max(other.base.end_time);
+        self.base.count += other.base.count;
+
+        // Merge values
+        self.last_value = other.last_value.clone();
     }
 }
 
@@ -919,9 +1158,7 @@ impl StatisticEnum {
             }
             TSDataType::Float => StatisticEnum::Float(FloatStatistic::new()),
             TSDataType::Double => StatisticEnum::Double(DoubleStatistic::new()),
-            TSDataType::Text | TSDataType::String => {
-                StatisticEnum::String(StringStatistic::new())
-            }
+            TSDataType::Text | TSDataType::String => StatisticEnum::String(StringStatistic::new()),
             _ => StatisticEnum::Int32(Int32Statistic::new()), // Default
         }
     }
@@ -1013,6 +1250,29 @@ impl StatisticEnum {
             StatisticEnum::Float(s) => s.count(),
             StatisticEnum::Double(s) => s.count(),
             StatisticEnum::String(s) => s.count(),
+        }
+    }
+
+    /// Merges statistics from another StatisticEnum (for aggregating page stats into chunk stats)
+    ///
+    /// OPT: This allows ChunkWriter to derive chunk statistics from page statistics
+    /// instead of calculating them redundantly during write operations.
+    ///
+    /// # Example
+    /// ```
+    /// let mut chunk_stat = StatisticEnum::new(TSDataType::Float);
+    /// let page_stat = /* ... page statistics ... */;
+    /// chunk_stat.merge(&page_stat); // Accumulate page stats into chunk
+    /// ```
+    pub fn merge(&mut self, other: &StatisticEnum) {
+        match (self, other) {
+            (StatisticEnum::Boolean(s), StatisticEnum::Boolean(o)) => s.merge(o),
+            (StatisticEnum::Int32(s), StatisticEnum::Int32(o)) => s.merge(o),
+            (StatisticEnum::Int64(s), StatisticEnum::Int64(o)) => s.merge(o),
+            (StatisticEnum::Float(s), StatisticEnum::Float(o)) => s.merge(o),
+            (StatisticEnum::Double(s), StatisticEnum::Double(o)) => s.merge(o),
+            (StatisticEnum::String(s), StatisticEnum::String(o)) => s.merge(o),
+            _ => {} // No-op for mismatched types (shouldn't happen in normal usage)
         }
     }
 }

@@ -3,7 +3,7 @@
 //! This test verifies that enum dispatch produces the same results as
 //! the original Box<dyn Statistic> implementation.
 
-use timbre_tsf::common::statistic::{StatisticEnum, Statistic};
+use timbre_tsf::common::statistic::{Statistic, StatisticEnum};
 use timbre_tsf::common::types::TSDataType;
 
 #[test]

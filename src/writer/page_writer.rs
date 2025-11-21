@@ -22,9 +22,9 @@ use crate::file::{MiniBlock, MiniBlockConfig, MiniBlockHeader, PageData, PageHea
 pub struct PageWriter {
     // HOT PATH GROUP: Write operations (first cache lines)
     // These fields are accessed together during every write_*() call
-    timestamps: Vec<i64>,        // 24 bytes (ptr + cap + len)
-    value_data: ValueData,       // 32 bytes (enum tag + largest variant)
-    statistic: StatisticEnum,    // 64 bytes (enum tag + largest variant)
+    timestamps: Vec<i64>,     // 24 bytes (ptr + cap + len)
+    value_data: ValueData,    // 32 bytes (enum tag + largest variant)
+    statistic: StatisticEnum, // 64 bytes (enum tag + largest variant)
 
     // COLD PATH GROUP: Configuration (rarely accessed after construction)
     data_type: TSDataType,
@@ -57,15 +57,33 @@ enum ValueData {
 }
 
 impl ValueData {
+    /// Pre-allocate capacity to avoid reallocations during write hot path
+    ///
+    /// OPT: Typical page size 64KB / 4-8 bytes per value ≈ 8K-16K values
+    /// Using 12K as balanced estimate (reduces reallocs without over-allocation)
+    const ESTIMATED_VALUES_PER_PAGE: usize = 12 * 1024;
+
     fn new(data_type: TSDataType) -> Self {
         match data_type {
-            TSDataType::Boolean => ValueData::Boolean(Vec::new()),
-            TSDataType::Int32 | TSDataType::Date => ValueData::Int32(Vec::new()),
-            TSDataType::Int64 | TSDataType::Timestamp => ValueData::Int64(Vec::new()),
-            TSDataType::Float => ValueData::Float(Vec::new()),
-            TSDataType::Double => ValueData::Double(Vec::new()),
-            TSDataType::Text | TSDataType::String => ValueData::String(Vec::new()),
-            _ => ValueData::Int32(Vec::new()), // Default
+            TSDataType::Boolean => {
+                ValueData::Boolean(Vec::with_capacity(Self::ESTIMATED_VALUES_PER_PAGE))
+            }
+            TSDataType::Int32 | TSDataType::Date => {
+                ValueData::Int32(Vec::with_capacity(Self::ESTIMATED_VALUES_PER_PAGE))
+            }
+            TSDataType::Int64 | TSDataType::Timestamp => {
+                ValueData::Int64(Vec::with_capacity(Self::ESTIMATED_VALUES_PER_PAGE))
+            }
+            TSDataType::Float => {
+                ValueData::Float(Vec::with_capacity(Self::ESTIMATED_VALUES_PER_PAGE))
+            }
+            TSDataType::Double => {
+                ValueData::Double(Vec::with_capacity(Self::ESTIMATED_VALUES_PER_PAGE))
+            }
+            TSDataType::Text | TSDataType::String => {
+                ValueData::String(Vec::with_capacity(Self::ESTIMATED_VALUES_PER_PAGE))
+            }
+            _ => ValueData::Int32(Vec::with_capacity(Self::ESTIMATED_VALUES_PER_PAGE)), // Default
         }
     }
 }
@@ -85,7 +103,8 @@ impl PageWriter {
             encoding,
             compression_type,
             miniblock_config: MiniBlockConfig::default(),
-            timestamps: Vec::new(),
+            // OPT: Pre-allocate timestamp vector to avoid reallocations
+            timestamps: Vec::with_capacity(ValueData::ESTIMATED_VALUES_PER_PAGE),
             value_data: ValueData::new(data_type),
             statistic: create_statistic(data_type),
             time_encoder,
@@ -465,11 +484,8 @@ mod tests {
     fn test_batch_stats_calculation() {
         // BASELINE MODE: Test that statistics are correctly calculated per-value in write_*()
         // NOTE: This test was modified for baseline profiling comparison
-        let mut writer = PageWriter::new(
-            TSDataType::Float,
-            TSEncoding::Gorilla,
-            CompressionType::Lz4,
-        );
+        let mut writer =
+            PageWriter::new(TSDataType::Float, TSEncoding::Gorilla, CompressionType::Lz4);
 
         // Write values with known min/max for verification
         let start_ts = 1000i64;

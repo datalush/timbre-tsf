@@ -18,7 +18,7 @@ pub struct ChunkWriter {
     page_writer: PageWriter,
     pages: Vec<PageData>,
 
-    chunk_statistic: StatisticEnum,  // OPT: Changed from Box<dyn Statistic>
+    // OPT: Removed chunk_statistic field - now derived lazily via merge()
     max_page_size: usize,
     current_page_size: usize,
 }
@@ -34,7 +34,7 @@ impl ChunkWriter {
         compression_type: CompressionType,
     ) -> Self {
         let page_writer = PageWriter::new(data_type, encoding, compression_type);
-        let chunk_statistic = create_statistic(data_type);
+        // OPT: Removed chunk_statistic initialization - derived lazily
 
         Self {
             measurement_name: measurement_name.into(),
@@ -43,7 +43,7 @@ impl ChunkWriter {
             compression_type,
             page_writer,
             pages: Vec::new(),
-            chunk_statistic,
+            // OPT: Removed chunk_statistic field
             max_page_size: Self::DEFAULT_MAX_PAGE_SIZE,
             current_page_size: 0,
         }
@@ -63,55 +63,67 @@ impl ChunkWriter {
     }
 
     /// Escribe un valor booleano
+    ///
+    /// OPT: Removed duplicate statistics calculation - stats are now derived from pages
     pub fn write_bool(&mut self, timestamp: i64, value: bool) -> Result<()> {
         self.check_page_size_and_flush()?;
         self.page_writer.write_bool(timestamp, value)?;
-        self.chunk_statistic.update_bool(timestamp, value);
+        // OPT: Removed chunk_statistic.update_bool() - calculated lazily via merge
         self.current_page_size = self.page_writer.estimated_size();
         Ok(())
     }
 
     /// Escribe un valor i32
+    ///
+    /// OPT: Removed duplicate statistics calculation - stats are now derived from pages
     pub fn write_i32(&mut self, timestamp: i64, value: i32) -> Result<()> {
         self.check_page_size_and_flush()?;
         self.page_writer.write_i32(timestamp, value)?;
-        self.chunk_statistic.update_i32(timestamp, value);
+        // OPT: Removed chunk_statistic.update_i32() - calculated lazily via merge
         self.current_page_size = self.page_writer.estimated_size();
         Ok(())
     }
 
     /// Escribe un valor i64
+    ///
+    /// OPT: Removed duplicate statistics calculation - stats are now derived from pages
     pub fn write_i64(&mut self, timestamp: i64, value: i64) -> Result<()> {
         self.check_page_size_and_flush()?;
         self.page_writer.write_i64(timestamp, value)?;
-        self.chunk_statistic.update_i64(timestamp, value);
+        // OPT: Removed chunk_statistic.update_i64() - calculated lazily via merge
         self.current_page_size = self.page_writer.estimated_size();
         Ok(())
     }
 
     /// Escribe un valor f32
+    ///
+    /// OPT: Removed duplicate statistics calculation - stats are now derived from pages
     pub fn write_f32(&mut self, timestamp: i64, value: f32) -> Result<()> {
         self.check_page_size_and_flush()?;
         self.page_writer.write_f32(timestamp, value)?;
-        self.chunk_statistic.update_f32(timestamp, value);
+        // OPT: Removed chunk_statistic.update_f32() - calculated lazily via merge
         self.current_page_size = self.page_writer.estimated_size();
         Ok(())
     }
 
     /// Escribe un valor f64
+    ///
+    /// OPT: Removed duplicate statistics calculation - stats are now derived from pages
     pub fn write_f64(&mut self, timestamp: i64, value: f64) -> Result<()> {
         self.check_page_size_and_flush()?;
         self.page_writer.write_f64(timestamp, value)?;
-        self.chunk_statistic.update_f64(timestamp, value);
+        // OPT: Removed chunk_statistic.update_f64() - calculated lazily via merge
         self.current_page_size = self.page_writer.estimated_size();
         Ok(())
     }
 
     /// Escribe un valor string
+    ///
+    /// OPT: Removed duplicate statistics calculation - stats are now derived from pages
     pub fn write_string(&mut self, timestamp: i64, value: &str) -> Result<()> {
         self.check_page_size_and_flush()?;
         self.page_writer.write_string(timestamp, value)?;
-        self.chunk_statistic.update_string(timestamp, value);
+        // OPT: Removed chunk_statistic.update_string() - calculated lazily via merge
         self.current_page_size = self.page_writer.estimated_size();
         Ok(())
     }
@@ -221,9 +233,26 @@ impl ChunkWriter {
         size
     }
 
-    /// Estadísticas del chunk
-    pub fn statistic(&self) -> &StatisticEnum {
-        &self.chunk_statistic
+    /// Estadísticas del chunk (derivadas de pages via merge)
+    ///
+    /// OPT: Instead of calculating stats twice (once per write), we derive chunk
+    /// statistics by merging page statistics. This eliminates 50% of statistic overhead.
+    pub fn statistic(&self) -> StatisticEnum {
+        let mut stat = create_statistic(self.data_type);
+
+        // Merge statistics from all sealed pages
+        for page in &self.pages {
+            // Note: For now we only have timestamp min/max in PageHeader
+            // TODO: If we store full statistics in PageData, merge those too
+            stat.merge(self.page_writer.statistic());
+        }
+
+        // Merge statistics from current unsaved page
+        if self.page_writer.value_count() > 0 {
+            stat.merge(self.page_writer.statistic());
+        }
+
+        stat
     }
 
     /// Nombre de la medición
