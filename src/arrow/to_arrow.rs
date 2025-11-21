@@ -17,11 +17,11 @@
  * under the License.
  */
 
-//! TsFile → Arrow conversion
+//! Timbre -> Arrow conversion
 
 use crate::arrow::types::ArrowConversionConfig;
-use crate::error::{Result, TsFileError};
-use crate::reader::{DecodedValues, TsFileIOReader};
+use crate::error::{Result, TimbreError};
+use crate::reader::{DecodedValues, IOReader};
 use arrow::array::*;
 use arrow::buffer::Buffer;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
@@ -29,16 +29,16 @@ use arrow::record_batch::RecordBatch;
 use std::path::Path;
 use std::sync::Arc;
 
-/// Reads TsFile as Arrow RecordBatches
+/// Reads Timbre as Arrow RecordBatches
 ///
-/// Implements the Arrow RecordBatchReader trait for streaming TsFile data.
+/// Implements the Arrow RecordBatchReader trait for streaming Timbre data.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use timbre_tsf::arrow::TsFileRecordBatchReader;
+/// use timbre_tsf::arrow::RecordBatchReader;
 ///
-/// let reader = TsFileRecordBatchReader::try_new("input.timbreile")?;
+/// let reader = RecordBatchReader::try_new("input.timbreile")?;
 ///
 /// for batch_result in reader {
 ///     let batch = batch_result?;
@@ -46,15 +46,15 @@ use std::sync::Arc;
 /// }
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
-pub struct TsFileRecordBatchReader {
-    io_reader: TsFileIOReader,
+pub struct RecordBatchReader {
+    io_reader: IOReader,
     arrow_schema: Arc<Schema>,
     device_index: usize,
     devices: Vec<String>,
 }
 
-impl TsFileRecordBatchReader {
-    /// Create a new TsFile RecordBatch reader
+impl RecordBatchReader {
+    /// Create a new Timbre RecordBatch reader
     pub fn try_new<P: AsRef<Path>>(path: P) -> Result<Self> {
         Self::try_new_with_config(path, ArrowConversionConfig::default())
     }
@@ -64,19 +64,19 @@ impl TsFileRecordBatchReader {
         path: P,
         _config: ArrowConversionConfig,
     ) -> Result<Self> {
-        let io_reader = TsFileIOReader::open(path)?;
+        let io_reader = IOReader::open(path)?;
         let devices = io_reader.get_devices();
 
         if devices.is_empty() {
-            return Err(TsFileError::InvalidState(
-                "TsFile contains no devices".to_string(),
+            return Err(TimbreError::InvalidState(
+                "Timbre file contains no devices".to_string(),
             ));
         }
 
         // Build Arrow schema from first device's measurements
         let first_device = &devices[0];
         let measurements = io_reader.get_measurements(first_device).ok_or_else(|| {
-            TsFileError::InvalidState(format!(
+            TimbreError::InvalidState(format!(
                 "Failed to get measurements for device {}",
                 first_device
             ))
@@ -92,9 +92,9 @@ impl TsFileRecordBatchReader {
         })
     }
 
-    /// Build Arrow schema from TsFile metadata
+    /// Build Arrow schema from Timbre metadata
     fn build_arrow_schema(
-        io_reader: &TsFileIOReader,
+        io_reader: &IOReader,
         device_id: &str,
         measurements: &[String],
     ) -> Result<Schema> {
@@ -114,7 +114,7 @@ impl TsFileRecordBatchReader {
         for measurement in measurements {
             if let Some(metadata) = io_reader.get_chunk_metadata(device_id, measurement) {
                 let arrow_type =
-                    crate::arrow::schema_mapping::tsfile_type_to_arrow(&metadata.data_type)?;
+                    crate::arrow::schema_mapping::timbre_type_to_arrow(&metadata.data_type)?;
                 fields.push(Field::new(measurement.as_str(), arrow_type, true));
             }
         }
@@ -122,7 +122,7 @@ impl TsFileRecordBatchReader {
         Ok(Schema::new(fields))
     }
 
-    /// Read next RecordBatch from TsFile
+    /// Read next RecordBatch from Timbre
     fn read_next_batch(&mut self) -> Result<Option<RecordBatch>> {
         // Check if we've read all devices
         if self.device_index >= self.devices.len() {
@@ -133,7 +133,7 @@ impl TsFileRecordBatchReader {
 
         // Get measurements for this device
         let measurements = self.io_reader.get_measurements(device_id).ok_or_else(|| {
-            TsFileError::InvalidState(format!(
+            TimbreError::InvalidState(format!(
                 "Failed to get measurements for device {}",
                 device_id
             ))
@@ -196,7 +196,7 @@ impl TsFileRecordBatchReader {
 
         // Create RecordBatch
         let batch = RecordBatch::try_new(Arc::clone(&self.arrow_schema), arrays).map_err(|e| {
-            TsFileError::InvalidState(format!("Failed to create RecordBatch: {}", e))
+            TimbreError::InvalidState(format!("Failed to create RecordBatch: {}", e))
         })?;
 
         Ok(Some(batch))
@@ -227,7 +227,7 @@ impl TsFileRecordBatchReader {
                     .add_buffer(buffer)
                     .build()
                     .map_err(|e| {
-                        crate::error::TsFileError::InvalidState(format!(
+                        crate::error::TimbreError::InvalidState(format!(
                             "Failed to build Int32Array: {}",
                             e
                         ))
@@ -243,7 +243,7 @@ impl TsFileRecordBatchReader {
                     .add_buffer(buffer)
                     .build()
                     .map_err(|e| {
-                        crate::error::TsFileError::InvalidState(format!(
+                        crate::error::TimbreError::InvalidState(format!(
                             "Failed to build Int64Array: {}",
                             e
                         ))
@@ -259,7 +259,7 @@ impl TsFileRecordBatchReader {
                     .add_buffer(buffer)
                     .build()
                     .map_err(|e| {
-                        crate::error::TsFileError::InvalidState(format!(
+                        crate::error::TimbreError::InvalidState(format!(
                             "Failed to build Float32Array: {}",
                             e
                         ))
@@ -275,7 +275,7 @@ impl TsFileRecordBatchReader {
                     .add_buffer(buffer)
                     .build()
                     .map_err(|e| {
-                        crate::error::TsFileError::InvalidState(format!(
+                        crate::error::TimbreError::InvalidState(format!(
                             "Failed to build Float64Array: {}",
                             e
                         ))
@@ -300,7 +300,7 @@ impl TsFileRecordBatchReader {
     ///
     /// # Errors
     ///
-    /// Returns [`TsFileError::AllocationError`] if aligned memory allocation fails
+    /// Returns [`TimbreError::AllocationError`] if aligned memory allocation fails
     /// during buffer reallocation (extremely rare, only if system is out of memory).
     #[inline]
     fn ensure_aligned_buffer_i32(vec: Vec<i32>) -> Result<Buffer> {
@@ -367,11 +367,11 @@ impl TsFileRecordBatchReader {
 }
 
 /// Iterator implementation for streaming RecordBatches
-pub struct TsFileRecordBatchIterator {
-    reader: TsFileRecordBatchReader,
+pub struct RecordBatchIterator {
+    reader: RecordBatchReader,
 }
 
-impl Iterator for TsFileRecordBatchIterator {
+impl Iterator for RecordBatchIterator {
     type Item = Result<RecordBatch>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -383,12 +383,12 @@ impl Iterator for TsFileRecordBatchIterator {
     }
 }
 
-impl IntoIterator for TsFileRecordBatchReader {
+impl IntoIterator for RecordBatchReader {
     type Item = Result<RecordBatch>;
-    type IntoIter = TsFileRecordBatchIterator;
+    type IntoIter = RecordBatchIterator;
 
     fn into_iter(self) -> Self::IntoIter {
-        TsFileRecordBatchIterator { reader: self }
+        RecordBatchIterator { reader: self }
     }
 }
 
@@ -398,17 +398,17 @@ mod tests {
     use crate::common::{
         CompressionType, MeasurementSchema, TSDataType, TSEncoding, TsRecord, TsValue,
     };
-    use crate::writer::TsFileWriter;
+    use crate::writer::FileWriter;
     use tempfile::NamedTempFile;
 
     #[test]
-    fn test_tsfile_to_arrow_basic() {
+    fn test_timbre_to_arrow_basic() {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        // Write TsFile
+        // Write Timbre file
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
 
             let schema = MeasurementSchema::new(
                 "temperature",
@@ -428,7 +428,7 @@ mod tests {
         }
 
         // Read as Arrow
-        let reader = TsFileRecordBatchReader::try_new(path).unwrap();
+        let reader = RecordBatchReader::try_new(path).unwrap();
 
         let schema = reader.schema();
         assert_eq!(schema.fields().len(), 3); // timestamp + device_id + temperature
@@ -442,13 +442,13 @@ mod tests {
     }
 
     #[test]
-    fn test_tsfile_to_arrow_multiple_measurements() {
+    fn test_timbre_to_arrow_multiple_measurements() {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        // Write TsFile with multiple measurements
+        // Write Timbre file with multiple measurements
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
 
             let temp_schema = MeasurementSchema::new(
                 "temperature",
@@ -479,7 +479,7 @@ mod tests {
         }
 
         // Read as Arrow
-        let reader = TsFileRecordBatchReader::try_new(path).unwrap();
+        let reader = RecordBatchReader::try_new(path).unwrap();
 
         let schema = reader.schema();
         assert_eq!(schema.fields().len(), 4); // timestamp + device_id + 2 measurements

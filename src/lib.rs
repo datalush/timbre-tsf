@@ -34,7 +34,7 @@
 //!
 //! ```rust,no_run
 //! use timbre_tsf::common::*;
-//! use timbre_tsf::writer::TsFileWriter;
+//! use timbre_tsf::writer::FileWriter;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Define schema for temperature measurements with modern Timbre encodings
@@ -46,7 +46,7 @@
 //! );
 //!
 //! // Create writer and register schema
-//! let mut writer = TsFileWriter::new("sensor.timbre")?;
+//! let mut writer = FileWriter::new("sensor.timbre")?;
 //! writer.register_timeseries("device_001", schema)?;
 //!
 //! // Write time series data
@@ -86,10 +86,10 @@
 //! ## Reading Data
 //!
 //! ```rust,no_run
-//! use timbre_tsf::reader::TsFileReader;
+//! use timbre_tsf::reader::FileReader;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let mut reader = TsFileReader::open("sensor.timbre")?;
+//! let mut reader = FileReader::open("sensor.timbre")?;
 //! let chunk = reader.read("device_001", "temperature")?;
 //!
 //! for (timestamp, value) in chunk.iter() {
@@ -149,8 +149,8 @@
 //! - [`common`]: Core types, schemas, and data structures
 //! - [`encoding`]: Data encoding implementations (Gorilla, DeltaOfDelta, etc.)
 //! - [`compress`]: Compression algorithms (LZ4, Snappy, GZIP)
-//! - [`writer`]: TsFile writing and serialization
-//! - [`reader`]: TsFile reading and deserialization
+//! - [`writer`]: Timbre writing and serialization
+//! - [`reader`]: Timbre reading and deserialization
 //! - [`query`]: Query filters and predicates
 //! - [`index`]: Bloom filters and indexing structures
 //! - [`arrow`]: Apache Arrow integration
@@ -165,13 +165,14 @@ pub mod file;
 pub mod index;
 pub mod query;
 pub mod reader;
+pub mod utils;
 pub mod writer;
 
 // Re-export core types for convenience
 pub use common::*;
 pub use compress::{Compressor, create_compressor};
 pub use encoding::{Decoder, Encoder, create_decoder, create_encoder};
-pub use error::{Result, TsFileError};
+pub use error::{Result, TimbreError};
 
 /// Timbre format constants and magic numbers.
 ///

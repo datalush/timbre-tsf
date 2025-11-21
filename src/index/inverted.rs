@@ -8,13 +8,13 @@
 //! ```text
 //! Inverted Index
 //! ├── Tag Index
-//! │   ├── "location=datacenter1" → RoaringBitmap{1, 5, 7, 23, 45}
-//! │   ├── "sensor_type=temperature" → RoaringBitmap{2, 3, 5, 8}
-//! │   └── "status=active" → RoaringBitmap{1, 2, 3, 4, 5}
+//! │   ├── "location=datacenter1" -> RoaringBitmap{1, 5, 7, 23, 45}
+//! │   ├── "sensor_type=temperature" -> RoaringBitmap{2, 3, 5, 8}
+//! │   └── "status=active" -> RoaringBitmap{1, 2, 3, 4, 5}
 //! └── Device ID Mapping
-//!     ├── 1 → "sensor_001"
-//!     ├── 2 → "sensor_002"
-//!     └── N → "sensor_NNN"
+//!     ├── 1 -> "sensor_001"
+//!     ├── 2 -> "sensor_002"
+//!     └── N -> "sensor_NNN"
 //! ```
 //!
 //! # Query Examples
@@ -22,24 +22,24 @@
 //! **Single tag:**
 //! ```text
 //! location=datacenter1
-//! → lookup("location=datacenter1")
-//! → RoaringBitmap{1, 5, 7, 23, 45}
+//! -> lookup("location=datacenter1")
+//! -> RoaringBitmap{1, 5, 7, 23, 45}
 //! ```
 //!
 //! **Multiple tags (AND):**
 //! ```text
 //! location=datacenter1 AND sensor_type=temperature
-//! → bitmap1 = lookup("location=datacenter1")  {1, 5, 7, 23, 45}
-//! → bitmap2 = lookup("sensor_type=temperature") {2, 3, 5, 8}
-//! → bitmap1 AND bitmap2 = {5}
+//! -> bitmap1 = lookup("location=datacenter1")  {1, 5, 7, 23, 45}
+//! -> bitmap2 = lookup("sensor_type=temperature") {2, 3, 5, 8}
+//! -> bitmap1 AND bitmap2 = {5}
 //! ```
 //!
 //! **Multiple tags (OR):**
 //! ```text
 //! sensor_type=temperature OR sensor_type=humidity
-//! → bitmap1 = lookup("sensor_type=temperature") {2, 3, 5, 8}
-//! → bitmap2 = lookup("sensor_type=humidity") {4, 6, 9}
-//! → bitmap1 OR bitmap2 = {2, 3, 4, 5, 6, 8, 9}
+//! -> bitmap1 = lookup("sensor_type=temperature") {2, 3, 5, 8}
+//! -> bitmap2 = lookup("sensor_type=humidity") {4, 6, 9}
+//! -> bitmap1 OR bitmap2 = {2, 3, 4, 5, 6, 8, 9}
 //! ```
 //!
 //! # Performance
@@ -49,7 +49,7 @@
 //! - **Union**: O(n + m) where n, m = bitmap sizes
 //! - **Query speedup**: 100x vs linear scan, 10x vs B-tree (TIMBRE spec)
 
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use roaring::RoaringBitmap;
 use std::collections::HashMap;
@@ -240,7 +240,7 @@ impl InvertedIndex {
         writer.write_u32::<LittleEndian>(self.device_id_to_name.len() as u32)?;
         bytes_written += 4;
 
-        // Write device ID → name mapping
+        // Write device ID -> name mapping
         for (&id, name) in &self.device_id_to_name {
             writer.write_u32::<LittleEndian>(id)?;
             writer.write_u32::<LittleEndian>(name.len() as u32)?;
@@ -252,7 +252,7 @@ impl InvertedIndex {
         writer.write_u32::<LittleEndian>(self.tag_index.len() as u32)?;
         bytes_written += 4;
 
-        // Write tag → bitmap mapping
+        // Write tag -> bitmap mapping
         for (tag, bitmap) in &self.tag_index {
             // Write tag
             writer.write_u32::<LittleEndian>(tag.len() as u32)?;
@@ -278,7 +278,7 @@ impl InvertedIndex {
         // Read device count
         let device_count = reader.read_u32::<LittleEndian>()? as usize;
 
-        // Read device ID → name mapping
+        // Read device ID -> name mapping
         for _ in 0..device_count {
             let id = reader.read_u32::<LittleEndian>()?;
             let name_len = reader.read_u32::<LittleEndian>()? as usize;
@@ -286,7 +286,7 @@ impl InvertedIndex {
             reader.read_exact(&mut name_bytes)?;
 
             let name = String::from_utf8(name_bytes).map_err(|e| {
-                TsFileError::InvalidState(format!("Invalid UTF-8 in device name: {}", e))
+                TimbreError::InvalidState(format!("Invalid UTF-8 in device name: {}", e))
             })?;
 
             // Clone necessary: name inserted into two HashMaps
@@ -300,7 +300,7 @@ impl InvertedIndex {
         // Read tag count
         let tag_count = reader.read_u32::<LittleEndian>()? as usize;
 
-        // Read tag → bitmap mapping
+        // Read tag -> bitmap mapping
         for _ in 0..tag_count {
             // Read tag
             let tag_len = reader.read_u32::<LittleEndian>()? as usize;
@@ -308,7 +308,7 @@ impl InvertedIndex {
             reader.read_exact(&mut tag_bytes)?;
 
             let tag = String::from_utf8(tag_bytes)
-                .map_err(|e| TsFileError::InvalidState(format!("Invalid UTF-8 in tag: {}", e)))?;
+                .map_err(|e| TimbreError::InvalidState(format!("Invalid UTF-8 in tag: {}", e)))?;
 
             // Read bitmap
             let bitmap_len = reader.read_u32::<LittleEndian>()? as usize;
@@ -316,7 +316,7 @@ impl InvertedIndex {
             reader.read_exact(&mut bitmap_bytes)?;
 
             let bitmap = RoaringBitmap::deserialize_from(&bitmap_bytes[..]).map_err(|e| {
-                TsFileError::DecodingError(format!("Failed to deserialize bitmap: {}", e))
+                TimbreError::DecodingError(format!("Failed to deserialize bitmap: {}", e))
             })?;
 
             index.tag_index.insert(tag, bitmap);

@@ -3,7 +3,7 @@
 //! This encoder detects if floating-point values follow a regular quantization pattern
 //! (e.g., 20.0, 20.1, 20.2... with step=0.1) and encodes them as integers using:
 //!
-//! 1. **Quantization**: Convert float → integer index
+//! 1. **Quantization**: Convert float -> integer index
 //! 2. **Delta encoding**: Compute differences between consecutive indices
 //! 3. **Simple8b packing**: Pack deltas into 64-bit words (includes zigzag internally)
 //!
@@ -38,7 +38,7 @@
 use crate::common::TSDataType;
 use crate::encoding::simple8b::{Simple8bDecoder, Simple8bEncoder};
 use crate::encoding::{Decoder, Encoder}; // Needed for trait methods
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 
@@ -144,7 +144,7 @@ impl QuantizedEncoder {
     ///
     /// # Pipeline
     ///
-    /// 1. Quantize: float → integer index
+    /// 1. Quantize: float -> integer index
     /// 2. Delta: compute differences
     /// 3. Simple8b: pack deltas into 64-bit words (handles zigzag internally)
     ///
@@ -240,7 +240,7 @@ impl QuantizedEncoder {
 
         while result.len() < expected_count {
             if !decoder.has_remaining(data, pos) {
-                return Err(TsFileError::DecodingError(format!(
+                return Err(TimbreError::DecodingError(format!(
                     "Simple8b: expected {} values but only got {}",
                     expected_count,
                     result.len()
@@ -342,7 +342,7 @@ mod tests {
         let compression_ratio = raw_size as f64 / encoded.len() as f64;
 
         println!(
-            "Quantized encoding: {} bytes → {} bytes ({:.2}x compression)",
+            "Quantized encoding: {} bytes -> {} bytes ({:.2}x compression)",
             raw_size,
             encoded.len(),
             compression_ratio

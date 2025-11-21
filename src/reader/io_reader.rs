@@ -1,6 +1,6 @@
 use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::constants::{FOOTER_SIZE, HEADER_SIZE};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use crate::file::{FileFooter, FileHeader};
 use crate::reader::ChunkReader;
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -9,9 +9,9 @@ use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
-/// Low-level TsFile reader que maneja la estructura física del archivo
+/// Low-level Timbre reader que maneja la estructura física del archivo
 /// Opt #3: Usa BufReader para reducir syscalls durante lectura (10-15% mejora)
-pub struct TsFileIOReader {
+pub struct IOReader {
     file: BufReader<File>,
     file_size: u64,
     device_metadata: HashMap<String, Vec<ChunkMetadata>>,
@@ -30,8 +30,8 @@ pub struct ChunkMetadata {
     pub max_time: i64,
 }
 
-impl TsFileIOReader {
-    /// Abre un archivo TsFile existente
+impl IOReader {
+    /// Abre un archivo Timbre existente
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let file = File::open(path)?;
         let mut file = BufReader::new(file);
@@ -42,7 +42,7 @@ impl TsFileIOReader {
         // Verificar tamaño mínimo (HEADER + FOOTER)
         let min_size = (HEADER_SIZE + FOOTER_SIZE) as u64;
         if file_size < min_size {
-            return Err(TsFileError::InvalidFile(format!(
+            return Err(TimbreError::InvalidFile(format!(
                 "File too small to be a valid Timbre file: {} bytes (min {})",
                 file_size, min_size
             )));
@@ -74,7 +74,7 @@ impl TsFileIOReader {
         // Leer marker de metadata
         let marker = file.read_u8()?;
         if marker != 0x02 {
-            return Err(TsFileError::InvalidFile(format!(
+            return Err(TimbreError::InvalidFile(format!(
                 "Invalid metadata marker: {}",
                 marker
             )));
@@ -90,7 +90,7 @@ impl TsFileIOReader {
             let mut device_id_bytes = vec![0u8; device_id_len];
             file.read_exact(&mut device_id_bytes)?;
             let device_id = String::from_utf8(device_id_bytes)
-                .map_err(|e| TsFileError::InvalidFile(format!("Invalid device ID: {}", e)))?;
+                .map_err(|e| TimbreError::InvalidFile(format!("Invalid device ID: {}", e)))?;
 
             // Leer número de chunks
             let num_chunks = file.read_u32::<LittleEndian>()?;
@@ -102,7 +102,7 @@ impl TsFileIOReader {
                 let mut name_bytes = vec![0u8; name_len];
                 file.read_exact(&mut name_bytes)?;
                 let measurement_name = String::from_utf8(name_bytes).map_err(|e| {
-                    TsFileError::InvalidFile(format!("Invalid measurement name: {}", e))
+                    TimbreError::InvalidFile(format!("Invalid measurement name: {}", e))
                 })?;
 
                 // Leer offset, data type, encoding, compression
@@ -144,13 +144,13 @@ impl TsFileIOReader {
         let device_chunks = self
             .device_metadata
             .get(device_id)
-            .ok_or_else(|| TsFileError::NotFound(format!("Device {} not found", device_id)))?;
+            .ok_or_else(|| TimbreError::NotFound(format!("Device {} not found", device_id)))?;
 
         let chunk_meta = device_chunks
             .iter()
             .find(|c| c.measurement_name == measurement_name)
             .ok_or_else(|| {
-                TsFileError::NotFound(format!(
+                TimbreError::NotFound(format!(
                     "Measurement {} not found for device {}",
                     measurement_name, device_id
                 ))
@@ -210,18 +210,18 @@ impl TsFileIOReader {
 mod tests {
     use super::*;
     use crate::common::{MeasurementSchema, TsRecord, TsValue};
-    use crate::writer::TsFileWriter;
+    use crate::writer::FileWriter;
     use tempfile::NamedTempFile;
 
     #[test]
-    fn test_tsfile_io_reader_basic() {
+    fn test_io_reader_basic() {
         // Crear archivo temporal
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
         // Escribir datos
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
 
             // Registrar schemas (usar Plain en lugar de Gorilla que tiene bugs)
             let schema = MeasurementSchema::new(
@@ -243,7 +243,7 @@ mod tests {
         }
 
         // Leer datos
-        let mut reader = TsFileIOReader::open(path).unwrap();
+        let mut reader = IOReader::open(path).unwrap();
 
         // Verificar dispositivos
         let devices = reader.get_devices();
@@ -285,14 +285,14 @@ mod tests {
     }
 
     #[test]
-    fn test_tsfile_io_reader_multiple_devices() {
+    fn test_io_reader_multiple_devices() {
         // Crear archivo temporal
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
         // Escribir datos
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
 
             // Dispositivo 1 (usar Plain para evitar bugs de Gorilla)
             let schema1 = MeasurementSchema::new(
@@ -328,7 +328,7 @@ mod tests {
         }
 
         // Leer datos
-        let mut reader = TsFileIOReader::open(path).unwrap();
+        let mut reader = IOReader::open(path).unwrap();
 
         // Verificar dispositivos
         let devices = reader.get_devices();
@@ -344,14 +344,14 @@ mod tests {
     }
 
     #[test]
-    fn test_tsfile_io_reader_invalid_file() {
+    fn test_io_reader_invalid_file() {
         let temp_file = NamedTempFile::new().unwrap();
 
         // Escribir datos inválidos
         std::fs::write(temp_file.path(), b"invalid data").unwrap();
 
         // Debería fallar al abrir
-        let result = TsFileIOReader::open(temp_file.path());
+        let result = IOReader::open(temp_file.path());
         assert!(result.is_err());
     }
 }

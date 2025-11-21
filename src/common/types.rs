@@ -1,11 +1,11 @@
-//! Core type definitions for TsFile data model.
+//! Core type definitions for Timbre data model.
 //!
 //! This module defines the fundamental enumerations that describe data types,
-//! encodings, compression methods, and value representations in the TsFile format.
+//! encodings, compression methods, and value representations in the Timbre format.
 //!
 //! # Type System
 //!
-//! The TsFile type system consists of three orthogonal dimensions:
+//! The Timbre type system consists of three orthogonal dimensions:
 //!
 //! 1. **Data Type** ([`TSDataType`]): The logical type of the data (Int32, Float, etc.)
 //! 2. **Encoding** ([`TSEncoding`]): How the data is transformed before compression
@@ -35,9 +35,9 @@
 
 use std::fmt;
 
-/// Time series data types supported by TsFile.
+/// Time series data types supported by Timbre.
 ///
-/// This enum represents all logical data types that can be stored in a TsFile.
+/// This enum represents all logical data types that can be stored in a Timbre file.
 /// Each type has a fixed byte discriminator used in the binary format for
 /// serialization and deserialization.
 ///
@@ -51,7 +51,7 @@ use std::fmt;
 /// # Wire Format
 ///
 /// Each variant has a corresponding `u8` discriminator that appears in the
-/// TsFile binary format. Use [`TSDataType::from_u8`] and [`TSDataType::to_u8`]
+/// Timbre binary format. Use [`TSDataType::from_u8`] and [`TSDataType::to_u8`]
 /// for conversion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -178,7 +178,7 @@ impl fmt::Display for TSDataType {
     }
 }
 
-/// Encoding methods supported by TsFile.
+/// Encoding methods supported by Timbre.
 ///
 /// Encodings transform data before compression to improve compression ratios
 /// and query performance. Different encodings are optimized for different
@@ -524,8 +524,8 @@ pub enum ColumnCategory {
 
 /// Type-safe wrapper for time series values.
 ///
-/// This enum can hold any value type supported by TsFile. It provides type
-/// safety and convenient conversion between Rust types and TsFile types.
+/// This enum can hold any value type supported by Timbre. It provides type
+/// safety and convenient conversion between Rust types and Timbre types.
 ///
 /// # Null Handling
 ///

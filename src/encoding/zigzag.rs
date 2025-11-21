@@ -38,7 +38,7 @@
 
 use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 
 /// Zigzag encoder for signed integers
 pub struct ZigzagEncoder {
@@ -117,7 +117,7 @@ impl ZigzagEncoder {
 
 impl Encoder for ZigzagEncoder {
     fn encode_bool(&mut self, _value: bool, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Zigzag encoding not supported for booleans".to_string(),
         ))
     }
@@ -131,19 +131,19 @@ impl Encoder for ZigzagEncoder {
     }
 
     fn encode_f32(&mut self, _value: f32, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Zigzag encoding not supported for floats".to_string(),
         ))
     }
 
     fn encode_f64(&mut self, _value: f64, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Zigzag encoding not supported for doubles".to_string(),
         ))
     }
 
     fn encode_string(&mut self, _value: &str, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Zigzag encoding not supported for strings".to_string(),
         ))
     }
@@ -197,7 +197,7 @@ impl ZigzagDecoder {
 
         loop {
             if *pos >= input.len() {
-                return Err(TsFileError::DecodingError(
+                return Err(TimbreError::DecodingError(
                     "Unexpected end of input reading varuint".to_string(),
                 ));
             }
@@ -213,7 +213,7 @@ impl ZigzagDecoder {
 
             shift += 7;
             if shift >= 32 {
-                return Err(TsFileError::DecodingError("Varuint too large".to_string()));
+                return Err(TimbreError::DecodingError("Varuint too large".to_string()));
             }
         }
 
@@ -232,7 +232,7 @@ impl ZigzagDecoder {
 
         // Load encoded bytes
         if *pos + encoded_length > input.len() {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "Not enough data for zigzag encoded values".to_string(),
             ));
         }
@@ -249,7 +249,7 @@ impl ZigzagDecoder {
     /// Decode next i32 value
     fn decode_i32(&mut self) -> Result<i32> {
         if self.values_read >= self.value_count {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "No more values to decode".to_string(),
             ));
         }
@@ -260,7 +260,7 @@ impl ZigzagDecoder {
 
         loop {
             if self.position >= self.decoded_bytes.len() {
-                return Err(TsFileError::DecodingError(
+                return Err(TimbreError::DecodingError(
                     "Unexpected end of decoded bytes".to_string(),
                 ));
             }
@@ -287,7 +287,7 @@ impl ZigzagDecoder {
     /// Decode next i64 value
     fn decode_i64(&mut self) -> Result<i64> {
         if self.values_read >= self.value_count {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "No more values to decode".to_string(),
             ));
         }
@@ -298,7 +298,7 @@ impl ZigzagDecoder {
 
         loop {
             if self.position >= self.decoded_bytes.len() {
-                return Err(TsFileError::DecodingError(
+                return Err(TimbreError::DecodingError(
                     "Unexpected end of decoded bytes".to_string(),
                 ));
             }
@@ -325,7 +325,7 @@ impl ZigzagDecoder {
 
 impl Decoder for ZigzagDecoder {
     fn read_bool(&mut self, _input: &[u8], _pos: &mut usize) -> Result<bool> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Zigzag decoding not supported for booleans".to_string(),
         ))
     }
@@ -341,19 +341,19 @@ impl Decoder for ZigzagDecoder {
     }
 
     fn read_f32(&mut self, _input: &[u8], _pos: &mut usize) -> Result<f32> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Zigzag decoding not supported for floats".to_string(),
         ))
     }
 
     fn read_f64(&mut self, _input: &[u8], _pos: &mut usize) -> Result<f64> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Zigzag decoding not supported for doubles".to_string(),
         ))
     }
 
     fn read_string(&mut self, _input: &[u8], _pos: &mut usize) -> Result<String> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Zigzag decoding not supported for strings".to_string(),
         ))
     }

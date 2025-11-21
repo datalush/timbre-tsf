@@ -1,7 +1,7 @@
 use crate::common::statistic::Statistic;
 use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::constants::{HEADER_SIZE, MAGIC, VERSION_MAJOR, VERSION_MINOR};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use crate::index::BloomFilter;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::{Read, Write};
@@ -143,7 +143,7 @@ impl FileHeader {
         let mut magic = [0u8; 4];
         reader.read_exact(&mut magic)?;
         if magic != MAGIC {
-            return Err(TsFileError::InvalidFormat(format!(
+            return Err(TimbreError::InvalidFormat(format!(
                 "Invalid magic number: expected TMB1, got {:?}",
                 magic
             )));
@@ -362,7 +362,7 @@ impl FileFooter {
         let mut magic = [0u8; 4];
         reader.read_exact(&mut magic)?;
         if magic != MAGIC {
-            return Err(TsFileError::InvalidFormat(format!(
+            return Err(TimbreError::InvalidFormat(format!(
                 "Invalid footer magic number: expected TMB1, got {:?}",
                 magic
             )));
@@ -474,7 +474,7 @@ impl ChunkHeader {
         let mut name_bytes = vec![0u8; name_len];
         reader.read_exact(&mut name_bytes)?;
         let measurement_name = String::from_utf8(name_bytes)
-            .map_err(|e| crate::error::TsFileError::DecodingError(e.to_string()))?;
+            .map_err(|e| crate::error::TimbreError::DecodingError(e.to_string()))?;
 
         let data_size = reader.read_u32::<LittleEndian>()?;
         let data_type = TSDataType::from_u8(reader.read_u8()?);
@@ -612,7 +612,6 @@ impl Default for PageHeader {
 ///
 /// Timbre SIEMPRE usa mini-blocks (4-8 bloques por página).
 /// Cada mini-block puede decodificarse independientemente en paralelo.
-/// Sin backward compatibility con TSFile.
 #[derive(Debug)]
 pub struct PageData {
     pub header: PageHeader,

@@ -1,5 +1,5 @@
 use super::base::*;
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 
@@ -188,7 +188,7 @@ impl DoubleSprintzDecoder {
 
     fn decode_block(&mut self, input: &[u8], pos: &mut usize) -> Result<()> {
         if *pos >= input.len() {
-            return Err(TsFileError::DecodingError("Insufficient data".to_string()));
+            return Err(TimbreError::DecodingError("Insufficient data".to_string()));
         }
 
         let bit_width = input[*pos];
@@ -200,7 +200,7 @@ impl DoubleSprintzDecoder {
 
             for i in 0..size {
                 if *pos + 8 > input.len() {
-                    return Err(TsFileError::DecodingError(
+                    return Err(TimbreError::DecodingError(
                         "Insufficient data for partial block".to_string(),
                     ));
                 }
@@ -212,7 +212,7 @@ impl DoubleSprintzDecoder {
             self.decode_size = BLOCK_SIZE + 1;
 
             if *pos + 8 > input.len() {
-                return Err(TsFileError::DecodingError(
+                return Err(TimbreError::DecodingError(
                     "Insufficient data for pre_value".to_string(),
                 ));
             }
@@ -222,7 +222,7 @@ impl DoubleSprintzDecoder {
             self.current_buffer[0] = pre_bits;
 
             if *pos + bit_width as usize > input.len() {
-                return Err(TsFileError::DecodingError(
+                return Err(TimbreError::DecodingError(
                     "Insufficient data for packed values".to_string(),
                 ));
             }

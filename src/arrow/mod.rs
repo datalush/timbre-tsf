@@ -17,27 +17,27 @@
  * under the License.
  */
 
-//! Apache Arrow integration for TsFile
+//! Apache Arrow integration for Timbre
 //!
-//! This module provides bidirectional conversion between Apache Arrow and TsFile formats:
+//! This module provides bidirectional conversion between Apache Arrow and Timbre formats:
 //!
-//! - **Arrow → TsFile**: Convert Arrow RecordBatches to TsFile (write path)
-//! - **TsFile → Arrow**: Read TsFile data as Arrow RecordBatches (read path)
+//! - **Arrow -> Timbre**: Convert Arrow RecordBatches to Timbre (write path)
+//! - **Timbre -> Arrow**: Read Timbre data as Arrow RecordBatches (read path)
 //!
 //! # Features
 //!
 //! - Zero-copy optimizations where possible
 //! - Streaming support for large datasets
 //! - Automatic encoding selection based on Arrow data types
-//! - DataFusion integration for SQL queries on TsFile
+//! - DataFusion integration for SQL queries on Timbre
 //!
-//! # Example: Arrow → TsFile
+//! # Example: Arrow -> Timbre
 //!
 //! ```no_run
-//! use timbre_tsf::arrow::ArrowToTsFileConverter;
+//! use timbre_tsf::arrow::FromArrowConverter;
 //! use arrow::record_batch::RecordBatch;
 //!
-//! let mut converter = ArrowToTsFileConverter::builder("output.timbreile")
+//! let mut converter = FromArrowConverter::builder("output.timbreile")
 //!     .with_device_column("device_id")
 //!     .with_timestamp_column("timestamp")
 //!     .build()?;
@@ -47,13 +47,13 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
-//! # Example: TsFile → Arrow
+//! # Example: Timbre -> Arrow
 //!
 //! ```no_run
-//! use timbre_tsf::arrow::TsFileRecordBatchReader;
+//! use timbre_tsf::arrow::RecordBatchReader;
 //! use arrow::record_batch::RecordBatchReader;
 //!
-//! let reader = TsFileRecordBatchReader::try_new("input.timbreile")?;
+//! let reader = RecordBatchReader::try_new("input.timbreile")?;
 //!
 //! for batch in reader {
 //!     let batch = batch?;
@@ -69,7 +69,7 @@ mod to_arrow;
 mod types;
 
 pub use aligned_buffer::{ARROW_ALIGNMENT, AlignedVec, alloc_aligned_vec};
-pub use from_arrow::ArrowToTsFileConverter;
-pub use schema_mapping::{ArrowSchemaMapping, arrow_type_to_tsfile, tsfile_type_to_arrow};
-pub use to_arrow::TsFileRecordBatchReader;
+pub use from_arrow::FromArrowConverter;
+pub use schema_mapping::{ArrowSchemaMapping, arrow_type_to_timbre, timbre_type_to_arrow};
+pub use to_arrow::RecordBatchReader;
 pub use types::{ArrowConversionConfig, EncodingHint};

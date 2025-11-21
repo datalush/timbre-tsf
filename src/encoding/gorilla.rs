@@ -71,7 +71,7 @@
 
 use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 
 /// Statistics computed during batch encoding (OPT: stats calculated during encode loop)
 #[derive(Debug, Clone)]
@@ -363,7 +363,7 @@ impl Encoder for GorillaEncoder {
     }
 
     fn encode_string(&mut self, _value: &str, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Gorilla encoding not supported for strings".to_string(),
         ))
     }
@@ -501,7 +501,7 @@ impl GorillaDecoder {
             if !added_data {
                 // Check if we have enough bits now
                 if self.bits_available < num_bits {
-                    return Err(TsFileError::UnexpectedEof);
+                    return Err(TimbreError::UnexpectedEof);
                 }
                 break;
             }
@@ -605,7 +605,7 @@ impl Decoder for GorillaDecoder {
     }
 
     fn read_string(&mut self, _input: &[u8], _pos: &mut usize) -> Result<String> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Gorilla decoding not supported for strings".to_string(),
         ))
     }

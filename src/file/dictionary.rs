@@ -7,12 +7,12 @@
 //!
 //! ```text
 //! FileFooter
-//! ├── Dictionary Offset → GlobalDictionary
+//! ├── Dictionary Offset -> GlobalDictionary
 //! │   ├── Header (version, count, size)
 //! │   ├── String Table (sorted for binary search)
-//! │   │   ├── Entry 0: "device_001" → ID 0
-//! │   │   ├── Entry 1: "device_002" → ID 1
-//! │   │   └── Entry N: "temperature" → ID N
+//! │   │   ├── Entry 0: "device_001" -> ID 0
+//! │   │   ├── Entry 1: "device_002" -> ID 1
+//! │   │   └── Entry N: "temperature" -> ID N
 //! │   └── Hash Index (optional, for O(1) lookup)
 //! └── Data Pages (reference dictionary IDs)
 //! ```
@@ -26,7 +26,7 @@
 //!
 //! 2. **Encode Phase** (Write):
 //!    - Replace strings with varint-encoded IDs
-//!    - Typical: "device_sensor_001" (16 bytes) → varint(42) (1 byte)
+//!    - Typical: "device_sensor_001" (16 bytes) -> varint(42) (1 byte)
 //!
 //! 3. **Decode Phase** (Read):
 //!    - Load dictionary from footer on open()
@@ -38,7 +38,7 @@
 //! - **Lookup**: O(1) with hash index, O(log n) with binary search
 //! - **Memory**: ~1-5 MB for typical IoT workloads (1000-5000 unique strings)
 
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rustc_hash::FxHashMap; // OPT: 3-5x faster than SipHash for device IDs
 use std::io::{Read, Write};
@@ -204,7 +204,7 @@ impl GlobalDictionary {
             reader.read_exact(&mut bytes)?;
 
             let s = String::from_utf8(bytes).map_err(|e| {
-                TsFileError::InvalidState(format!("Invalid UTF-8 in dictionary: {}", e))
+                TimbreError::InvalidState(format!("Invalid UTF-8 in dictionary: {}", e))
             })?;
 
             // Clone necessary: s is inserted into HashMap and pushed into Vec
@@ -249,7 +249,7 @@ impl GlobalDictionary {
 
         loop {
             if *pos >= data.len() {
-                return Err(TsFileError::DecodingError(
+                return Err(TimbreError::DecodingError(
                     "Unexpected end of data while decoding varint".to_string(),
                 ));
             }
@@ -265,7 +265,7 @@ impl GlobalDictionary {
 
             shift += 7;
             if shift >= 32 {
-                return Err(TsFileError::DecodingError("Varint too large".to_string()));
+                return Err(TimbreError::DecodingError("Varint too large".to_string()));
             }
         }
 
@@ -404,7 +404,7 @@ mod tests {
         // ID 0 encodes to 1 byte
         assert_eq!(encoded.len(), 1);
 
-        // 17 bytes → 1 byte = 94% compression for this string!
+        // 17 bytes -> 1 byte = 94% compression for this string!
         let compression_ratio = (original_bytes - encoded.len()) as f64 / original_bytes as f64;
         assert!(compression_ratio > 0.9);
     }

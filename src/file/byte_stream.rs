@@ -1,4 +1,4 @@
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use std::io::{Read, Write};
 
 /// Buffer dinámico con capacidad de lectura/escritura
@@ -49,7 +49,7 @@ impl ByteStream {
     /// Lee bytes del stream
     pub fn read_bytes(&mut self, len: usize) -> Result<Vec<u8>> {
         if self.read_pos + len > self.write_pos {
-            return Err(TsFileError::UnexpectedEof);
+            return Err(TimbreError::UnexpectedEof);
         }
         let data = self.buffer[self.read_pos..self.read_pos + len].to_vec();
         self.read_pos += len;
@@ -59,7 +59,7 @@ impl ByteStream {
     /// Copia bytes sin avanzar la posición de lectura
     pub fn peek_bytes(&self, len: usize) -> Result<Vec<u8>> {
         if self.read_pos + len > self.write_pos {
-            return Err(TsFileError::UnexpectedEof);
+            return Err(TimbreError::UnexpectedEof);
         }
         Ok(self.buffer[self.read_pos..self.read_pos + len].to_vec())
     }
@@ -109,7 +109,7 @@ impl ByteStream {
     /// Establece la posición de lectura
     pub fn set_read_position(&mut self, pos: usize) -> Result<()> {
         if pos > self.write_pos {
-            return Err(TsFileError::InvalidState(
+            return Err(TimbreError::InvalidState(
                 "Read position beyond write position".to_string(),
             ));
         }

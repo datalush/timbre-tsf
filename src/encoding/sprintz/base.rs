@@ -249,7 +249,7 @@ pub fn get_max_bit_width_i64(values: &[i64]) -> u8 {
 ///
 /// Maps signed integers to unsigned integers such that small absolute values
 /// result in small positive integers:
-/// - 0 → 0, -1 → 1, 1 → 2, -2 → 3, 2 → 4, ...
+/// - 0 -> 0, -1 -> 1, 1 -> 2, -2 -> 3, 2 -> 4, ...
 ///
 /// This is a custom Sprintz variant that matches the Apache IoTDB implementation.
 ///

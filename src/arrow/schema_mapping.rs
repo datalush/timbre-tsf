@@ -17,19 +17,19 @@
  * under the License.
  */
 
-//! Schema mapping utilities for Arrow ↔ TsFile conversion
+//! Schema mapping utilities for Arrow ↔ Timbre conversion
 
 use crate::common::{MeasurementSchema, TSDataType, TSEncoding};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 #[cfg(test)]
 use std::sync::Arc;
 
-/// Utilities for mapping between Arrow and TsFile schemas
+/// Utilities for mapping between Arrow and Timbre schemas
 pub struct ArrowSchemaMapping;
 
 impl ArrowSchemaMapping {
-    /// Convert an Arrow Schema to a list of TsFile MeasurementSchemas
+    /// Convert an Arrow Schema to a list of Timbre MeasurementSchemas
     ///
     /// # Arguments
     ///
@@ -40,7 +40,7 @@ impl ArrowSchemaMapping {
     /// # Returns
     ///
     /// A vector of (field_name, MeasurementSchema) tuples
-    pub fn arrow_to_tsfile_schemas(
+    pub fn arrow_to_timbre_schemas(
         arrow_schema: &Schema,
         timestamp_column: &str,
         device_column: Option<&str>,
@@ -55,7 +55,7 @@ impl ArrowSchemaMapping {
                 continue;
             }
 
-            let ts_data_type = arrow_type_to_tsfile(field.data_type())?;
+            let ts_data_type = arrow_type_to_timbre(field.data_type())?;
             let encoding = Self::select_default_encoding(&ts_data_type, field);
 
             let schema = MeasurementSchema::new(
@@ -71,15 +71,15 @@ impl ArrowSchemaMapping {
         Ok(schemas)
     }
 
-    /// Convert TsFile schemas to an Arrow Schema
+    /// Convert Timbre schemas to an Arrow Schema
     ///
     /// # Arguments
     ///
-    /// * `tsfile_schemas` - List of (measurement_name, MeasurementSchema)
+    /// * `timbre_schemas` - List of (measurement_name, MeasurementSchema)
     /// * `include_timestamp` - Whether to include timestamp column
     /// * `include_device` - Whether to include device ID column
-    pub fn tsfile_to_arrow_schema(
-        tsfile_schemas: &[(String, MeasurementSchema)],
+    pub fn timbre_to_arrow_schema(
+        timbre_schemas: &[(String, MeasurementSchema)],
         include_timestamp: bool,
         include_device: bool,
     ) -> Result<Schema> {
@@ -100,15 +100,15 @@ impl ArrowSchemaMapping {
         }
 
         // Add measurement fields
-        for (name, schema) in tsfile_schemas {
-            let arrow_type = tsfile_type_to_arrow(&schema.data_type)?;
+        for (name, schema) in timbre_schemas {
+            let arrow_type = timbre_type_to_arrow(&schema.data_type)?;
             fields.push(Field::new(name.as_str(), arrow_type, true));
         }
 
         Ok(Schema::new(fields))
     }
 
-    /// Select a default encoding for a TsFile measurement based on Arrow field metadata
+    /// Select a default encoding for a Timbre measurement based on Arrow field metadata
     fn select_default_encoding(ts_data_type: &TSDataType, _field: &Field) -> TSEncoding {
         // TODO: Support encoding hints from Arrow field metadata
         // For now, just use default encoding based on data type
@@ -124,8 +124,8 @@ impl ArrowSchemaMapping {
     }
 }
 
-/// Convert Arrow DataType to TsFile TSDataType
-pub fn arrow_type_to_tsfile(arrow_type: &DataType) -> Result<TSDataType> {
+/// Convert Arrow DataType to Timbre TSDataType
+pub fn arrow_type_to_timbre(arrow_type: &DataType) -> Result<TSDataType> {
     match arrow_type {
         DataType::Boolean => Ok(TSDataType::Boolean),
         DataType::Int32 => Ok(TSDataType::Int32),
@@ -139,15 +139,15 @@ pub fn arrow_type_to_tsfile(arrow_type: &DataType) -> Result<TSDataType> {
         DataType::UInt8 | DataType::UInt16 | DataType::UInt32 => Ok(TSDataType::Int32),
         DataType::UInt64 => Ok(TSDataType::Int64),
         DataType::Float16 => Ok(TSDataType::Float), // Promote to Float32
-        _ => Err(TsFileError::NotImplemented(format!(
-            "Arrow type {:?} is not supported for conversion to TsFile",
+        _ => Err(TimbreError::NotImplemented(format!(
+            "Arrow type {:?} is not supported for conversion to Timbre",
             arrow_type
         ))),
     }
 }
 
-/// Convert TsFile TSDataType to Arrow DataType
-pub fn tsfile_type_to_arrow(ts_type: &TSDataType) -> Result<DataType> {
+/// Convert Timbre TSDataType to Arrow DataType
+pub fn timbre_type_to_arrow(ts_type: &TSDataType) -> Result<DataType> {
     match ts_type {
         TSDataType::Boolean => Ok(DataType::Boolean),
         TSDataType::Int32 => Ok(DataType::Int32),
@@ -155,8 +155,8 @@ pub fn tsfile_type_to_arrow(ts_type: &TSDataType) -> Result<DataType> {
         TSDataType::Float => Ok(DataType::Float32),
         TSDataType::Double => Ok(DataType::Float64),
         TSDataType::Text => Ok(DataType::Utf8),
-        _ => Err(TsFileError::NotImplemented(format!(
-            "TsFile type {:?} is not supported for conversion to Arrow",
+        _ => Err(TimbreError::NotImplemented(format!(
+            "Timbre type {:?} is not supported for conversion to Arrow",
             ts_type
         ))),
     }
@@ -167,117 +167,117 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_arrow_to_tsfile_basic_types() {
+    fn test_arrow_to_timbre_basic_types() {
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::Boolean).unwrap(),
+            arrow_type_to_timbre(&DataType::Boolean).unwrap(),
             TSDataType::Boolean
         );
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::Int32).unwrap(),
+            arrow_type_to_timbre(&DataType::Int32).unwrap(),
             TSDataType::Int32
         );
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::Int64).unwrap(),
+            arrow_type_to_timbre(&DataType::Int64).unwrap(),
             TSDataType::Int64
         );
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::Float32).unwrap(),
+            arrow_type_to_timbre(&DataType::Float32).unwrap(),
             TSDataType::Float
         );
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::Float64).unwrap(),
+            arrow_type_to_timbre(&DataType::Float64).unwrap(),
             TSDataType::Double
         );
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::Utf8).unwrap(),
+            arrow_type_to_timbre(&DataType::Utf8).unwrap(),
             TSDataType::Text
         );
     }
 
     #[test]
-    fn test_tsfile_to_arrow_basic_types() {
+    fn test_timbre_to_arrow_basic_types() {
         assert_eq!(
-            tsfile_type_to_arrow(&TSDataType::Boolean).unwrap(),
+            timbre_type_to_arrow(&TSDataType::Boolean).unwrap(),
             DataType::Boolean
         );
         assert_eq!(
-            tsfile_type_to_arrow(&TSDataType::Int32).unwrap(),
+            timbre_type_to_arrow(&TSDataType::Int32).unwrap(),
             DataType::Int32
         );
         assert_eq!(
-            tsfile_type_to_arrow(&TSDataType::Int64).unwrap(),
+            timbre_type_to_arrow(&TSDataType::Int64).unwrap(),
             DataType::Int64
         );
         assert_eq!(
-            tsfile_type_to_arrow(&TSDataType::Float).unwrap(),
+            timbre_type_to_arrow(&TSDataType::Float).unwrap(),
             DataType::Float32
         );
         assert_eq!(
-            tsfile_type_to_arrow(&TSDataType::Double).unwrap(),
+            timbre_type_to_arrow(&TSDataType::Double).unwrap(),
             DataType::Float64
         );
         assert_eq!(
-            tsfile_type_to_arrow(&TSDataType::Text).unwrap(),
+            timbre_type_to_arrow(&TSDataType::Text).unwrap(),
             DataType::Utf8
         );
     }
 
     #[test]
-    fn test_arrow_to_tsfile_promoted_types() {
+    fn test_arrow_to_timbre_promoted_types() {
         // Smaller integer types promoted to Int32
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::Int8).unwrap(),
+            arrow_type_to_timbre(&DataType::Int8).unwrap(),
             TSDataType::Int32
         );
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::Int16).unwrap(),
+            arrow_type_to_timbre(&DataType::Int16).unwrap(),
             TSDataType::Int32
         );
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::UInt8).unwrap(),
+            arrow_type_to_timbre(&DataType::UInt8).unwrap(),
             TSDataType::Int32
         );
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::UInt16).unwrap(),
+            arrow_type_to_timbre(&DataType::UInt16).unwrap(),
             TSDataType::Int32
         );
 
         // UInt32 promoted to Int32 (may lose range)
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::UInt32).unwrap(),
+            arrow_type_to_timbre(&DataType::UInt32).unwrap(),
             TSDataType::Int32
         );
 
         // UInt64 mapped to Int64
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::UInt64).unwrap(),
+            arrow_type_to_timbre(&DataType::UInt64).unwrap(),
             TSDataType::Int64
         );
 
         // Float16 promoted to Float32
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::Float16).unwrap(),
+            arrow_type_to_timbre(&DataType::Float16).unwrap(),
             TSDataType::Float
         );
     }
 
     #[test]
-    fn test_arrow_to_tsfile_timestamp() {
+    fn test_arrow_to_timbre_timestamp() {
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::Timestamp(TimeUnit::Millisecond, None)).unwrap(),
+            arrow_type_to_timbre(&DataType::Timestamp(TimeUnit::Millisecond, None)).unwrap(),
             TSDataType::Int64
         );
         assert_eq!(
-            arrow_type_to_tsfile(&DataType::Timestamp(TimeUnit::Microsecond, None)).unwrap(),
+            arrow_type_to_timbre(&DataType::Timestamp(TimeUnit::Microsecond, None)).unwrap(),
             TSDataType::Int64
         );
     }
 
     #[test]
-    fn test_arrow_to_tsfile_unsupported() {
+    fn test_arrow_to_timbre_unsupported() {
         // Complex types should fail
         assert!(
-            arrow_type_to_tsfile(&DataType::List(Arc::new(Field::new(
+            arrow_type_to_timbre(&DataType::List(Arc::new(Field::new(
                 "item",
                 DataType::Int32,
                 true
@@ -285,12 +285,12 @@ mod tests {
             .is_err()
         );
         let fields: Vec<Arc<Field>> = vec![];
-        assert!(arrow_type_to_tsfile(&DataType::Struct(fields.into())).is_err());
+        assert!(arrow_type_to_timbre(&DataType::Struct(fields.into())).is_err());
     }
 
     #[test]
-    fn test_tsfile_to_arrow_schema() {
-        let tsfile_schemas = vec![
+    fn test_timbre_to_arrow_schema() {
+        let timbre_schemas = vec![
             (
                 "temperature".to_string(),
                 MeasurementSchema::new(
@@ -312,7 +312,7 @@ mod tests {
         ];
 
         let schema =
-            ArrowSchemaMapping::tsfile_to_arrow_schema(&tsfile_schemas, true, true).unwrap();
+            ArrowSchemaMapping::timbre_to_arrow_schema(&timbre_schemas, true, true).unwrap();
 
         assert_eq!(schema.fields().len(), 4); // timestamp + device_id + 2 measurements
         assert_eq!(schema.field(0).name(), "timestamp");
@@ -322,7 +322,7 @@ mod tests {
     }
 
     #[test]
-    fn test_arrow_to_tsfile_schemas() {
+    fn test_arrow_to_timbre_schemas() {
         let fields = vec![
             Field::new(
                 "timestamp",
@@ -335,18 +335,18 @@ mod tests {
         ];
         let arrow_schema = Schema::new(fields);
 
-        let tsfile_schemas = ArrowSchemaMapping::arrow_to_tsfile_schemas(
+        let timbre_schemas = ArrowSchemaMapping::arrow_to_timbre_schemas(
             &arrow_schema,
             "timestamp",
             Some("device_id"),
         )
         .unwrap();
 
-        assert_eq!(tsfile_schemas.len(), 2); // Only measurement columns
-        assert_eq!(tsfile_schemas[0].0, "temperature");
-        assert_eq!(tsfile_schemas[0].1.data_type, TSDataType::Float);
-        assert_eq!(tsfile_schemas[1].0, "humidity");
-        assert_eq!(tsfile_schemas[1].1.data_type, TSDataType::Int32);
+        assert_eq!(timbre_schemas.len(), 2); // Only measurement columns
+        assert_eq!(timbre_schemas[0].0, "temperature");
+        assert_eq!(timbre_schemas[0].1.data_type, TSDataType::Float);
+        assert_eq!(timbre_schemas[1].0, "humidity");
+        assert_eq!(timbre_schemas[1].1.data_type, TSDataType::Int32);
     }
 
     #[test]

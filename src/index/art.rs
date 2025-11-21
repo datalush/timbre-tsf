@@ -15,15 +15,15 @@
 //! │   ├── Node16 (5-16 children, binary search)
 //! │   ├── Node48 (17-48 children, index array)
 //! │   └── Node256 (49-256 children, direct array)
-//! └── Leaf Nodes (device_id → file offset)
+//! └── Leaf Nodes (device_id -> file offset)
 //! ```
 //!
 //! # Usage in Timbre
 //!
 //! Maps device IDs to chunk offsets for O(k) device lookup:
-//! - "sensor_001" → offset 1024
-//! - "sensor_002" → offset 2048
-//! - "device_xyz" → offset 4096
+//! - "sensor_001" -> offset 1024
+//! - "sensor_002" -> offset 2048
+//! - "device_xyz" -> offset 4096
 //!
 //! # Memory Efficiency
 //!
@@ -31,7 +31,7 @@
 //! - ART: ~12-20 bytes per entry (adaptive nodes)
 //! - **Savings**: 40-60% for typical IoT device ID distributions
 
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::{Read, Write};
 
@@ -55,7 +55,7 @@ enum Node {
     },
     /// 17-48 children: 256-entry index array + 48 child array
     Node48 {
-        child_index: [u8; 256], // Maps key byte → child slot (255 = empty)
+        child_index: [u8; 256], // Maps key byte -> child slot (255 = empty)
         children: Box<[Option<Box<Node>>; 48]>,
         num_children: u8,
     },
@@ -112,7 +112,7 @@ impl Node {
     }
 }
 
-/// Adaptive Radix Tree for device ID → offset mapping
+/// Adaptive Radix Tree for device ID -> offset mapping
 #[derive(Debug)]
 pub struct ArtIndex {
     root: Option<Box<Node>>,
@@ -619,7 +619,7 @@ impl ArtIndex {
             let value = reader.read_u64::<LittleEndian>()?;
 
             let key = String::from_utf8(key_bytes).map_err(|e| {
-                TsFileError::InvalidState(format!("Invalid UTF-8 in ART key: {}", e))
+                TimbreError::InvalidState(format!("Invalid UTF-8 in ART key: {}", e))
             })?;
 
             index.insert(&key, value);
@@ -657,7 +657,7 @@ mod tests {
     fn test_art_many_insertions() {
         let mut art = ArtIndex::new();
 
-        // Insert enough to trigger node growth: Node4 → Node16 → Node48
+        // Insert enough to trigger node growth: Node4 -> Node16 -> Node48
         for i in 0..100 {
             let key = format!("device_{:03}", i);
             art.insert(&key, i * 100);

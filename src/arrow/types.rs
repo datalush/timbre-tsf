@@ -21,7 +21,7 @@
 
 use crate::common::{CompressionType, TSEncoding};
 
-/// Configuration for Arrow ↔ TsFile conversion
+/// Configuration for Arrow ↔ Timbre conversion
 #[derive(Debug, Clone)]
 pub struct ArrowConversionConfig {
     /// Default compression type for all columns

@@ -1,18 +1,18 @@
-//! Error types for TsFile operations.
+//! Error types for Timbre operations.
 //!
-//! This module defines [`TsFileError`], a comprehensive error type that covers
-//! all possible failure modes when working with TsFile format files. It uses
+//! This module defines [`TimbreError`], a comprehensive error type that covers
+//! all possible failure modes when working with Timbre format files. It uses
 //! the `thiserror` crate for ergonomic error handling and implements proper
 //! error chaining.
 //!
 //! # Examples
 //!
 //! ```rust
-//! use timbre_tsf::{Result, TsFileError};
+//! use timbre_tsf::{Result, TimbreError};
 //!
 //! fn validate_version(version: u8) -> Result<()> {
 //!     if version != 3 {
-//!         return Err(TsFileError::UnsupportedVersion(version));
+//!         return Err(TimbreError::UnsupportedVersion(version));
 //!     }
 //!     Ok(())
 //! }
@@ -21,7 +21,7 @@
 use std::io;
 use thiserror::Error;
 
-/// Comprehensive error type for all TsFile operations.
+/// Comprehensive error type for all Timbre operations.
 ///
 /// This enum covers error cases across encoding, compression, I/O, schema
 /// validation, and file format parsing. Each variant includes contextual
@@ -39,24 +39,24 @@ use thiserror::Error;
 /// # Examples
 ///
 /// ```rust
-/// use timbre_tsf::TsFileError;
+/// use timbre_tsf::TimbreError;
 ///
 /// // Create type mismatch error
-/// let err = TsFileError::TypeMismatch {
+/// let err = TimbreError::TypeMismatch {
 ///     expected: "Float".to_string(),
 ///     actual: "Int32".to_string(),
 /// };
 ///
 /// // Pattern match on error type
 /// match err {
-///     TsFileError::TypeMismatch { expected, actual } => {
+///     TimbreError::TypeMismatch { expected, actual } => {
 ///         println!("Type error: expected {}, got {}", expected, actual);
 ///     }
 ///     _ => {}
 /// }
 /// ```
 #[derive(Debug, Error)]
-pub enum TsFileError {
+pub enum TimbreError {
     /// I/O error from underlying file or stream operations.
     ///
     /// This variant wraps [`std::io::Error`] and is automatically converted
@@ -113,9 +113,9 @@ pub enum TsFileError {
     #[error("Decompression error: {0}")]
     DecompressionError(String),
 
-    /// Invalid TsFile format structure.
+    /// Invalid Timbre format structure.
     ///
-    /// Occurs when the file structure doesn't conform to the TsFile specification,
+    /// Occurs when the file structure doesn't conform to the Timbre specification,
     /// such as missing required sections or invalid metadata.
     #[error("Invalid file format: {0}")]
     InvalidFormat(String),
@@ -127,10 +127,10 @@ pub enum TsFileError {
     #[error("Invalid file: {0}")]
     InvalidFile(String),
 
-    /// TsFile magic string not found or incorrect.
+    /// Timbre magic string not found or incorrect.
     ///
-    /// The file doesn't start with the expected "TsFile" magic bytes,
-    /// indicating it's not a valid TsFile or is corrupted.
+    /// The file doesn't start with the expected "Timbre" magic bytes,
+    /// indicating it's not a valid Timbre or is corrupted.
     #[error("Invalid magic string")]
     InvalidMagicString,
 
@@ -141,7 +141,7 @@ pub enum TsFileError {
     #[error("Not found: {0}")]
     NotFound(String),
 
-    /// Unsupported TsFile format version.
+    /// Unsupported Timbre format version.
     ///
     /// The file uses a format version that this library doesn't support.
     /// This implementation supports version 3.
@@ -208,7 +208,7 @@ pub enum TsFileError {
     Other(String),
 }
 
-/// Convenience type alias for [`Result`](std::result::Result) with [`TsFileError`].
+/// Convenience type alias for [`Result`](std::result::Result) with [`TimbreError`].
 ///
 /// This alias reduces boilerplate in function signatures throughout the library.
 ///
@@ -221,4 +221,4 @@ pub enum TsFileError {
 ///     Ok(42)
 /// }
 /// ```
-pub type Result<T> = std::result::Result<T, TsFileError>;
+pub type Result<T> = std::result::Result<T, TimbreError>;

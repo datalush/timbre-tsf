@@ -5,9 +5,9 @@
 //! - Definitely not in set (100% accurate)
 //! - Maybe in set (false positives possible)
 //!
-//! Use case in TsFile: Skip reading chunks that definitely don't contain a queried value.
+//! Use case in Timbre: Skip reading chunks that definitely don't contain a queried value.
 
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use bit_vec::BitVec;
 use std::hash::{Hash, Hasher};
 
@@ -102,7 +102,7 @@ impl BloomFilter {
     /// Deserialize bloom filter from bytes
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         if data.len() < 20 {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "Bloom filter data too short".to_string(),
             ));
         }
@@ -110,17 +110,17 @@ impl BloomFilter {
         // Read header
         let num_hash_functions =
             u32::from_le_bytes(data[0..4].try_into().map_err(|_| {
-                TsFileError::DecodingError("Invalid num_hash_functions".to_string())
+                TimbreError::DecodingError("Invalid num_hash_functions".to_string())
             })?);
         let num_bits = u64::from_le_bytes(
             data[4..12]
                 .try_into()
-                .map_err(|_| TsFileError::DecodingError("Invalid num_bits".to_string()))?,
+                .map_err(|_| TimbreError::DecodingError("Invalid num_bits".to_string()))?,
         ) as usize;
         let num_items = u64::from_le_bytes(
             data[12..20]
                 .try_into()
-                .map_err(|_| TsFileError::DecodingError("Invalid num_items".to_string()))?,
+                .map_err(|_| TimbreError::DecodingError("Invalid num_items".to_string()))?,
         ) as usize;
 
         // Read bits

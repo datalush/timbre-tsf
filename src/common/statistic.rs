@@ -1,8 +1,8 @@
-//! Statistical tracking for time-series data in TsFiles.
+//! Statistical tracking for time-series data in Timbre files.
 //!
 //! This module provides comprehensive statistical metadata collection for time-series data,
 //! including count, temporal bounds, and type-specific aggregates (min, max, sum, first, last).
-//! Statistics are computed incrementally during write operations and serialized into the TsFile
+//! Statistics are computed incrementally during write operations and serialized into the Timbre format
 //! format's metadata sections for efficient query planning and data skipping.
 //!
 //! # Design
@@ -19,7 +19,7 @@
 //! # Performance
 //!
 //! Statistics are updated incrementally during encoding with O(1) cost per data point.
-//! The serialization format matches the Apache IoTDB TsFile specification for compatibility.
+//! The serialization format matches the Apache IoTDB Timbre specification for compatibility.
 //!
 //! # Examples
 //!
@@ -63,7 +63,7 @@ use std::io::Write;
 ///
 /// # Serialization
 ///
-/// The serialization format follows the Apache IoTDB TsFile specification and varies by type:
+/// The serialization format follows the Apache IoTDB Timbre specification and varies by type:
 /// - Common fields: count (i32), start_time (i64), end_time (i64)
 /// - Type-specific fields: sum, min, max, first, last (type varies)
 pub trait Statistic: Send + Sync + std::fmt::Debug {
@@ -124,7 +124,7 @@ pub trait Statistic: Send + Sync + std::fmt::Debug {
     /// Returns the latest timestamp observed (in milliseconds).
     fn end_time(&self) -> i64;
 
-    /// Serializes the statistics to a writer in TsFile binary format.
+    /// Serializes the statistics to a writer in Timbre binary format.
     ///
     /// The format is type-specific but always starts with count, start_time, end_time
     /// followed by type-specific fields (sum, min, max, first, last).
@@ -341,7 +341,7 @@ impl Statistic for BooleanStatistic {
 ///
 /// While individual values are i32, the sum is accumulated in i64 to prevent
 /// overflow for typical workloads. For extremely large datasets, sum may still
-/// overflow but this matches the TsFile specification behavior.
+/// overflow but this matches the Timbre specification behavior.
 #[derive(Debug, Clone)]
 pub struct Int32Statistic {
     base: BaseStats,
@@ -500,7 +500,7 @@ impl Statistic for Int32Statistic {
 ///
 /// Since i64 sums can overflow even in i64 storage, the sum is accumulated as f64.
 /// This sacrifices some precision (f64 has 53 bits of mantissa vs 64 bits in i64)
-/// but prevents overflow for typical workloads and matches TsFile specification behavior.
+/// but prevents overflow for typical workloads and matches Timbre specification behavior.
 #[derive(Debug, Clone)]
 pub struct Int64Statistic {
     base: BaseStats,
@@ -659,13 +659,13 @@ impl Statistic for Int64Statistic {
 ///
 /// Accumulating many f32 values in f32 can lead to significant rounding errors.
 /// Using f64 for the sum provides better precision for typical workloads while
-/// maintaining compatibility with the TsFile specification.
+/// maintaining compatibility with the Timbre specification.
 ///
 /// # Special values
 ///
 /// NaN and infinity values are compared using normal floating-point comparison,
 /// which may produce unexpected results (NaN < x is always false). This matches
-/// the TsFile specification behavior.
+/// the Timbre specification behavior.
 #[derive(Debug, Clone)]
 pub struct FloatStatistic {
     base: BaseStats,
@@ -828,7 +828,7 @@ impl Statistic for FloatStatistic {
 ///
 /// NaN and infinity values are compared using normal floating-point comparison,
 /// which may produce unexpected results (NaN < x is always false). This matches
-/// the TsFile specification behavior.
+/// the Timbre specification behavior.
 #[derive(Debug, Clone)]
 pub struct DoubleStatistic {
     base: BaseStats,
@@ -987,7 +987,7 @@ impl Statistic for DoubleStatistic {
 /// # Memory
 ///
 /// String values are stored as owned `String` instances. For very long strings,
-/// this may consume significant memory. The TsFile specification does not provide
+/// this may consume significant memory. The Timbre specification does not provide
 /// length limits for these statistics.
 #[derive(Debug, Clone)]
 pub struct StringStatistic {
@@ -1385,13 +1385,13 @@ impl StatisticEnum {
 ///
 /// # Type mapping
 ///
-/// - `Boolean` → [`BooleanStatistic`]
-/// - `Int32`, `Date` → [`Int32Statistic`]
-/// - `Int64`, `Timestamp` → [`Int64Statistic`]
-/// - `Float` → [`FloatStatistic`]
-/// - `Double` → [`DoubleStatistic`]
-/// - `Text`, `String` → [`StringStatistic`]
-/// - Other types → [`Int32Statistic`] (fallback)
+/// - `Boolean` -> [`BooleanStatistic`]
+/// - `Int32`, `Date` -> [`Int32Statistic`]
+/// - `Int64`, `Timestamp` -> [`Int64Statistic`]
+/// - `Float` -> [`FloatStatistic`]
+/// - `Double` -> [`DoubleStatistic`]
+/// - `Text`, `String` -> [`StringStatistic`]
+/// - Other types -> [`Int32Statistic`] (fallback)
 ///
 /// # Examples
 ///

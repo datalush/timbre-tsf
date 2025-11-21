@@ -1,6 +1,6 @@
-//! Compression algorithms for reducing TsFile storage size.
+//! Compression algorithms for reducing Timbre file storage size.
 //!
-//! This module provides compression/decompression implementations for the TsFile format.
+//! This module provides compression/decompression implementations for the Timbre format.
 //! Compression is applied after encoding to further reduce storage size, especially effective
 //! for already-encoded data that still contains patterns (e.g., Gorilla-encoded floats).
 //!
@@ -45,14 +45,24 @@
 //! assert_eq!(data.to_vec(), decompressed);
 //! ```
 
-mod compressor;
+mod gzip;
+mod lz4;
+mod snappy;
+mod uncompressed;
+mod zstd;
+
+pub use gzip::GzipCompressor;
+pub use lz4::Lz4Compressor;
+pub use snappy::SnappyCompressor;
+pub use uncompressed::UncompressedCompressor;
+pub use zstd::ZstdCompressor;
 
 use crate::common::CompressionType;
-use crate::error::{Result, TsFileError};
+use crate::error::Result;
 
 /// Trait for implementing compression algorithms.
 ///
-/// This trait defines the interface for all compressor implementations in the TsFile format.
+/// This trait defines the interface for all compressor implementations in the Timbre format.
 /// Implementations must be `Send + Sync` to support multi-threaded encoding/decoding.
 ///
 /// # Methods
@@ -78,7 +88,7 @@ pub trait Compressor: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns [`TsFileError::CompressionError`] if compression fails.
+    /// Returns [`TimbreError::CompressionError`] if compression fails.
     fn compress(&mut self, input: &[u8]) -> Result<Vec<u8>>;
 
     /// Decompresses the input data.
@@ -94,7 +104,7 @@ pub trait Compressor: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns [`TsFileError::DecompressionError`] if:
+    /// Returns [`TimbreError::DecompressionError`] if:
     /// - Input is corrupted
     /// - Input is not valid compressed data
     /// - Decompressed size doesn't match expected size (for some algorithms)
@@ -102,248 +112,6 @@ pub trait Compressor: Send + Sync {
 
     /// Returns the compression algorithm type identifier.
     fn compression_type(&self) -> CompressionType;
-}
-
-/// No-op compressor that returns data unchanged.
-///
-/// Useful for testing, debugging, or when storage space is not a concern.
-/// Has zero CPU overhead but provides no size reduction.
-pub struct UncompressedCompressor;
-
-impl Compressor for UncompressedCompressor {
-    fn compress(&mut self, input: &[u8]) -> Result<Vec<u8>> {
-        Ok(input.to_vec())
-    }
-
-    fn decompress(&mut self, input: &[u8], _uncompressed_size: usize) -> Result<Vec<u8>> {
-        Ok(input.to_vec())
-    }
-
-    fn compression_type(&self) -> CompressionType {
-        CompressionType::Uncompressed
-    }
-}
-
-/// Snappy compressor implementation.
-///
-/// Snappy prioritizes speed over compression ratio, making it suitable for real-time
-/// ingestion workloads. Typical compression ratios are 1.5-3x for time-series data.
-///
-/// # Performance
-///
-/// - Compression: ~250-500 MB/s
-/// - Decompression: ~500-1000 MB/s
-/// - Ratio: ~50-70% size reduction
-///
-/// # Use cases
-///
-/// - Real-time data ingestion
-/// - Fast query paths where decompression latency matters
-/// - Workloads with moderate storage requirements
-pub struct SnappyCompressor;
-
-impl Compressor for SnappyCompressor {
-    fn compress(&mut self, input: &[u8]) -> Result<Vec<u8>> {
-        snap::raw::Encoder::new()
-            .compress_vec(input)
-            .map_err(|e| TsFileError::CompressionError(e.to_string()))
-    }
-
-    fn decompress(&mut self, input: &[u8], _uncompressed_size: usize) -> Result<Vec<u8>> {
-        snap::raw::Decoder::new()
-            .decompress_vec(input)
-            .map_err(|e| TsFileError::DecompressionError(e.to_string()))
-    }
-
-    fn compression_type(&self) -> CompressionType {
-        CompressionType::Snappy
-    }
-}
-
-/// LZ4 compressor implementation.
-///
-/// LZ4 provides excellent balance between speed and compression ratio. This implementation
-/// uses FAST mode (not HIGHCOMPRESSION) because time-series data is typically already
-/// encoded (e.g., with Gorilla), making the speed/ratio trade-off favor faster compression.
-///
-/// # Performance
-///
-/// - Compression: ~300-600 MB/s (FAST mode)
-/// - Decompression: ~2000-4000 MB/s
-/// - Ratio: ~50-75% size reduction (on top of encoding)
-///
-/// # Design choice: FAST vs HC mode
-///
-/// LZ4 FAST mode is used instead of HIGHCOMPRESSION because:
-/// - Gorilla/DeltaOfDelta encoding already reduces data size significantly
-/// - LZ4-HC(9) is 3-10x slower with only ~5% better ratio on pre-encoded data
-/// - Decompression speed is identical between modes
-/// - Fast compression enables better write throughput
-///
-/// # Use cases
-///
-/// - Default compression for most workloads
-/// - High-throughput ingestion with good compression
-/// - Fast query paths requiring low-latency decompression
-pub struct Lz4Compressor;
-
-impl Compressor for Lz4Compressor {
-    fn compress(&mut self, input: &[u8]) -> Result<Vec<u8>> {
-        // Use FAST(1) mode - optimal for pre-encoded time-series data
-        // See module documentation for rationale
-        lz4::block::compress(input, Some(lz4::block::CompressionMode::FAST(1)), false)
-            .map_err(|e| TsFileError::CompressionError(e.to_string()))
-    }
-
-    fn decompress(&mut self, input: &[u8], uncompressed_size: usize) -> Result<Vec<u8>> {
-        lz4::block::decompress(input, Some(uncompressed_size as i32))
-            .map_err(|e| TsFileError::DecompressionError(e.to_string()))
-    }
-
-    fn compression_type(&self) -> CompressionType {
-        CompressionType::Lz4
-    }
-}
-
-/// GZIP compressor implementation with configurable compression level.
-///
-/// GZIP provides the highest compression ratio but at the cost of slower compression
-/// and decompression. Best suited for archival data or scenarios where storage cost
-/// dominates CPU cost.
-///
-/// # Performance
-///
-/// - Compression: ~10-50 MB/s (level 6, default)
-/// - Decompression: ~100-300 MB/s
-/// - Ratio: ~60-85% size reduction
-///
-/// # Compression levels
-///
-/// - Level 1-3: Faster compression, lower ratio
-/// - Level 6 (default): Balanced speed/ratio
-/// - Level 9: Maximum ratio, very slow compression
-///
-/// # Use cases
-///
-/// - Archival or cold storage
-/// - Workloads with high storage costs and low read frequency
-/// - Batch processing where compression time is less critical
-pub struct GzipCompressor {
-    compression_level: flate2::Compression,
-}
-
-impl GzipCompressor {
-    /// Creates a new GZIP compressor with the specified compression level.
-    ///
-    /// # Arguments
-    ///
-    /// * `level` - Compression level (0-9, where 9 is maximum compression)
-    pub fn new(level: u32) -> Self {
-        Self {
-            compression_level: flate2::Compression::new(level),
-        }
-    }
-}
-
-impl Default for GzipCompressor {
-    /// Creates a GZIP compressor with level 6 (balanced speed/ratio).
-    fn default() -> Self {
-        Self::new(6)
-    }
-}
-
-impl Compressor for GzipCompressor {
-    fn compress(&mut self, input: &[u8]) -> Result<Vec<u8>> {
-        use flate2::write::GzEncoder;
-        use std::io::Write;
-
-        let mut encoder = GzEncoder::new(Vec::new(), self.compression_level);
-        encoder
-            .write_all(input)
-            .map_err(|e| TsFileError::CompressionError(e.to_string()))?;
-        encoder
-            .finish()
-            .map_err(|e| TsFileError::CompressionError(e.to_string()))
-    }
-
-    fn decompress(&mut self, input: &[u8], _uncompressed_size: usize) -> Result<Vec<u8>> {
-        use flate2::read::GzDecoder;
-        use std::io::Read;
-
-        let mut decoder = GzDecoder::new(input);
-        let mut result = Vec::new();
-        decoder
-            .read_to_end(&mut result)
-            .map_err(|e| TsFileError::DecompressionError(e.to_string()))?;
-        Ok(result)
-    }
-
-    fn compression_type(&self) -> CompressionType {
-        CompressionType::Gzip
-    }
-}
-
-/// Zstd compressor implementation with configurable compression level.
-///
-/// Zstd (Zstandard) is the default compression algorithm for Timbre, providing
-/// excellent balance between speed and compression ratio. It achieves 2-3x better
-/// compression than Snappy while maintaining competitive speed.
-///
-/// # Performance
-///
-/// - Compression: ~200-400 MB/s (level 3, default)
-/// - Decompression: ~600-1200 MB/s
-/// - Ratio: ~65-80% size reduction
-///
-/// # Compression levels
-///
-/// - Level 1: Fastest, lower ratio (~Snappy-like speed)
-/// - Level 3 (default): Balanced speed/ratio (recommended)
-/// - Level 9-19: Higher ratios, slower compression
-///
-/// # Use cases
-///
-/// - Default compression for Timbre files
-/// - High-throughput ingestion with excellent compression
-/// - Most workloads benefit from this algorithm
-pub struct ZstdCompressor {
-    compression_level: i32,
-}
-
-impl ZstdCompressor {
-    /// Creates a new Zstd compressor with the specified compression level.
-    ///
-    /// # Arguments
-    ///
-    /// * `level` - Compression level (1-22, where 3 is default for Timbre)
-    pub fn new(level: i32) -> Self {
-        Self {
-            compression_level: level,
-        }
-    }
-}
-
-impl Default for ZstdCompressor {
-    /// Creates a Zstd compressor with level 3 (Timbre default).
-    fn default() -> Self {
-        Self::new(3)
-    }
-}
-
-impl Compressor for ZstdCompressor {
-    fn compress(&mut self, input: &[u8]) -> Result<Vec<u8>> {
-        zstd::bulk::compress(input, self.compression_level)
-            .map_err(|e| TsFileError::CompressionError(e.to_string()))
-    }
-
-    fn decompress(&mut self, input: &[u8], _uncompressed_size: usize) -> Result<Vec<u8>> {
-        zstd::bulk::decompress(input, _uncompressed_size)
-            .map_err(|e| TsFileError::DecompressionError(e.to_string()))
-    }
-
-    fn compression_type(&self) -> CompressionType {
-        CompressionType::Zstd
-    }
 }
 
 /// Enum-based compressor for static dispatch optimization.
@@ -502,49 +270,5 @@ pub fn create_compressor(compression_type: CompressionType) -> CompressorImpl {
         CompressionType::Lz4 => CompressorImpl::Lz4(Lz4Compressor),
         CompressionType::Gzip => CompressorImpl::Gzip(GzipCompressor::default()),
         _ => CompressorImpl::Uncompressed(UncompressedCompressor),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_uncompressed() {
-        let mut compressor = UncompressedCompressor;
-        let data = b"Hello, World!";
-        let compressed = compressor.compress(data).unwrap();
-        let decompressed = compressor.decompress(&compressed, data.len()).unwrap();
-        assert_eq!(data, decompressed.as_slice());
-    }
-
-    #[test]
-    fn test_snappy() {
-        let mut compressor = SnappyCompressor;
-        let data = b"Hello, World! ".repeat(100);
-        let compressed = compressor.compress(&data).unwrap();
-        assert!(compressed.len() < data.len());
-        let decompressed = compressor.decompress(&compressed, data.len()).unwrap();
-        assert_eq!(data, decompressed);
-    }
-
-    #[test]
-    fn test_lz4() {
-        let mut compressor = Lz4Compressor;
-        let data = b"Hello, World! ".repeat(100);
-        let compressed = compressor.compress(&data).unwrap();
-        assert!(compressed.len() < data.len());
-        let decompressed = compressor.decompress(&compressed, data.len()).unwrap();
-        assert_eq!(data, decompressed);
-    }
-
-    #[test]
-    fn test_gzip() {
-        let mut compressor = GzipCompressor::default();
-        let data = b"Hello, World! ".repeat(100);
-        let compressed = compressor.compress(&data).unwrap();
-        assert!(compressed.len() < data.len());
-        let decompressed = compressor.decompress(&compressed, data.len()).unwrap();
-        assert_eq!(data, decompressed);
     }
 }

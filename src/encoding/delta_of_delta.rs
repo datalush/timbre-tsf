@@ -61,7 +61,7 @@
 use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
 use crate::encoding::simple8b::{Simple8bDecoder, Simple8bEncoder};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 /// Delta-of-Delta encoder for time series with regular patterns
@@ -161,7 +161,7 @@ impl DeltaOfDeltaEncoder {
 
 impl Encoder for DeltaOfDeltaEncoder {
     fn encode_bool(&mut self, _value: bool, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "DELTA_OF_DELTA not supported for boolean".to_string(),
         ))
     }
@@ -183,7 +183,7 @@ impl Encoder for DeltaOfDeltaEncoder {
     }
 
     fn encode_string(&mut self, _value: &str, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "DELTA_OF_DELTA not supported for strings".to_string(),
         ))
     }
@@ -275,7 +275,7 @@ impl DeltaOfDeltaDecoder {
 
 impl Decoder for DeltaOfDeltaDecoder {
     fn read_bool(&mut self, _input: &[u8], _pos: &mut usize) -> Result<bool> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "DELTA_OF_DELTA not supported for boolean".to_string(),
         ))
     }
@@ -299,7 +299,7 @@ impl Decoder for DeltaOfDeltaDecoder {
     }
 
     fn read_string(&mut self, _input: &[u8], _pos: &mut usize) -> Result<String> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "DELTA_OF_DELTA not supported for strings".to_string(),
         ))
     }

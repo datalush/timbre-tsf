@@ -8,10 +8,10 @@
 //! Chimp128 uses XOR-based delta encoding similar to Gorilla, but with improved handling
 //! of small frequent changes. It encodes values using 4 cases:
 //!
-//! 1. **Identical value** (1 bit): Value is the same as previous → `0`
-//! 2. **Same XOR range** (2 bits + data): XOR fits in same range → `10` + bits
-//! 3. **Close range ±1** (3 bits + flags + data): Range shifted by 1 → `110` + flags + bits
-//! 4. **New range** (3 bits + metadata + data): Complete new range → `111` + leading + trailing + bits
+//! 1. **Identical value** (1 bit): Value is the same as previous -> `0`
+//! 2. **Same XOR range** (2 bits + data): XOR fits in same range -> `10` + bits
+//! 3. **Close range ±1** (3 bits + flags + data): Range shifted by 1 -> `110` + flags + bits
+//! 4. **New range** (3 bits + metadata + data): Complete new range -> `111` + leading + trailing + bits
 //!
 //! This approach reduces bit usage for sensor data with small fluctuations.
 //!
@@ -56,7 +56,7 @@
 
 use crate::common::TSDataType;
 use crate::encoding::{Decoder, Encoder};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 
 /// Chimp128 encoder for float/double values with optimized bit buffer.
 ///
@@ -340,7 +340,7 @@ impl Chimp128Encoder {
 impl Encoder for Chimp128Encoder {
     fn encode_f32(&mut self, value: f32, _out: &mut Vec<u8>) -> Result<()> {
         if self.data_type != TSDataType::Float {
-            return Err(TsFileError::EncodingError(
+            return Err(TimbreError::EncodingError(
                 "Chimp128: wrong data type for f32".to_string(),
             ));
         }
@@ -354,7 +354,7 @@ impl Encoder for Chimp128Encoder {
 
     fn encode_f64(&mut self, value: f64, _out: &mut Vec<u8>) -> Result<()> {
         if self.data_type != TSDataType::Double {
-            return Err(TsFileError::EncodingError(
+            return Err(TimbreError::EncodingError(
                 "Chimp128: wrong data type for f64".to_string(),
             ));
         }
@@ -376,7 +376,7 @@ impl Encoder for Chimp128Encoder {
     /// Expected improvement: 25-35% faster than per-value encoding.
     fn encode_f32_batch(&mut self, values: &[f32], _out: &mut Vec<u8>) -> Result<()> {
         if self.data_type != TSDataType::Float {
-            return Err(TsFileError::EncodingError(
+            return Err(TimbreError::EncodingError(
                 "Chimp128: wrong data type for f32 batch".to_string(),
             ));
         }
@@ -398,7 +398,7 @@ impl Encoder for Chimp128Encoder {
     /// See encode_f32_batch() for performance details.
     fn encode_f64_batch(&mut self, values: &[f64], _out: &mut Vec<u8>) -> Result<()> {
         if self.data_type != TSDataType::Double {
-            return Err(TsFileError::EncodingError(
+            return Err(TimbreError::EncodingError(
                 "Chimp128: wrong data type for f64 batch".to_string(),
             ));
         }
@@ -434,25 +434,25 @@ impl Encoder for Chimp128Encoder {
 
     // Not supported for Chimp128
     fn encode_bool(&mut self, _value: bool, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Chimp128 does not support boolean".to_string(),
         ))
     }
 
     fn encode_i32(&mut self, _value: i32, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Chimp128 does not support i32".to_string(),
         ))
     }
 
     fn encode_i64(&mut self, _value: i64, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Chimp128 does not support i64".to_string(),
         ))
     }
 
     fn encode_string(&mut self, _value: &str, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Chimp128 does not support string".to_string(),
         ))
     }
@@ -564,7 +564,7 @@ impl Chimp128Decoder {
             let added_data = self.refill_buffer(input)?;
             if !added_data {
                 if self.bits_available < num_bits {
-                    return Err(TsFileError::DecodingError(
+                    return Err(TimbreError::DecodingError(
                         "Chimp128: unexpected end of data".to_string(),
                     ));
                 }
@@ -651,7 +651,7 @@ impl Chimp128Decoder {
                     0b01 => 0i8,
                     0b10 => 1i8,
                     _ => {
-                        return Err(TsFileError::DecodingError(
+                        return Err(TimbreError::DecodingError(
                             "Invalid leading delta in Chimp128".to_string(),
                         ));
                     }
@@ -695,7 +695,7 @@ impl Chimp128Decoder {
 impl Decoder for Chimp128Decoder {
     fn read_f32(&mut self, data: &[u8], pos: &mut usize) -> Result<f32> {
         if self.data_type != TSDataType::Float {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "Chimp128: wrong data type for f32".to_string(),
             ));
         }
@@ -707,7 +707,7 @@ impl Decoder for Chimp128Decoder {
 
     fn read_f64(&mut self, data: &[u8], pos: &mut usize) -> Result<f64> {
         if self.data_type != TSDataType::Double {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "Chimp128: wrong data type for f64".to_string(),
             ));
         }
@@ -722,25 +722,25 @@ impl Decoder for Chimp128Decoder {
 
     // Not supported for Chimp128
     fn read_bool(&mut self, _data: &[u8], _pos: &mut usize) -> Result<bool> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Chimp128 does not support boolean".to_string(),
         ))
     }
 
     fn read_i32(&mut self, _data: &[u8], _pos: &mut usize) -> Result<i32> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Chimp128 does not support i32".to_string(),
         ))
     }
 
     fn read_i64(&mut self, _data: &[u8], _pos: &mut usize) -> Result<i64> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Chimp128 does not support i64".to_string(),
         ))
     }
 
     fn read_string(&mut self, _data: &[u8], _pos: &mut usize) -> Result<String> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Chimp128 does not support string".to_string(),
         ))
     }

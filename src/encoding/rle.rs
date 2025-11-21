@@ -61,7 +61,7 @@
 
 use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 /// Run-Length Encoding encoder for integer and boolean types
@@ -122,19 +122,19 @@ impl Encoder for RleEncoder {
     }
 
     fn encode_f32(&mut self, _value: f32, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "RLE not recommended for floats".to_string(),
         ))
     }
 
     fn encode_f64(&mut self, _value: f64, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "RLE not recommended for doubles".to_string(),
         ))
     }
 
     fn encode_string(&mut self, _value: &str, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "RLE not supported for strings".to_string(),
         ))
     }
@@ -186,7 +186,7 @@ impl RleDecoder {
         }
 
         if *pos + 12 > input.len() {
-            return Err(TsFileError::UnexpectedEof);
+            return Err(TimbreError::UnexpectedEof);
         }
 
         let value = (&input[*pos..]).read_i64::<LittleEndian>()?;
@@ -215,19 +215,19 @@ impl Decoder for RleDecoder {
     }
 
     fn read_f32(&mut self, _input: &[u8], _pos: &mut usize) -> Result<f32> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "RLE not recommended for floats".to_string(),
         ))
     }
 
     fn read_f64(&mut self, _input: &[u8], _pos: &mut usize) -> Result<f64> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "RLE not recommended for doubles".to_string(),
         ))
     }
 
     fn read_string(&mut self, _input: &[u8], _pos: &mut usize) -> Result<String> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "RLE not supported for strings".to_string(),
         ))
     }

@@ -5,8 +5,8 @@
 //! como recomendaciones automáticas basadas en análisis de datos.
 
 use crate::common::{CompressionType, TSDataType, TSEncoding};
-use crate::encoding::adaptive::{recommend_compression, recommend_encoding};
-use crate::error::{Result, TsFileError};
+use crate::utils::encoding_analyzer::{recommend_compression, recommend_encoding};
+use crate::error::{Result, TimbreError};
 use crate::file::MiniBlockConfig;
 use crate::writer::PageWriter;
 
@@ -171,7 +171,7 @@ impl PageWriterBuilder {
     pub fn build(self) -> Result<PageWriter> {
         let data_type = self
             .data_type
-            .ok_or_else(|| TsFileError::InvalidState("data_type is required".to_string()))?;
+            .ok_or_else(|| TimbreError::InvalidState("data_type is required".to_string()))?;
 
         let encoding = self.encoding.unwrap_or(TSEncoding::Gorilla);
         let compression = self.compression.unwrap_or(CompressionType::Zstd);

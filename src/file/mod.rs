@@ -1,13 +1,13 @@
-//! TsFile format components
+//! Timbre format components
 //!
-//! This module defines the core TsFile format structures and utilities:
+//! This module defines the core Timbre format structures and utilities:
 //!
 //! - **Metadata**: File-level, chunk-level, and page-level metadata structures
 //! - **Byte Stream**: Utilities for reading/writing binary data with specific endianness
 //!
-//! # TsFile Format
+//! # Timbre Format
 //!
-//! A TsFile consists of:
+//! A Timbre file consists of:
 //! 1. Magic bytes (header)
 //! 2. Data chunks (compressed time series data)
 //! 3. Metadata index

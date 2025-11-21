@@ -69,7 +69,7 @@
 
 use super::schema::MeasurementSchema;
 use super::types::{ColumnCategory, TSDataType, TsValue};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use std::borrow::Cow;
 use std::sync::Arc;
 
@@ -239,7 +239,7 @@ impl<'a> ValueMatrix<'a> {
     }
 }
 
-/// Batch container for time-series data written to a TsFile.
+/// Batch container for time-series data written to a Timbre file.
 ///
 /// A tablet collects multiple rows of data in columnar format for a single device
 /// before encoding and writing. This batch-oriented approach provides significant
@@ -324,7 +324,7 @@ impl<'a> Tablet<'a> {
     ///
     /// - Enforces strictly increasing timestamps
     /// - Requires all measurements to have values at each timestamp (can be null)
-    /// - Produces better compression in the TsFile format
+    /// - Produces better compression in the Timbre format
     ///
     /// # Arguments
     ///
@@ -441,11 +441,11 @@ impl<'a> Tablet<'a> {
     /// ```
     pub fn add_row(&mut self, timestamp: i64, values: Vec<Option<TsValue>>) -> Result<()> {
         if self.is_full() {
-            return Err(TsFileError::InvalidState("Tablet is full".to_string()));
+            return Err(TimbreError::InvalidState("Tablet is full".to_string()));
         }
 
         if values.len() != self.column_count() {
-            return Err(TsFileError::InvalidState(format!(
+            return Err(TimbreError::InvalidState(format!(
                 "Expected {} values, got {}",
                 self.column_count(),
                 values.len()
@@ -458,7 +458,7 @@ impl<'a> Tablet<'a> {
             if let Some(&last_ts) = self.timestamps.last()
                 && timestamp <= last_ts
             {
-                return Err(TsFileError::InvalidState(format!(
+                return Err(TimbreError::InvalidState(format!(
                     "Aligned tablet requires strictly increasing timestamps. Got {} after {}",
                     timestamp, last_ts
                 )));
@@ -497,7 +497,7 @@ impl<'a> Tablet<'a> {
             (ValueMatrix::Double(v), TsValue::Double(val)) => v.to_mut().push(val),
             (ValueMatrix::Text(v), TsValue::Text(val) | TsValue::String(val)) => v.push(val),
             _ => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: expected_type.to_string(),
                     actual: actual_type.to_string(),
                 });
@@ -611,7 +611,7 @@ impl<'a> Tablet<'a> {
         }
 
         if self.row_count() + num_rows > self.max_rows {
-            return Err(TsFileError::InvalidState(format!(
+            return Err(TimbreError::InvalidState(format!(
                 "Bulk insert would exceed max_rows: {} + {} > {}",
                 self.row_count(),
                 num_rows,
@@ -620,7 +620,7 @@ impl<'a> Tablet<'a> {
         }
 
         if values.len() != self.column_count() {
-            return Err(TsFileError::InvalidState(format!(
+            return Err(TimbreError::InvalidState(format!(
                 "Expected {} columns, got {}",
                 self.column_count(),
                 values.len()
@@ -630,7 +630,7 @@ impl<'a> Tablet<'a> {
         // Validate all columns have correct length
         for (col_idx, col_values) in values.iter().enumerate() {
             if col_values.len() != num_rows {
-                return Err(TsFileError::InvalidState(format!(
+                return Err(TimbreError::InvalidState(format!(
                     "Column {} has {} rows, expected {}",
                     col_idx,
                     col_values.len(),
@@ -675,7 +675,7 @@ impl<'a> Tablet<'a> {
                             self.bitmaps[col_idx].set(start_row + i, true);
                         }
                         Some(v) => {
-                            return Err(TsFileError::TypeMismatch {
+                            return Err(TimbreError::TypeMismatch {
                                 expected: expected_type.to_string(),
                                 actual: v.data_type().to_string(),
                             });
@@ -696,7 +696,7 @@ impl<'a> Tablet<'a> {
                             self.bitmaps[col_idx].set(start_row + i, true);
                         }
                         Some(v) => {
-                            return Err(TsFileError::TypeMismatch {
+                            return Err(TimbreError::TypeMismatch {
                                 expected: expected_type.to_string(),
                                 actual: v.data_type().to_string(),
                             });
@@ -717,7 +717,7 @@ impl<'a> Tablet<'a> {
                             self.bitmaps[col_idx].set(start_row + i, true);
                         }
                         Some(v) => {
-                            return Err(TsFileError::TypeMismatch {
+                            return Err(TimbreError::TypeMismatch {
                                 expected: expected_type.to_string(),
                                 actual: v.data_type().to_string(),
                             });
@@ -738,7 +738,7 @@ impl<'a> Tablet<'a> {
                             self.bitmaps[col_idx].set(start_row + i, true);
                         }
                         Some(v) => {
-                            return Err(TsFileError::TypeMismatch {
+                            return Err(TimbreError::TypeMismatch {
                                 expected: expected_type.to_string(),
                                 actual: v.data_type().to_string(),
                             });
@@ -759,7 +759,7 @@ impl<'a> Tablet<'a> {
                             self.bitmaps[col_idx].set(start_row + i, true);
                         }
                         Some(v) => {
-                            return Err(TsFileError::TypeMismatch {
+                            return Err(TimbreError::TypeMismatch {
                                 expected: expected_type.to_string(),
                                 actual: v.data_type().to_string(),
                             });
@@ -779,7 +779,7 @@ impl<'a> Tablet<'a> {
                             self.bitmaps[col_idx].set(start_row + i, true);
                         }
                         Some(v) => {
-                            return Err(TsFileError::TypeMismatch {
+                            return Err(TimbreError::TypeMismatch {
                                 expected: expected_type.to_string(),
                                 actual: v.data_type().to_string(),
                             });

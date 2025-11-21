@@ -75,7 +75,7 @@ impl ChunkReader {
                     .map_err(|e| format!("Failed to decode page: {:?}", e))
             })
             .collect::<std::result::Result<Vec<_>, String>>()
-            .map_err(crate::error::TsFileError::DecodingError)?;
+            .map_err(crate::error::TimbreError::DecodingError)?;
 
         // Paso 3: Merge secuencial (rápido, solo concatena vectores)
         let mut all_timestamps = Vec::new();
@@ -107,7 +107,7 @@ impl ChunkReader {
                     dest.append(&mut src);
                 }
                 _ => {
-                    return Err(crate::error::TsFileError::TypeMismatch {
+                    return Err(crate::error::TimbreError::TypeMismatch {
                         expected: format!("{:?}", self.data_type),
                         actual: "mismatched types across pages".to_string(),
                     });

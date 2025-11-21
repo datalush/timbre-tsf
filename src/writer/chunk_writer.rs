@@ -1,6 +1,6 @@
 use crate::common::statistic::{StatisticEnum, create_statistic};
 use crate::common::{CompressionType, TSDataType, TSEncoding};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use crate::file::{ChunkHeader, PageData};
 use crate::writer::PageWriter;
 use std::io::Write;
@@ -8,7 +8,7 @@ use std::io::Write;
 /// Writer para chunks (colección de páginas para una medición)
 ///
 /// OPT: Uses StatisticEnum instead of Box<dyn Statistic> to eliminate vtable overhead
-/// across the entire write path (ChunkWriter → PageWriter → Statistic).
+/// across the entire write path (ChunkWriter -> PageWriter -> Statistic).
 pub struct ChunkWriter {
     measurement_name: String,
     data_type: TSDataType,
@@ -410,7 +410,7 @@ impl ChunkWriter {
         self.seal_current_page()?;
 
         if self.pages.is_empty() {
-            return Err(TsFileError::InvalidState("No pages to write".to_string()));
+            return Err(TimbreError::InvalidState("No pages to write".to_string()));
         }
 
         let mut total_bytes = 0;

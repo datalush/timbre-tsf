@@ -62,7 +62,7 @@
 //! ```
 
 use super::BloomFilter;
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -238,7 +238,7 @@ impl MultiLevelBloomFilter {
 
         // Deserialize page filters
         if data.len() < offset + 8 {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "Invalid multi-level bloom filter data".to_string(),
             ));
         }
@@ -248,7 +248,7 @@ impl MultiLevelBloomFilter {
         let mut page_filters = HashMap::new();
         for _ in 0..num_pages {
             if data.len() < offset + 16 {
-                return Err(TsFileError::DecodingError(
+                return Err(TimbreError::DecodingError(
                     "Invalid page filter data".to_string(),
                 ));
             }
@@ -259,7 +259,7 @@ impl MultiLevelBloomFilter {
             offset += 8;
 
             if data.len() < offset + filter_size {
-                return Err(TsFileError::DecodingError(
+                return Err(TimbreError::DecodingError(
                     "Incomplete page filter data".to_string(),
                 ));
             }
@@ -271,7 +271,7 @@ impl MultiLevelBloomFilter {
 
         // Deserialize chunk filters
         if data.len() < offset + 8 {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "Invalid chunk filter count".to_string(),
             ));
         }
@@ -281,7 +281,7 @@ impl MultiLevelBloomFilter {
         let mut chunk_filters = HashMap::new();
         for _ in 0..num_chunks {
             if data.len() < offset + 16 {
-                return Err(TsFileError::DecodingError(
+                return Err(TimbreError::DecodingError(
                     "Invalid chunk filter data".to_string(),
                 ));
             }
@@ -293,7 +293,7 @@ impl MultiLevelBloomFilter {
             offset += 8;
 
             if data.len() < offset + filter_size {
-                return Err(TsFileError::DecodingError(
+                return Err(TimbreError::DecodingError(
                     "Incomplete chunk filter data".to_string(),
                 ));
             }
@@ -305,7 +305,7 @@ impl MultiLevelBloomFilter {
 
         // Deserialize file filter
         if data.len() < offset + 8 {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "Invalid file filter size".to_string(),
             ));
         }
@@ -314,7 +314,7 @@ impl MultiLevelBloomFilter {
         offset += 8;
 
         if data.len() < offset + file_filter_size {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "Incomplete file filter data".to_string(),
             ));
         }

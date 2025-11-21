@@ -83,7 +83,7 @@ pub use int64::{Int64SprintzDecoder, Int64SprintzEncoder};
 
 use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 
 /// Sprintz encoder wrapper that dispatches to type-specific implementations
 ///
@@ -119,7 +119,7 @@ impl SprintzEncoder {
 
 impl Encoder for SprintzEncoder {
     fn encode_bool(&mut self, _value: bool, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Sprintz not supported for booleans".to_string(),
         ))
     }
@@ -128,7 +128,7 @@ impl Encoder for SprintzEncoder {
         if let Some(encoder) = &mut self.int32_encoder {
             encoder.encode(value, out)
         } else {
-            Err(TsFileError::EncodingError(
+            Err(TimbreError::EncodingError(
                 "Sprintz encoder not initialized for Int32".to_string(),
             ))
         }
@@ -138,7 +138,7 @@ impl Encoder for SprintzEncoder {
         if let Some(encoder) = &mut self.int64_encoder {
             encoder.encode(value, out)
         } else {
-            Err(TsFileError::EncodingError(
+            Err(TimbreError::EncodingError(
                 "Sprintz encoder not initialized for Int64".to_string(),
             ))
         }
@@ -148,7 +148,7 @@ impl Encoder for SprintzEncoder {
         if let Some(encoder) = &mut self.float_encoder {
             encoder.encode(value, out)
         } else {
-            Err(TsFileError::EncodingError(
+            Err(TimbreError::EncodingError(
                 "Sprintz encoder not initialized for Float".to_string(),
             ))
         }
@@ -158,14 +158,14 @@ impl Encoder for SprintzEncoder {
         if let Some(encoder) = &mut self.double_encoder {
             encoder.encode(value, out)
         } else {
-            Err(TsFileError::EncodingError(
+            Err(TimbreError::EncodingError(
                 "Sprintz encoder not initialized for Double".to_string(),
             ))
         }
     }
 
     fn encode_string(&mut self, _value: &str, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Sprintz not supported for strings".to_string(),
         ))
     }
@@ -222,7 +222,7 @@ impl SprintzDecoder {
 
 impl Decoder for SprintzDecoder {
     fn read_bool(&mut self, _input: &[u8], _pos: &mut usize) -> Result<bool> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Sprintz not supported for booleans".to_string(),
         ))
     }
@@ -231,7 +231,7 @@ impl Decoder for SprintzDecoder {
         if let Some(decoder) = &mut self.int32_decoder {
             decoder.read_int32(input, pos)
         } else {
-            Err(TsFileError::EncodingError(
+            Err(TimbreError::EncodingError(
                 "Sprintz decoder not initialized for Int32".to_string(),
             ))
         }
@@ -241,7 +241,7 @@ impl Decoder for SprintzDecoder {
         if let Some(decoder) = &mut self.int64_decoder {
             decoder.read_int64(input, pos)
         } else {
-            Err(TsFileError::EncodingError(
+            Err(TimbreError::EncodingError(
                 "Sprintz decoder not initialized for Int64".to_string(),
             ))
         }
@@ -251,7 +251,7 @@ impl Decoder for SprintzDecoder {
         if let Some(decoder) = &mut self.float_decoder {
             decoder.read_float(input, pos)
         } else {
-            Err(TsFileError::EncodingError(
+            Err(TimbreError::EncodingError(
                 "Sprintz decoder not initialized for Float".to_string(),
             ))
         }
@@ -261,14 +261,14 @@ impl Decoder for SprintzDecoder {
         if let Some(decoder) = &mut self.double_decoder {
             decoder.read_double(input, pos)
         } else {
-            Err(TsFileError::EncodingError(
+            Err(TimbreError::EncodingError(
                 "Sprintz decoder not initialized for Double".to_string(),
             ))
         }
     }
 
     fn read_string(&mut self, _input: &[u8], _pos: &mut usize) -> Result<String> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Sprintz not supported for strings".to_string(),
         ))
     }

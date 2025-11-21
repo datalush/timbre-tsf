@@ -1,4 +1,4 @@
-//! Query and filtering utilities for TsFile
+//! Query and filtering utilities for Timbre
 //!
 //! This module provides filtering capabilities for efficient data retrieval:
 //! - Statistics-level filtering to skip chunks

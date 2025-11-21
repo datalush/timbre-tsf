@@ -132,10 +132,10 @@ impl MeasurementSchema {
     /// This is the recommended way to create schemas as it automatically selects
     /// optimal settings based on the data type:
     ///
-    /// - Float/Double → Chimp128 + Zstd
-    /// - Int32/Int64/Timestamp → Simple8b + Zstd
-    /// - Boolean → RLE + Zstd
-    /// - Text/String → Dictionary + Zstd
+    /// - Float/Double -> Chimp128 + Zstd
+    /// - Int32/Int64/Timestamp -> Simple8b + Zstd
+    /// - Boolean -> RLE + Zstd
+    /// - Text/String -> Dictionary + Zstd
     ///
     /// # Examples
     ///

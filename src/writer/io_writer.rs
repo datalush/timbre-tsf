@@ -1,4 +1,4 @@
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use crate::file::{ChunkMeta, FileFlags, FileFooter, FileHeader, GlobalDictionary};
 use crate::writer::ChunkWriter;
 use byteorder::{LittleEndian, WriteBytesExt};
@@ -7,8 +7,8 @@ use std::fs::File;
 use std::io::{BufWriter, Seek, Write};
 use std::path::Path;
 
-/// Low-level TsFile writer que maneja la estructura física del archivo
-pub struct TsFileIOWriter {
+/// Low-level Timbre writer que maneja la estructura física del archivo
+pub struct IOWriter {
     file: BufWriter<File>,
     device_chunk_groups: HashMap<String, Vec<ChunkMeta>>,
     current_position: u64,
@@ -20,8 +20,8 @@ pub struct TsFileIOWriter {
     dictionary: GlobalDictionary,
 }
 
-impl TsFileIOWriter {
-    /// Crea un nuevo TsFileIOWriter
+impl IOWriter {
+    /// Crea un nuevo IOWriter
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         let file = File::create(path)?;
 
@@ -106,7 +106,7 @@ impl TsFileIOWriter {
         // En la implementación completa, aquí se escribiría un marker de separación
         // Por ahora solo validamos que el device existe
         if !self.device_chunk_groups.contains_key(device_id) {
-            return Err(TsFileError::InvalidState(format!(
+            return Err(TimbreError::InvalidState(format!(
                 "Device {} not found",
                 device_id
             )));
@@ -230,11 +230,11 @@ mod tests {
     use tempfile::NamedTempFile;
 
     #[test]
-    fn test_tsfile_io_writer_basic() {
+    fn test_io_writer_basic() {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        let mut writer = TsFileIOWriter::new(path).unwrap();
+        let mut writer = IOWriter::new(path).unwrap();
 
         // Iniciar chunk group
         writer.start_chunk_group("device1").unwrap();
@@ -261,12 +261,12 @@ mod tests {
     }
 
     #[test]
-    fn test_tsfile_io_writer_with_dictionary() {
+    fn test_io_writer_with_dictionary() {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path().to_path_buf();
 
         {
-            let mut writer = TsFileIOWriter::new(&path).unwrap();
+            let mut writer = IOWriter::new(&path).unwrap();
 
             // Escribir múltiples devices con measurements repetidos
             // Esto demuestra la compresión del diccionario

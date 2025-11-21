@@ -1,19 +1,19 @@
 use crate::common::{MeasurementSchema, StringInterner, Tablet, TsRecord, TsValue};
-use crate::error::{Result, TsFileError};
-use crate::writer::{ChunkWriter, TsFileIOWriter};
+use crate::error::{Result, TimbreError};
+use crate::writer::{ChunkWriter, IOWriter};
 use std::collections::HashMap;
 use std::path::Path;
 
-/// Configuración para TsFileWriter
+/// Configuración para FileWriter
 #[derive(Debug, Clone)]
-pub struct TsFileConfig {
+pub struct FileConfig {
     /// Tamaño máximo de página en bytes
     pub max_page_size: usize,
     /// Tamaño de chunk group antes de flush
     pub chunk_group_size: usize,
 }
 
-impl Default for TsFileConfig {
+impl Default for FileConfig {
     fn default() -> Self {
         Self {
             max_page_size: 64 * 1024,     // 64KB
@@ -22,10 +22,10 @@ impl Default for TsFileConfig {
     }
 }
 
-/// High-level TsFile writer con API conveniente
-pub struct TsFileWriter {
-    io_writer: TsFileIOWriter,
-    config: TsFileConfig,
+/// High-level Timbre writer con API conveniente
+pub struct FileWriter {
+    io_writer: IOWriter,
+    config: FileConfig,
     // OPT-1: Vec en lugar de HashMap interno para acceso O(1) sin allocations
     schemas: HashMap<String, Vec<MeasurementSchema>>,
     current_device: Option<String>,
@@ -36,12 +36,12 @@ pub struct TsFileWriter {
     interner: StringInterner,
 }
 
-impl TsFileWriter {
-    /// Crea un nuevo TsFileWriter
+impl FileWriter {
+    /// Crea un nuevo FileWriter
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         Ok(Self {
-            io_writer: TsFileIOWriter::new(path)?,
-            config: TsFileConfig::default(),
+            io_writer: IOWriter::new(path)?,
+            config: FileConfig::default(),
             schemas: HashMap::new(),
             current_device: None,
             current_writers: Vec::new(),
@@ -50,8 +50,8 @@ impl TsFileWriter {
         })
     }
 
-    /// Crea un TsFileWriter con configuración personalizada
-    pub fn with_config<P: AsRef<Path>>(path: P, config: TsFileConfig) -> Result<Self> {
+    /// Crea un FileWriter con configuración personalizada
+    pub fn with_config<P: AsRef<Path>>(path: P, config: FileConfig) -> Result<Self> {
         let mut writer = Self::new(path)?;
         writer.config = config;
         Ok(writer)
@@ -114,7 +114,7 @@ impl TsFileWriter {
 
             // Inicializar writers para este device
             let device_schemas = self.schemas.get(device_id).ok_or_else(|| {
-                TsFileError::SchemaError(format!("No schemas registered for device {}", device_id))
+                TimbreError::SchemaError(format!("No schemas registered for device {}", device_id))
             })?;
 
             self.current_writers.clear();
@@ -134,7 +134,7 @@ impl TsFileWriter {
 
         // Obtener schemas del device
         let device_schemas = self.schemas.get(device_id).ok_or_else(|| {
-            TsFileError::SchemaError(format!("No schemas registered for device {}", device_id))
+            TimbreError::SchemaError(format!("No schemas registered for device {}", device_id))
         })?;
 
         // Escribir cada punto buscando su índice
@@ -144,7 +144,7 @@ impl TsFileWriter {
                 .iter()
                 .position(|s| s.measurement_name == point.measurement_name)
                 .ok_or_else(|| {
-                    TsFileError::SchemaError(format!(
+                    TimbreError::SchemaError(format!(
                         "No schema for measurement {}",
                         point.measurement_name
                     ))
@@ -282,7 +282,7 @@ impl TsFileWriter {
             TsValue::Double(v) => chunk_writer.write_f64(timestamp, v)?,
             TsValue::Text(v) | TsValue::String(v) => chunk_writer.write_string(timestamp, &v)?,
             _ => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: "supported type".to_string(),
                     actual: format!("{:?}", value),
                 });
@@ -325,9 +325,9 @@ mod tests {
     use tempfile::NamedTempFile;
 
     #[test]
-    fn test_tsfile_writer_record() {
+    fn test_file_writer_record() {
         let temp_file = NamedTempFile::new().unwrap();
-        let mut writer = TsFileWriter::new(temp_file.path()).unwrap();
+        let mut writer = FileWriter::new(temp_file.path()).unwrap();
 
         // Registrar schema
         let schema = MeasurementSchema::new(
@@ -350,9 +350,9 @@ mod tests {
     }
 
     #[test]
-    fn test_tsfile_writer_tablet() {
+    fn test_file_writer_tablet() {
         let temp_file = NamedTempFile::new().unwrap();
-        let mut writer = TsFileWriter::new(temp_file.path()).unwrap();
+        let mut writer = FileWriter::new(temp_file.path()).unwrap();
 
         // Crear tablet
         let schemas = vec![

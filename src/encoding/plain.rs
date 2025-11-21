@@ -40,7 +40,7 @@
 
 use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 /// Plain encoder that stores values in their native binary representation
@@ -120,7 +120,7 @@ impl PlainDecoder {
 impl Decoder for PlainDecoder {
     fn read_bool(&mut self, input: &[u8], pos: &mut usize) -> Result<bool> {
         if *pos >= input.len() {
-            return Err(TsFileError::UnexpectedEof);
+            return Err(TimbreError::UnexpectedEof);
         }
         let value = input[*pos] != 0;
         *pos += 1;
@@ -129,7 +129,7 @@ impl Decoder for PlainDecoder {
 
     fn read_i32(&mut self, input: &[u8], pos: &mut usize) -> Result<i32> {
         if *pos + 4 > input.len() {
-            return Err(TsFileError::UnexpectedEof);
+            return Err(TimbreError::UnexpectedEof);
         }
         let mut cursor = &input[*pos..*pos + 4];
         let value = cursor.read_i32::<LittleEndian>()?;
@@ -139,7 +139,7 @@ impl Decoder for PlainDecoder {
 
     fn read_i64(&mut self, input: &[u8], pos: &mut usize) -> Result<i64> {
         if *pos + 8 > input.len() {
-            return Err(TsFileError::UnexpectedEof);
+            return Err(TimbreError::UnexpectedEof);
         }
         let mut cursor = &input[*pos..*pos + 8];
         let value = cursor.read_i64::<LittleEndian>()?;
@@ -149,7 +149,7 @@ impl Decoder for PlainDecoder {
 
     fn read_f32(&mut self, input: &[u8], pos: &mut usize) -> Result<f32> {
         if *pos + 4 > input.len() {
-            return Err(TsFileError::UnexpectedEof);
+            return Err(TimbreError::UnexpectedEof);
         }
         let mut cursor = &input[*pos..*pos + 4];
         let value = cursor.read_f32::<LittleEndian>()?;
@@ -159,7 +159,7 @@ impl Decoder for PlainDecoder {
 
     fn read_f64(&mut self, input: &[u8], pos: &mut usize) -> Result<f64> {
         if *pos + 8 > input.len() {
-            return Err(TsFileError::UnexpectedEof);
+            return Err(TimbreError::UnexpectedEof);
         }
         let mut cursor = &input[*pos..*pos + 8];
         let value = cursor.read_f64::<LittleEndian>()?;
@@ -169,17 +169,17 @@ impl Decoder for PlainDecoder {
 
     fn read_string(&mut self, input: &[u8], pos: &mut usize) -> Result<String> {
         if *pos + 4 > input.len() {
-            return Err(TsFileError::UnexpectedEof);
+            return Err(TimbreError::UnexpectedEof);
         }
         let mut cursor = &input[*pos..*pos + 4];
         let len = cursor.read_i32::<LittleEndian>()? as usize;
         *pos += 4;
 
         if *pos + len > input.len() {
-            return Err(TsFileError::UnexpectedEof);
+            return Err(TimbreError::UnexpectedEof);
         }
         let value = String::from_utf8(input[*pos..*pos + len].to_vec())
-            .map_err(|e| TsFileError::DecodingError(e.to_string()))?;
+            .map_err(|e| TimbreError::DecodingError(e.to_string()))?;
         *pos += len;
         Ok(value)
     }

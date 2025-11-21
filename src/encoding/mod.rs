@@ -1,4 +1,4 @@
-//! Time-series data encoding algorithms for TsFiles.
+//! Time-series data encoding algorithms for Timbre files.
 //!
 //! This module provides encoding and decoding implementations that transform time-series values
 //! into compact binary representations. Encoding is the first stage of data reduction (before
@@ -45,7 +45,6 @@
 //! // Encoded data is now in `output`
 //! ```
 
-pub mod adaptive;
 mod chimp128;
 mod delta_of_delta;
 mod dictionary;
@@ -188,8 +187,8 @@ pub trait Encoder: Send + Sync {
 ///
 /// # Performance impact
 ///
-/// - **Before** (dynamic): `Box<dyn Encoder>` → 3 virtual calls per value (~15-20 cycles overhead)
-/// - **After** (static): `EncoderImpl` enum → direct dispatch via match (0 overhead + inlining)
+/// - **Before** (dynamic): `Box<dyn Encoder>` -> 3 virtual calls per value (~15-20 cycles overhead)
+/// - **After** (static): `EncoderImpl` enum -> direct dispatch via match (0 overhead + inlining)
 ///
 /// The `#[inline]` attributes allow the compiler to optimize away the enum dispatch and
 /// directly inline the underlying encoder's implementation.

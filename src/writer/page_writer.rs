@@ -10,7 +10,7 @@ use crate::common::statistic::{StatisticEnum, create_statistic};
 use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::compress::create_compressor;
 use crate::encoding::{EncoderImpl, create_encoder};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use crate::file::{MiniBlock, MiniBlockConfig, MiniBlockHeader, PageData, PageHeader};
 
 /// Writer for pages with mini-blocks (Timbre format)
@@ -18,7 +18,7 @@ use crate::file::{MiniBlock, MiniBlockConfig, MiniBlockHeader, PageData, PageHea
 /// OPT: Struct layout optimized for cache locality:
 /// - HOT PATH fields (accessed during write operations) are grouped first
 /// - COLD PATH fields (config, buffers) are placed after
-/// - This minimizes cache misses during the critical write_*() → statistic.update_*() path
+/// - This minimizes cache misses during the critical write_*() -> statistic.update_*() path
 pub struct PageWriter {
     // HOT PATH GROUP: Write operations (first cache lines)
     // These fields are accessed together during every write_*() call
@@ -128,7 +128,7 @@ impl PageWriter {
         match &mut self.value_data {
             ValueData::Boolean(v) => v.push(value),
             _ => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: "Boolean".to_string(),
                     actual: format!("{:?}", self.data_type),
                 });
@@ -148,7 +148,7 @@ impl PageWriter {
         match &mut self.value_data {
             ValueData::Int32(v) => v.push(value),
             _ => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: "Int32".to_string(),
                     actual: format!("{:?}", self.data_type),
                 });
@@ -168,7 +168,7 @@ impl PageWriter {
         match &mut self.value_data {
             ValueData::Int64(v) => v.push(value),
             _ => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: "Int64".to_string(),
                     actual: format!("{:?}", self.data_type),
                 });
@@ -189,7 +189,7 @@ impl PageWriter {
         match &mut self.value_data {
             ValueData::Float(v) => v.push(value),
             _ => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: "Float".to_string(),
                     actual: format!("{:?}", self.data_type),
                 });
@@ -209,7 +209,7 @@ impl PageWriter {
         match &mut self.value_data {
             ValueData::Double(v) => v.push(value),
             _ => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: "Double".to_string(),
                     actual: format!("{:?}", self.data_type),
                 });
@@ -229,7 +229,7 @@ impl PageWriter {
         match &mut self.value_data {
             ValueData::String(v) => v.push(value.to_string()),
             _ => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: "String".to_string(),
                     actual: format!("{:?}", self.data_type),
                 });
@@ -252,7 +252,7 @@ impl PageWriter {
     #[inline]
     pub fn write_i32_batch(&mut self, timestamps: &[i64], values: &[i32]) -> Result<()> {
         if timestamps.len() != values.len() {
-            return Err(TsFileError::InvalidState(
+            return Err(TimbreError::InvalidState(
                 "Timestamps and values length mismatch".to_string(),
             ));
         }
@@ -262,7 +262,7 @@ impl PageWriter {
         match &mut self.value_data {
             ValueData::Int32(v) => v.extend_from_slice(values),
             _ => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: "Int32".to_string(),
                     actual: format!("{:?}", self.data_type),
                 });
@@ -280,7 +280,7 @@ impl PageWriter {
     #[inline]
     pub fn write_i64_batch(&mut self, timestamps: &[i64], values: &[i64]) -> Result<()> {
         if timestamps.len() != values.len() {
-            return Err(TsFileError::InvalidState(
+            return Err(TimbreError::InvalidState(
                 "Timestamps and values length mismatch".to_string(),
             ));
         }
@@ -289,7 +289,7 @@ impl PageWriter {
         match &mut self.value_data {
             ValueData::Int64(v) => v.extend_from_slice(values),
             _ => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: "Int64".to_string(),
                     actual: format!("{:?}", self.data_type),
                 });
@@ -306,7 +306,7 @@ impl PageWriter {
     #[inline]
     pub fn write_f32_batch(&mut self, timestamps: &[i64], values: &[f32]) -> Result<()> {
         if timestamps.len() != values.len() {
-            return Err(TsFileError::InvalidState(
+            return Err(TimbreError::InvalidState(
                 "Timestamps and values length mismatch".to_string(),
             ));
         }
@@ -315,7 +315,7 @@ impl PageWriter {
         match &mut self.value_data {
             ValueData::Float(v) => v.extend_from_slice(values),
             _ => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: "Float".to_string(),
                     actual: format!("{:?}", self.data_type),
                 });
@@ -332,7 +332,7 @@ impl PageWriter {
     #[inline]
     pub fn write_f64_batch(&mut self, timestamps: &[i64], values: &[f64]) -> Result<()> {
         if timestamps.len() != values.len() {
-            return Err(TsFileError::InvalidState(
+            return Err(TimbreError::InvalidState(
                 "Timestamps and values length mismatch".to_string(),
             ));
         }
@@ -341,7 +341,7 @@ impl PageWriter {
         match &mut self.value_data {
             ValueData::Double(v) => v.extend_from_slice(values),
             _ => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: "Double".to_string(),
                     actual: format!("{:?}", self.data_type),
                 });
@@ -358,7 +358,7 @@ impl PageWriter {
     #[inline]
     pub fn write_bool_batch(&mut self, timestamps: &[i64], values: &[bool]) -> Result<()> {
         if timestamps.len() != values.len() {
-            return Err(TsFileError::InvalidState(
+            return Err(TimbreError::InvalidState(
                 "Timestamps and values length mismatch".to_string(),
             ));
         }
@@ -367,7 +367,7 @@ impl PageWriter {
         match &mut self.value_data {
             ValueData::Boolean(v) => v.extend_from_slice(values),
             _ => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: "Boolean".to_string(),
                     actual: format!("{:?}", self.data_type),
                 });
@@ -384,7 +384,7 @@ impl PageWriter {
     #[inline]
     pub fn write_string_batch(&mut self, timestamps: &[i64], values: &[String]) -> Result<()> {
         if timestamps.len() != values.len() {
-            return Err(TsFileError::InvalidState(
+            return Err(TimbreError::InvalidState(
                 "Timestamps and values length mismatch".to_string(),
             ));
         }
@@ -393,7 +393,7 @@ impl PageWriter {
         match &mut self.value_data {
             ValueData::String(v) => v.extend(values.iter().cloned()),
             _ => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: "String".to_string(),
                     actual: format!("{:?}", self.data_type),
                 });
@@ -408,7 +408,7 @@ impl PageWriter {
     pub fn finish(&mut self) -> Result<PageData> {
         let total_points = self.timestamps.len();
         if total_points == 0 {
-            return Err(TsFileError::InvalidState("No data to write".to_string()));
+            return Err(TimbreError::InvalidState("No data to write".to_string()));
         }
 
         // Dividir en ranges de mini-blocks
@@ -448,7 +448,11 @@ impl PageWriter {
     fn estimate_buffer_capacity(point_count: usize, data_type: TSDataType, encoding: TSEncoding) -> usize {
         // Base size: worst case for timestamps (DeltaOfDelta can expand)
         // First value (8) + first delta (8) + simple8b overhead (~1.2x for worst case)
-        let timestamp_size = 16 + ((point_count - 2) * 10);
+        let timestamp_size = if point_count <= 2 {
+            point_count * 8  // Just store raw values for small counts
+        } else {
+            16 + ((point_count - 2) * 10)
+        };
 
         // Value size depends on encoding
         let value_size = match encoding {
@@ -465,7 +469,11 @@ impl PageWriter {
             TSEncoding::DeltaOfDelta => {
                 // DeltaOfDelta: first value + first delta + compressed deltas
                 // Similar to timestamps
-                16 + ((point_count - 2) * 10)
+                if point_count <= 2 {
+                    point_count * 8
+                } else {
+                    16 + ((point_count - 2) * 10)
+                }
             }
             TSEncoding::Gorilla => {
                 // Gorilla: very efficient for floats, but worst case ~12 bits/value

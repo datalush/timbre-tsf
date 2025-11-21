@@ -29,7 +29,7 @@
 
 use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use std::collections::HashMap;
 
 /// Dictionary encoder for strings with high repetition
@@ -121,31 +121,31 @@ impl DictionaryEncoder {
 
 impl Encoder for DictionaryEncoder {
     fn encode_bool(&mut self, _value: bool, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Dictionary encoding not supported for booleans".to_string(),
         ))
     }
 
     fn encode_i32(&mut self, _value: i32, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Dictionary encoding not supported for integers".to_string(),
         ))
     }
 
     fn encode_i64(&mut self, _value: i64, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Dictionary encoding not supported for long integers".to_string(),
         ))
     }
 
     fn encode_f32(&mut self, _value: f32, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Dictionary encoding not supported for floats".to_string(),
         ))
     }
 
     fn encode_f64(&mut self, _value: f64, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Dictionary encoding not supported for doubles".to_string(),
         ))
     }
@@ -212,7 +212,7 @@ impl DictionaryDecoder {
 
         loop {
             if *pos >= input.len() {
-                return Err(TsFileError::DecodingError(
+                return Err(TimbreError::DecodingError(
                     "Unexpected end of input reading varint".to_string(),
                 ));
             }
@@ -228,7 +228,7 @@ impl DictionaryDecoder {
 
             shift += 7;
             if shift >= 32 {
-                return Err(TsFileError::DecodingError("Varint too large".to_string()));
+                return Err(TimbreError::DecodingError("Varint too large".to_string()));
             }
         }
 
@@ -242,13 +242,13 @@ impl DictionaryDecoder {
         let length = self.read_varint(input, pos)? as usize;
 
         if *pos + length > input.len() {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "Unexpected end of input reading string".to_string(),
             ));
         }
 
         let s = String::from_utf8(input[*pos..*pos + length].to_vec())
-            .map_err(|e| TsFileError::DecodingError(format!("Invalid UTF-8: {}", e)))?;
+            .map_err(|e| TimbreError::DecodingError(format!("Invalid UTF-8: {}", e)))?;
 
         *pos += length;
         Ok(s)
@@ -291,31 +291,31 @@ impl DictionaryDecoder {
 
 impl Decoder for DictionaryDecoder {
     fn read_bool(&mut self, _input: &[u8], _pos: &mut usize) -> Result<bool> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Dictionary decoding not supported for booleans".to_string(),
         ))
     }
 
     fn read_i32(&mut self, _input: &[u8], _pos: &mut usize) -> Result<i32> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Dictionary decoding not supported for integers".to_string(),
         ))
     }
 
     fn read_i64(&mut self, _input: &[u8], _pos: &mut usize) -> Result<i64> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Dictionary decoding not supported for long integers".to_string(),
         ))
     }
 
     fn read_f32(&mut self, _input: &[u8], _pos: &mut usize) -> Result<f32> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Dictionary decoding not supported for floats".to_string(),
         ))
     }
 
     fn read_f64(&mut self, _input: &[u8], _pos: &mut usize) -> Result<f64> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Dictionary decoding not supported for doubles".to_string(),
         ))
     }
@@ -336,7 +336,7 @@ impl Decoder for DictionaryDecoder {
 
         // Return the next string
         if self.position >= self.decoded_ids.len() {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "No more values to decode".to_string(),
             ));
         }
@@ -345,7 +345,7 @@ impl Decoder for DictionaryDecoder {
         self.position += 1;
 
         if id >= self.dictionary.len() {
-            return Err(TsFileError::DecodingError(format!(
+            return Err(TimbreError::DecodingError(format!(
                 "Invalid dictionary ID: {}",
                 id
             )));

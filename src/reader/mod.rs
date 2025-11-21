@@ -1,9 +1,9 @@
-//! TsFile reading components
+//! Timbre reading components
 //!
-//! This module provides the reader infrastructure for accessing TsFile data.
+//! This module provides the reader infrastructure for accessing Timbre data.
 //! Reading follows the inverse of the writing hierarchy:
 //!
-//! 1. **TsFile Reader**: Top-level interface for opening and querying TsFiles
+//! 1. **Timbre Reader**: Top-level interface for opening and querying Timbre files
 //! 2. **Chunk Readers**: Extract time series chunks (aligned or standard)
 //! 3. **Page Readers**: Decode individual pages within chunks
 //!
@@ -11,7 +11,7 @@
 //!
 //! Data flows through the following stages:
 //! ```text
-//! File → TsFile Reader → Chunk Reader → Page Reader → Decoded Values
+//! File -> Timbre Reader -> Chunk Reader -> Page Reader -> Decoded Values
 //! ```
 //!
 //! Each stage handles decompression and decoding according to the file's schema.
@@ -25,14 +25,14 @@
 
 // pub mod aligned_chunk_reader; // Temporarily disabled for Timbre mini-blocks migration
 pub mod chunk_reader;
+pub mod file_reader;
+pub mod io_reader;
 pub mod page_reader;
 pub mod scan;
-pub mod tsfile_io_reader;
-pub mod tsfile_reader;
 
 // pub use aligned_chunk_reader::*;
 pub use chunk_reader::*;
+pub use file_reader::*;
+pub use io_reader::*;
 pub use page_reader::*;
 pub use scan::ScanBuilder;
-pub use tsfile_io_reader::*;
-pub use tsfile_reader::*;

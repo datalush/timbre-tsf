@@ -39,7 +39,7 @@
 //! - **Cache misses**: ~30% reduction due to alignment
 //! - **Memory bandwidth**: Better utilization of memory bus
 
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use std::alloc::{Layout, alloc};
 use std::mem;
 
@@ -53,7 +53,7 @@ pub const ARROW_ALIGNMENT: usize = 64;
 ///
 /// # Errors
 ///
-/// Returns [`TsFileError::AllocationError`] if:
+/// Returns [`TimbreError::AllocationError`] if:
 /// - Memory allocation fails (out of memory)
 /// - Layout parameters are invalid (e.g., alignment not power of 2)
 /// - Size exceeds system limits
@@ -86,7 +86,7 @@ pub fn alloc_aligned_vec<T>(capacity: usize) -> Result<Vec<T>> {
 
     // Validate alignment is power of 2
     if !align.is_power_of_two() {
-        return Err(TsFileError::AllocationError(format!(
+        return Err(TimbreError::AllocationError(format!(
             "Alignment must be power of 2, got {}",
             align
         )));
@@ -95,12 +95,12 @@ pub fn alloc_aligned_vec<T>(capacity: usize) -> Result<Vec<T>> {
     unsafe {
         // Allocate aligned memory with safe layout construction
         let layout = Layout::from_size_align(size, align)
-            .map_err(|e| TsFileError::AllocationError(format!("Invalid layout: {}", e)))?;
+            .map_err(|e| TimbreError::AllocationError(format!("Invalid layout: {}", e)))?;
 
         let ptr = alloc(layout);
 
         if ptr.is_null() {
-            return Err(TsFileError::AllocationError(format!(
+            return Err(TimbreError::AllocationError(format!(
                 "Failed to allocate {} bytes with {} byte alignment",
                 size, align
             )));
@@ -137,7 +137,7 @@ impl<T> AlignedVec<T> {
     ///
     /// # Errors
     ///
-    /// Returns [`TsFileError::AllocationError`] if memory allocation fails.
+    /// Returns [`TimbreError::AllocationError`] if memory allocation fails.
     pub fn with_capacity(capacity: usize) -> Result<Self> {
         Ok(Self {
             inner: alloc_aligned_vec(capacity)?,
@@ -234,7 +234,7 @@ impl<T: Clone> AlignedVec<T> {
     ///
     /// # Errors
     ///
-    /// Returns [`TsFileError::AllocationError`] if memory allocation fails.
+    /// Returns [`TimbreError::AllocationError`] if memory allocation fails.
     pub fn from_vec(vec: Vec<T>) -> Result<Self> {
         let mut aligned = Self::with_capacity(vec.len())?;
         for item in vec {

@@ -1,20 +1,20 @@
 use crate::error::Result;
 use crate::query::Predicate;
-use crate::reader::{DecodedChunk, DecodedValueData, TsFileIOReader};
+use crate::reader::{DecodedChunk, DecodedValueData, IOReader};
 use std::collections::HashMap;
 use std::path::Path;
 
-/// High-level TsFile reader con API conveniente
-pub struct TsFileReader {
-    io_reader: TsFileIOReader,
+/// High-level Timbre reader con API conveniente
+pub struct FileReader {
+    io_reader: IOReader,
     chunk_cache: HashMap<String, DecodedChunk>,
 }
 
-impl TsFileReader {
-    /// Abre un archivo TsFile
+impl FileReader {
+    /// Abre un archivo Timbre
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         Ok(Self {
-            io_reader: TsFileIOReader::open(path)?,
+            io_reader: IOReader::open(path)?,
             chunk_cache: HashMap::new(),
         })
     }
@@ -58,7 +58,7 @@ impl TsFileReader {
     pub fn read_device(&mut self, device_id: &str) -> Result<HashMap<String, DecodedChunk>> {
         let measurements = self
             .measurements(device_id)
-            .ok_or_else(|| crate::error::TsFileError::NotFound(format!("Device {}", device_id)))?;
+            .ok_or_else(|| crate::error::TimbreError::NotFound(format!("Device {}", device_id)))?;
 
         let mut result = HashMap::new();
         for measurement in measurements {
@@ -108,11 +108,11 @@ impl TsFileReader {
     ///
     /// # Example
     /// ```no_run
-    /// use timbre_tsf::reader::TsFileReader;
+    /// use timbre_tsf::reader::FileReader;
     /// use timbre_tsf::query::{Predicate, TimeFilter, ValueFilter};
     /// use timbre_tsf::common::TsValue;
     ///
-    /// let mut reader = TsFileReader::open("data.timbre")?;
+    /// let mut reader = FileReader::open("data.timbre")?;
     ///
     /// let predicate = Predicate::And(vec![
     ///     Predicate::Time(TimeFilter::Between(1000, 2000)),
@@ -133,7 +133,7 @@ impl TsFileReader {
             .io_reader
             .get_chunk_metadata(device_id, measurement_name)
             .ok_or_else(|| {
-                crate::error::TsFileError::NotFound(format!(
+                crate::error::TimbreError::NotFound(format!(
                     "Chunk metadata for {}/{}",
                     device_id, measurement_name
                 ))
@@ -179,7 +179,7 @@ impl TsFileReader {
     }
 
     /// Información del archivo
-    pub fn info(&self) -> TsFileInfo {
+    pub fn info(&self) -> FileInfo {
         let devices = self.devices();
         let mut total_chunks = 0;
 
@@ -189,7 +189,7 @@ impl TsFileReader {
             }
         }
 
-        TsFileInfo {
+        FileInfo {
             file_size: self.file_size(),
             num_devices: devices.len(),
             num_chunks: total_chunks,
@@ -198,9 +198,9 @@ impl TsFileReader {
     }
 }
 
-/// Información sobre un archivo TsFile
+/// Información sobre un archivo Timbre
 #[derive(Debug, Clone)]
-pub struct TsFileInfo {
+pub struct FileInfo {
     pub file_size: u64,
     pub num_devices: usize,
     pub num_chunks: usize,
@@ -213,17 +213,17 @@ mod tests {
     use crate::common::{
         CompressionType, MeasurementSchema, TSDataType, TSEncoding, TsRecord, TsValue,
     };
-    use crate::writer::TsFileWriter;
+    use crate::writer::FileWriter;
     use tempfile::NamedTempFile;
 
     #[test]
-    fn test_tsfile_reader_basic() {
+    fn test_file_reader_basic() {
         // Crear archivo
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
             let schema = MeasurementSchema::new(
                 "temperature",
                 TSDataType::Float,
@@ -242,7 +242,7 @@ mod tests {
         }
 
         // Leer archivo
-        let mut reader = TsFileReader::open(path).unwrap();
+        let mut reader = FileReader::open(path).unwrap();
 
         // Verificar dispositivos
         let devices = reader.devices();
@@ -276,13 +276,13 @@ mod tests {
     }
 
     #[test]
-    fn test_tsfile_reader_time_range() {
+    fn test_file_reader_time_range() {
         // Crear archivo
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
             let schema = MeasurementSchema::new(
                 "sensor",
                 TSDataType::Int32,
@@ -301,7 +301,7 @@ mod tests {
         }
 
         // Leer con filtro de tiempo
-        let mut reader = TsFileReader::open(path).unwrap();
+        let mut reader = FileReader::open(path).unwrap();
         let filtered = reader
             .read_time_range("device1", "sensor", 500, 1500)
             .unwrap();
@@ -315,13 +315,13 @@ mod tests {
     }
 
     #[test]
-    fn test_tsfile_reader_multiple_devices() {
+    fn test_file_reader_multiple_devices() {
         // Crear archivo
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
 
             // Device 1
             let schema1 = MeasurementSchema::new(
@@ -357,7 +357,7 @@ mod tests {
         }
 
         // Leer archivo
-        let mut reader = TsFileReader::open(path).unwrap();
+        let mut reader = FileReader::open(path).unwrap();
 
         // Verificar info
         let info = reader.info();
@@ -379,13 +379,13 @@ mod tests {
     }
 
     #[test]
-    fn test_tsfile_reader_cache() {
+    fn test_file_reader_cache() {
         // Crear archivo
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
             let schema = MeasurementSchema::new(
                 "data",
                 TSDataType::Int64,
@@ -404,7 +404,7 @@ mod tests {
         }
 
         // Leer archivo
-        let mut reader = TsFileReader::open(path).unwrap();
+        let mut reader = FileReader::open(path).unwrap();
 
         // Primera lectura (carga en caché)
         {
@@ -437,7 +437,7 @@ mod tests {
         let path = temp_file.path();
 
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
             let schema = MeasurementSchema::new(
                 "temp",
                 TSDataType::Float,
@@ -455,7 +455,7 @@ mod tests {
         }
 
         // Read with predicate push down
-        let mut reader = TsFileReader::open(path).unwrap();
+        let mut reader = FileReader::open(path).unwrap();
 
         // Time range that should filter results
         let predicate = Predicate::Time(TimeFilter::Between(1000, 2000));
@@ -476,7 +476,7 @@ mod tests {
         let path = temp_file.path();
 
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
             let schema = MeasurementSchema::new(
                 "sensor",
                 TSDataType::Int32,
@@ -494,7 +494,7 @@ mod tests {
         }
 
         // Read with predicate that might skip chunk
-        let mut reader = TsFileReader::open(path).unwrap();
+        let mut reader = FileReader::open(path).unwrap();
 
         // Time range completely outside the chunk
         let predicate = Predicate::Time(TimeFilter::GreaterThan(10000));
@@ -515,7 +515,7 @@ mod tests {
         let path = temp_file.path();
 
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
             let schema = MeasurementSchema::new(
                 "data",
                 TSDataType::Double,
@@ -533,7 +533,7 @@ mod tests {
         }
 
         // Read with value filter
-        let mut reader = TsFileReader::open(path).unwrap();
+        let mut reader = FileReader::open(path).unwrap();
 
         let predicate = Predicate::Value(
             "data".to_string(),
@@ -557,7 +557,7 @@ mod tests {
         let path = temp_file.path();
 
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
             let schema = MeasurementSchema::new(
                 "measurement",
                 TSDataType::Float,
@@ -575,7 +575,7 @@ mod tests {
         }
 
         // Read with combined filters
-        let mut reader = TsFileReader::open(path).unwrap();
+        let mut reader = FileReader::open(path).unwrap();
 
         let predicate = Predicate::And(vec![
             Predicate::Time(TimeFilter::Between(500, 1500)),

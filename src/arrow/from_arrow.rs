@@ -17,12 +17,12 @@
  * under the License.
  */
 
-//! Arrow → TsFile conversion
+//! Arrow -> Timbre conversion
 
 use crate::arrow::types::ArrowConversionConfig;
 use crate::common::{ColumnCategory, MeasurementSchema, Tablet, TsValue};
-use crate::error::{Result, TsFileError};
-use crate::writer::TsFileWriter;
+use crate::error::{Result, TimbreError};
+use crate::writer::FileWriter;
 use arrow::array::*;
 use arrow::datatypes::{DataType, TimeUnit};
 use arrow::record_batch::RecordBatch;
@@ -30,15 +30,15 @@ use rustc_hash::{FxHashMap, FxHashSet}; // OPT: 3-5x faster than SipHash for sho
 use std::path::Path;
 use std::sync::Arc;
 
-/// Converts Arrow RecordBatches to TsFile format
+/// Converts Arrow RecordBatches to Timbre format
 ///
 /// # Example
 ///
 /// ```no_run
-/// use timbre_tsf::arrow::ArrowToTsFileConverter;
+/// use timbre_tsf::arrow::FromArrowConverter;
 /// use arrow::record_batch::RecordBatch;
 ///
-/// let mut converter = ArrowToTsFileConverter::builder("output.timbreile")
+/// let mut converter = FromArrowConverter::builder("output.timbreile")
 ///     .with_device_column("device_id")
 ///     .with_timestamp_column("timestamp")
 ///     .build()?;
@@ -49,26 +49,26 @@ use std::sync::Arc;
 /// converter.finish()?;
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
-pub struct ArrowToTsFileConverter {
-    writer: TsFileWriter,
+pub struct FromArrowConverter {
+    writer: FileWriter,
     config: ArrowConversionConfig,
     device_column: String,
     timestamp_column: String,
     schema_initialized: bool,
 }
 
-/// Builder for ArrowToTsFileConverter
-pub struct ArrowToTsFileConverterBuilder {
+/// Builder for FromArrowConverter
+pub struct FromArrowConverterBuilder {
     path: String,
     config: ArrowConversionConfig,
     device_column: Option<String>,
     timestamp_column: Option<String>,
 }
 
-impl ArrowToTsFileConverter {
+impl FromArrowConverter {
     /// Create a new converter builder
-    pub fn builder<P: AsRef<Path>>(path: P) -> ArrowToTsFileConverterBuilder {
-        ArrowToTsFileConverterBuilder {
+    pub fn builder<P: AsRef<Path>>(path: P) -> FromArrowConverterBuilder {
+        FromArrowConverterBuilder {
             path: path.as_ref().to_string_lossy().to_string(),
             config: ArrowConversionConfig::default(),
             device_column: None,
@@ -76,10 +76,10 @@ impl ArrowToTsFileConverter {
         }
     }
 
-    /// Write an Arrow RecordBatch to TsFile (optimized columnar processing with parallelization)
+    /// Write an Arrow RecordBatch to Timbre (optimized columnar processing with parallelization)
     pub fn write_batch(&mut self, batch: &RecordBatch) -> Result<()> {
         log::debug!(
-            "ArrowToTsFileConverter::write_batch - Processing {} rows",
+            "FromArrowConverter::write_batch - Processing {} rows",
             batch.num_rows()
         );
 
@@ -217,7 +217,7 @@ impl ArrowToTsFileConverter {
         // Build schemas from first row only once
         let mut schemas = Vec::with_capacity(measurement_cols.len());
         for (field_name, _column, data_type) in measurement_cols {
-            let ts_data_type = crate::arrow::schema_mapping::arrow_type_to_tsfile(data_type)?;
+            let ts_data_type = crate::arrow::schema_mapping::arrow_type_to_timbre(data_type)?;
 
             // Check for encoding hint in field metadata
             let field = arrow_schema
@@ -241,8 +241,8 @@ impl ArrowToTsFileConverter {
         let device_timestamps: Vec<i64> = indices.iter().map(|&idx| timestamp_array[idx]).collect();
 
         // OPT-ZERO-COPY: Extract directly to ValueMatrix instead of Vec<Option<TsValue>>
-        // BEFORE: Arrow → Vec<Option<TsValue>> → unwrap in add_rows_bulk → Vec<T>
-        // AFTER:  Arrow → Vec<T> (direct, zero intermediate allocations)
+        // BEFORE: Arrow -> Vec<Option<TsValue>> -> unwrap in add_rows_bulk -> Vec<T>
+        // AFTER:  Arrow -> Vec<T> (direct, zero intermediate allocations)
         //
         // Benchmark impact: Eliminates 6M TsValue allocations for 2M rows × 3 measurements
         // Expected speedup: ~25-30% (100-120ms saved)
@@ -266,9 +266,9 @@ impl ArrowToTsFileConverter {
 
     /// Extract column directly to ValueMatrix + BitMap (zero-copy optimization)
     ///
-    /// OPT-P0: Direct Arrow → ValueMatrix conversion without TsValue intermediate
-    /// BEFORE: Arrow → Vec<Option<TsValue>> → Pattern match unwrap → Vec<T>
-    /// AFTER:  Arrow → Cow<[T]> + BitMap (zero-copy when possible)
+    /// OPT-P0: Direct Arrow -> ValueMatrix conversion without TsValue intermediate
+    /// BEFORE: Arrow -> Vec<Option<TsValue>> -> Pattern match unwrap -> Vec<T>
+    /// AFTER:  Arrow -> Cow<[T]> + BitMap (zero-copy when possible)
     ///
     /// Returns: (ValueMatrix, BitMap) where bitmap marks null positions
     #[inline]
@@ -447,7 +447,7 @@ impl ArrowToTsFileConverter {
                 }
                 ValueMatrix::Text(values)
             }
-            // Handle type promotions (Int8/16 → Int32, UInt → Int)
+            // Handle type promotions (Int8/16 -> Int32, UInt -> Int)
             DataType::Int8 => {
                 use std::borrow::Cow;
                 let arr = array.as_any().downcast_ref::<Int8Array>().unwrap();
@@ -533,7 +533,7 @@ impl ArrowToTsFileConverter {
                 ValueMatrix::Int64(Cow::Owned(values))
             }
             _ => {
-                return Err(TsFileError::NotImplemented(format!(
+                return Err(TimbreError::NotImplemented(format!(
                     "Unsupported Arrow data type for direct extraction: {:?}",
                     data_type
                 )));
@@ -768,7 +768,7 @@ impl ArrowToTsFileConverter {
                 }
             }
             _ => {
-                return Err(TsFileError::NotImplemented(format!(
+                return Err(TimbreError::NotImplemented(format!(
                     "Unsupported Arrow data type for bulk extraction: {:?}",
                     data_type
                 )));
@@ -778,12 +778,12 @@ impl ArrowToTsFileConverter {
         Ok(result)
     }
 
-    /// Finish writing and close the TsFile
+    /// Finish writing and close the Timbre
     pub fn finish(self) -> Result<()> {
         self.writer.close()
     }
 
-    /// Initialize TsFile schema from Arrow schema
+    /// Initialize Timbre schema from Arrow schema
     fn initialize_schema(&mut self, _batch: &RecordBatch) -> Result<()> {
         // Register all measurements for all potential devices
         // Note: We'll register schemas lazily as we encounter new devices
@@ -793,7 +793,7 @@ impl ArrowToTsFileConverter {
     /// Extract device ID column as string array
     fn get_device_array(&self, batch: &RecordBatch) -> Result<Arc<StringArray>> {
         let device_col = batch.column_by_name(&self.device_column).ok_or_else(|| {
-            TsFileError::InvalidState(format!(
+            TimbreError::InvalidState(format!(
                 "Device column '{}' not found in RecordBatch",
                 self.device_column
             ))
@@ -806,7 +806,7 @@ impl ArrowToTsFileConverter {
                 .unwrap()
                 .to_owned()
                 .into()),
-            _ => Err(TsFileError::InvalidState(format!(
+            _ => Err(TimbreError::InvalidState(format!(
                 "Device column '{}' must be of type Utf8, got {:?}",
                 self.device_column,
                 device_col.data_type()
@@ -819,7 +819,7 @@ impl ArrowToTsFileConverter {
         let timestamp_col = batch
             .column_by_name(&self.timestamp_column)
             .ok_or_else(|| {
-                TsFileError::InvalidState(format!(
+                TimbreError::InvalidState(format!(
                     "Timestamp column '{}' not found in RecordBatch",
                     self.timestamp_column
                 ))
@@ -842,7 +842,7 @@ impl ArrowToTsFileConverter {
                             })
                     })
                     .ok_or_else(|| {
-                        TsFileError::InvalidState(format!(
+                        TimbreError::InvalidState(format!(
                             "Failed to downcast timestamp column '{}'",
                             self.timestamp_column
                         ))
@@ -873,7 +873,7 @@ impl ArrowToTsFileConverter {
                     .as_any()
                     .downcast_ref::<Int64Array>()
                     .ok_or_else(|| {
-                        TsFileError::InvalidState(format!(
+                        TimbreError::InvalidState(format!(
                             "Failed to downcast Int64 timestamp column '{}'",
                             self.timestamp_column
                         ))
@@ -891,7 +891,7 @@ impl ArrowToTsFileConverter {
 
                 Ok(timestamps)
             }
-            _ => Err(TsFileError::InvalidState(format!(
+            _ => Err(TimbreError::InvalidState(format!(
                 "Timestamp column '{}' must be Timestamp or Int64, got {:?}",
                 self.timestamp_column,
                 timestamp_col.data_type()
@@ -902,7 +902,7 @@ impl ArrowToTsFileConverter {
     /// Get encoding for a field, checking metadata hints first, then falling back to defaults
     ///
     /// Checks for encoding hints in Arrow field metadata with keys:
-    /// - "tsfile:encoding" (preferred)
+    /// - "timbre:encoding" (preferred)
     /// - "encoding"
     ///
     /// If no hint is found or parsing fails, falls back to default encoding for the data type.
@@ -916,12 +916,12 @@ impl ArrowToTsFileConverter {
         // Check for encoding hint in field metadata
         let metadata = field.metadata();
 
-        // Try "tsfile:encoding" key first (preferred)
-        if let Some(encoding_str) = metadata.get("tsfile:encoding")
+        // Try "timbre:encoding" key first (preferred)
+        if let Some(encoding_str) = metadata.get("timbre:encoding")
             && let Some(encoding) = TSEncoding::parse_encoding(encoding_str)
         {
             log::debug!(
-                "  Using metadata encoding hint for '{}': {} (from tsfile:encoding)",
+                "  Using metadata encoding hint for '{}': {} (from timbre:encoding)",
                 field.name(),
                 encoding
             );
@@ -953,7 +953,7 @@ impl ArrowToTsFileConverter {
     }
 }
 
-impl ArrowToTsFileConverterBuilder {
+impl FromArrowConverterBuilder {
     /// Set the device ID column name
     pub fn with_device_column(mut self, name: impl Into<String>) -> Self {
         self.device_column = Some(name.into());
@@ -973,18 +973,18 @@ impl ArrowToTsFileConverterBuilder {
     }
 
     /// Build the converter
-    pub fn build(self) -> Result<ArrowToTsFileConverter> {
+    pub fn build(self) -> Result<FromArrowConverter> {
         let device_column = self
             .device_column
-            .ok_or_else(|| TsFileError::InvalidState("Device column not specified".to_string()))?;
+            .ok_or_else(|| TimbreError::InvalidState("Device column not specified".to_string()))?;
 
         let timestamp_column = self.timestamp_column.ok_or_else(|| {
-            TsFileError::InvalidState("Timestamp column not specified".to_string())
+            TimbreError::InvalidState("Timestamp column not specified".to_string())
         })?;
 
-        let writer = TsFileWriter::new(&self.path)?;
+        let writer = FileWriter::new(&self.path)?;
 
-        Ok(ArrowToTsFileConverter {
+        Ok(FromArrowConverter {
             writer,
             config: self.config,
             device_column,
@@ -1003,7 +1003,7 @@ mod tests {
     use tempfile::NamedTempFile;
 
     #[test]
-    fn test_arrow_to_tsfile_basic() {
+    fn test_arrow_to_timbre_basic() {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
@@ -1026,8 +1026,8 @@ mod tests {
         let batch =
             RecordBatch::try_new(schema, vec![timestamp_array, device_array, temp_array]).unwrap();
 
-        // Convert to TsFile
-        let mut converter = ArrowToTsFileConverter::builder(path)
+        // Convert to Timbre
+        let mut converter = FromArrowConverter::builder(path)
             .with_device_column("device_id")
             .with_timestamp_column("timestamp")
             .build()
@@ -1041,7 +1041,7 @@ mod tests {
     }
 
     #[test]
-    fn test_arrow_to_tsfile_multiple_devices() {
+    fn test_arrow_to_timbre_multiple_devices() {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
@@ -1062,8 +1062,8 @@ mod tests {
         let batch =
             RecordBatch::try_new(schema, vec![timestamp_array, device_array, value_array]).unwrap();
 
-        // Convert to TsFile
-        let mut converter = ArrowToTsFileConverter::builder(path)
+        // Convert to Timbre
+        let mut converter = FromArrowConverter::builder(path)
             .with_device_column("device_id")
             .with_timestamp_column("timestamp")
             .build()
@@ -1084,7 +1084,7 @@ mod tests {
 
         // Create Arrow schema with encoding hints in metadata
         let mut temp_metadata = HashMap::new();
-        temp_metadata.insert("tsfile:encoding".to_string(), "chimp128".to_string());
+        temp_metadata.insert("timbre:encoding".to_string(), "chimp128".to_string());
 
         let mut humidity_metadata = HashMap::new();
         humidity_metadata.insert("encoding".to_string(), "gorilla".to_string());
@@ -1108,8 +1108,8 @@ mod tests {
         )
         .unwrap();
 
-        // Convert to TsFile
-        let mut converter = ArrowToTsFileConverter::builder(path)
+        // Convert to Timbre
+        let mut converter = FromArrowConverter::builder(path)
             .with_device_column("device_id")
             .with_timestamp_column("timestamp")
             .build()
@@ -1149,8 +1149,8 @@ mod tests {
         let batch =
             RecordBatch::try_new(schema, vec![timestamp_array, device_array, value_array]).unwrap();
 
-        // Convert to TsFile (should trigger parallel processing path)
-        let mut converter = ArrowToTsFileConverter::builder(path)
+        // Convert to Timbre (should trigger parallel processing path)
+        let mut converter = FromArrowConverter::builder(path)
             .with_device_column("device_id")
             .with_timestamp_column("timestamp")
             .build()

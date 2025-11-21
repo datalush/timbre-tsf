@@ -1,6 +1,6 @@
-//! Core data types, schemas, and structures for TsFile.
+//! Core data types, schemas, and structures for Timbre.
 //!
-//! This module contains the fundamental building blocks for working with TsFile data:
+//! This module contains the fundamental building blocks for working with Timbre data:
 //!
 //! - **Types**: Data type enums ([`TSDataType`]), encoding types ([`TSEncoding`]),
 //!   compression types ([`CompressionType`]), and value wrappers ([`TsValue`])

@@ -5,7 +5,7 @@
 //!
 //! # Algorithm
 //!
-//! 1. **Dictionary**: Build a mapping of unique values → indices (u8)
+//! 1. **Dictionary**: Build a mapping of unique values -> indices (u8)
 //! 2. **RLE**: Encode runs of identical indices as (index, run_length) pairs
 //! 3. **Varint**: Use variable-length encoding for run lengths
 //! 4. **Simple8b**: Pack indices efficiently
@@ -32,7 +32,7 @@
 //! - **Speed**: ~1-2 GB/s encoding, ~2-3 GB/s decoding
 //! - **Best for**: Irregular discrete values (not regular quantization)
 
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -103,7 +103,7 @@ impl DictionaryRLEEncoder {
             idx
         } else {
             if self.dictionary.len() >= 256 {
-                return Err(TsFileError::EncodingError(
+                return Err(TimbreError::EncodingError(
                     "DictionaryRLE: too many unique values (max 256)".to_string(),
                 ));
             }
@@ -210,7 +210,7 @@ impl DictionaryRLEEncoder {
             let run_length = self.read_varint(&mut cursor)? as usize;
 
             if index >= dictionary.len() {
-                return Err(TsFileError::DecodingError(format!(
+                return Err(TimbreError::DecodingError(format!(
                     "DictionaryRLE: invalid index {} (dictionary size: {})",
                     index,
                     dictionary.len()
@@ -241,7 +241,7 @@ impl DictionaryRLEEncoder {
             }
 
             if shift >= 32 {
-                return Err(TsFileError::DecodingError(
+                return Err(TimbreError::DecodingError(
                     "DictionaryRLE: varint overflow".to_string(),
                 ));
             }
@@ -313,7 +313,7 @@ mod tests {
         let compression_ratio = raw_size as f64 / encoded.len() as f64;
 
         println!(
-            "DictionaryRLE: {} bytes → {} bytes ({:.2}x compression)",
+            "DictionaryRLE: {} bytes -> {} bytes ({:.2}x compression)",
             raw_size,
             encoded.len(),
             compression_ratio
@@ -355,7 +355,7 @@ mod tests {
         let compression_ratio = raw_size as f64 / encoded.len() as f64;
 
         println!(
-            "DictionaryRLE (constant): {} bytes → {} bytes ({:.2}x compression)",
+            "DictionaryRLE (constant): {} bytes -> {} bytes ({:.2}x compression)",
             raw_size,
             encoded.len(),
             compression_ratio

@@ -1,7 +1,7 @@
 use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::compress::{CompressorImpl, create_compressor};
 use crate::encoding::{DecoderImpl, create_decoder};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use crate::file::{PageData, PageHeader};
 use std::io::Read;
 use std::sync::Arc;
@@ -115,7 +115,7 @@ impl PageReader {
                         miniblock.header.timestamp_uncompressed_size as usize,
                     )
                     .map_err(|e| {
-                        TsFileError::DecompressionError(format!(
+                        TimbreError::DecompressionError(format!(
                             "Timestamp decompression failed: {}",
                             e
                         ))
@@ -127,7 +127,7 @@ impl PageReader {
                         miniblock.header.value_uncompressed_size as usize,
                     )
                     .map_err(|e| {
-                        TsFileError::DecompressionError(format!(
+                        TimbreError::DecompressionError(format!(
                             "Value decompression failed: {}",
                             e
                         ))
@@ -144,7 +144,7 @@ impl PageReader {
                     let ts = time_decoder
                         .read_i64(&time_uncompressed, &mut pos)
                         .map_err(|e| {
-                            TsFileError::EncodingError(format!("Timestamp decode failed: {}", e))
+                            TimbreError::EncodingError(format!("Timestamp decode failed: {}", e))
                         })?;
                     timestamps.push(ts);
                 }
@@ -159,7 +159,7 @@ impl PageReader {
                     miniblock.header.point_count as usize,
                 )?;
 
-                Ok::<_, crate::error::TsFileError>((timestamps, values))
+                Ok::<_, crate::error::TimbreError>((timestamps, values))
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -188,7 +188,7 @@ impl PageReader {
         data_type: TSDataType,
     ) -> Result<DecodedValues> {
         if values_vec.is_empty() {
-            return Err(TsFileError::InvalidState("No values to merge".to_string()));
+            return Err(TimbreError::InvalidState("No values to merge".to_string()));
         }
 
         if values_vec.len() == 1 {
@@ -251,7 +251,7 @@ impl PageReader {
                 }
                 Ok(DecodedValues::Text(merged))
             }
-            _ => Err(TsFileError::TypeMismatch {
+            _ => Err(TimbreError::TypeMismatch {
                 expected: "supported type".to_string(),
                 actual: format!("{:?}", data_type),
             }),
@@ -316,7 +316,7 @@ impl PageReader {
                 }
                 Ok(DecodedValues::Text(values))
             }
-            _ => Err(crate::error::TsFileError::TypeMismatch {
+            _ => Err(crate::error::TimbreError::TypeMismatch {
                 expected: "supported type".to_string(),
                 actual: format!("{:?}", self.data_type),
             }),
@@ -367,7 +367,7 @@ impl DecodedValues {
 
     /// Extend this DecodedValues with another (must be same variant)
     pub fn extend(&mut self, other: DecodedValues) -> Result<()> {
-        use crate::error::TsFileError;
+        use crate::error::TimbreError;
         match (self, other) {
             (DecodedValues::Boolean(v1), DecodedValues::Boolean(v2)) => v1.extend(v2),
             (DecodedValues::Int32(v1), DecodedValues::Int32(v2)) => v1.extend(v2),
@@ -376,7 +376,7 @@ impl DecodedValues {
             (DecodedValues::Double(v1), DecodedValues::Double(v2)) => v1.extend(v2),
             (DecodedValues::Text(v1), DecodedValues::Text(v2)) => v1.extend(v2),
             (left, right) => {
-                return Err(TsFileError::TypeMismatch {
+                return Err(TimbreError::TypeMismatch {
                     expected: format!("{:?}", left),
                     actual: format!("{:?}", right),
                 });

@@ -1,20 +1,20 @@
 //! Fluent scan API with predicate push down
 //!
-//! Provides a builder pattern for scanning TsFile data with filters.
+//! Provides a builder pattern for scanning Timbre data with filters.
 
 use crate::error::Result;
 use crate::query::{Predicate, TimeFilter, ValueFilter};
-use crate::reader::{DecodedChunk, TsFileReader};
+use crate::reader::{DecodedChunk, FileReader};
 
 /// Fluent scan builder
 ///
 /// # Example
 /// ```no_run
-/// use timbre_tsf::reader::TsFileReader;
+/// use timbre_tsf::reader::FileReader;
 /// use timbre_tsf::query::ValueFilter;
 /// use timbre_tsf::common::TsValue;
 ///
-/// let mut reader = TsFileReader::open("data.timbre")?;
+/// let mut reader = FileReader::open("data.timbre")?;
 ///
 /// let results = reader.scan()
 ///     .device("sensor-001")
@@ -25,14 +25,14 @@ use crate::reader::{DecodedChunk, TsFileReader};
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub struct ScanBuilder<'a> {
-    reader: &'a mut TsFileReader,
+    reader: &'a mut FileReader,
     device_id: Option<String>,
     measurement_name: Option<String>,
     predicates: Vec<Predicate>,
 }
 
 impl<'a> ScanBuilder<'a> {
-    pub(crate) fn new(reader: &'a mut TsFileReader) -> Self {
+    pub(crate) fn new(reader: &'a mut FileReader) -> Self {
         Self {
             reader,
             device_id: None,
@@ -79,11 +79,11 @@ impl<'a> ScanBuilder<'a> {
     /// Execute the scan with predicate push down
     pub fn execute(self) -> Result<DecodedChunk> {
         let device_id = self.device_id.ok_or_else(|| {
-            crate::error::TsFileError::InvalidState("Device ID not specified".to_string())
+            crate::error::TimbreError::InvalidState("Device ID not specified".to_string())
         })?;
 
         let measurement_name = self.measurement_name.ok_or_else(|| {
-            crate::error::TsFileError::InvalidState("Measurement name not specified".to_string())
+            crate::error::TimbreError::InvalidState("Measurement name not specified".to_string())
         })?;
 
         // Combine all predicates with AND
@@ -105,16 +105,16 @@ impl<'a> ScanBuilder<'a> {
     }
 }
 
-impl TsFileReader {
+impl FileReader {
     /// Start building a scan with fluent API
     ///
     /// # Example
     /// ```no_run
-    /// use timbre_tsf::reader::TsFileReader;
+    /// use timbre_tsf::reader::FileReader;
     /// use timbre_tsf::query::ValueFilter;
     /// use timbre_tsf::common::TsValue;
     ///
-    /// let mut reader = TsFileReader::open("data.timbre")?;
+    /// let mut reader = FileReader::open("data.timbre")?;
     ///
     /// let chunk = reader.scan()
     ///     .device("device1")
@@ -135,7 +135,7 @@ mod tests {
     use crate::common::{
         CompressionType, MeasurementSchema, TSDataType, TSEncoding, TsRecord, TsValue,
     };
-    use crate::writer::TsFileWriter;
+    use crate::writer::FileWriter;
     use tempfile::NamedTempFile;
 
     #[test]
@@ -145,7 +145,7 @@ mod tests {
 
         // Write test data
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
             let schema = MeasurementSchema::new(
                 "temp",
                 TSDataType::Float,
@@ -163,7 +163,7 @@ mod tests {
         }
 
         // Scan with fluent API
-        let mut reader = TsFileReader::open(path).unwrap();
+        let mut reader = FileReader::open(path).unwrap();
 
         let result = reader
             .scan()
@@ -185,7 +185,7 @@ mod tests {
 
         // Write test data
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
             let schema = MeasurementSchema::new(
                 "sensor",
                 TSDataType::Int32,
@@ -203,7 +203,7 @@ mod tests {
         }
 
         // Scan with value filter
-        let mut reader = TsFileReader::open(path).unwrap();
+        let mut reader = FileReader::open(path).unwrap();
 
         let result = reader
             .scan()
@@ -225,7 +225,7 @@ mod tests {
 
         // Write test data
         {
-            let mut writer = TsFileWriter::new(path).unwrap();
+            let mut writer = FileWriter::new(path).unwrap();
             let schema = MeasurementSchema::new(
                 "data",
                 TSDataType::Double,
@@ -243,7 +243,7 @@ mod tests {
         }
 
         // Scan with combined filters
-        let mut reader = TsFileReader::open(path).unwrap();
+        let mut reader = FileReader::open(path).unwrap();
 
         let result = reader
             .scan()

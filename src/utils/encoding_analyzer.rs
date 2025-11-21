@@ -1,9 +1,9 @@
 //! Adaptive encoding analysis tools for selecting optimal encoders.
 //!
 //! This module provides tools to analyze data patterns and recommend the best encoding:
-//! - **Quantized**: For regular step patterns (e.g., 0.1°C resolution) → 26x compression
-//! - **DictionaryRLE**: For high repetition with irregular discrete values → 10-40x compression
-//! - **Chimp128**: For continuous drift or high entropy → 5-8x compression
+//! - **Quantized**: For regular step patterns (e.g., 0.1°C resolution) -> 26x compression
+//! - **DictionaryRLE**: For high repetition with irregular discrete values -> 10-40x compression
+//! - **Chimp128**: For continuous drift or high entropy -> 5-8x compression
 //!
 //! **Architecture**: This module provides ANALYSIS TOOLS only. The application/database
 //! layer is responsible for buffering data and making encoding decisions.
@@ -61,7 +61,7 @@ pub fn analyze_pattern(data: &[f64]) -> DataPattern {
     let unique_values: HashSet<u64> = data.iter().map(|v| v.to_bits()).collect();
     let repetition_pct = 1.0 - (unique_values.len() as f64 / data.len() as f64);
 
-    // High repetition with discrete values → DictionaryRLE
+    // High repetition with discrete values -> DictionaryRLE
     if repetition_pct > 0.5 && unique_values.len() < 256 {
         return DataPattern::HighRepetition {
             unique_count: unique_values.len(),
@@ -76,7 +76,7 @@ pub fn analyze_pattern(data: &[f64]) -> DataPattern {
         let avg_delta = deltas.iter().sum::<f64>() / deltas.len() as f64;
         let max_delta = deltas.iter().fold(0.0f64, |acc, &d| acc.max(d));
 
-        // Continuous small changes → Chimp128
+        // Continuous small changes -> Chimp128
         if avg_delta < 1.0 && max_delta < 10.0 {
             return DataPattern::ContinuousDrift {
                 avg_delta,
@@ -129,20 +129,20 @@ pub fn recommend_encoding(data: &[f64]) -> TSEncoding {
 ///
 /// # Heurística (basada en benchmarks con 100K puntos)
 ///
-/// ## Encodings que producen datos compactos → **Zstd serial**
+/// ## Encodings que producen datos compactos -> **Zstd serial**
 ///
-/// - **Quantized + Simple8b**: 27KB encoded → 94B compressed (284x), 9µs
-/// - **DictionaryRLE**: 21KB encoded → 97B compressed (221x), 9µs
+/// - **Quantized + Simple8b**: 27KB encoded -> 94B compressed (284x), 9µs
+/// - **DictionaryRLE**: 21KB encoded -> 97B compressed (221x), 9µs
 /// - **Simple8b**: Similar a Quantized
 ///
 /// Estos encodings ya comprimen extremadamente bien, produciendo datos muy pequeños.
 /// Zstd serial puede procesarlos en ~9µs, mientras que paralelizar con LZ4 cuesta
 /// ~27µs de overhead (3x más lento) y pierde ratio de compresión significativamente.
 ///
-/// ## Encodings que producen datos grandes quasi-random → **LZ4 paralelo**
+/// ## Encodings que producen datos grandes quasi-random -> **LZ4 paralelo**
 ///
-/// - **Chimp128**: 838KB encoded → 828KB compressed (1.01x), 80µs paralelo
-///   - vs Zstd serial: 838KB → 689KB (1.22x), 3.3ms
+/// - **Chimp128**: 838KB encoded -> 828KB compressed (1.01x), 80µs paralelo
+///   - vs Zstd serial: 838KB -> 689KB (1.22x), 3.3ms
 ///   - Speedup: **40x más rápido**, pérdida ratio: ~1%
 /// - **Gorilla**: Similar a Chimp128
 ///
@@ -177,13 +177,13 @@ pub fn recommend_encoding(data: &[f64]) -> TSEncoding {
 /// El `CompressionType` recomendado para el encoding dado.
 pub fn recommend_compression(encoding: TSEncoding) -> CompressionType {
     match encoding {
-        // Encodings que comprimen extremadamente bien → Zstd serial
+        // Encodings que comprimen extremadamente bien -> Zstd serial
         // (datos tiny ~20-30KB, Zstd procesa en ~9µs, LZ4 paralelo cuesta ~27µs overhead)
         TSEncoding::Quantized | TSEncoding::Simple8b | TSEncoding::DictionaryRLE => {
             CompressionType::Zstd
         }
 
-        // Encodings con datos grandes quasi-random → LZ4 paralelo
+        // Encodings con datos grandes quasi-random -> LZ4 paralelo
         // (datos ~800KB+, LZ4 40x speedup vs solo 1% pérdida de ratio)
         TSEncoding::Chimp128 | TSEncoding::Gorilla => CompressionType::Lz4,
 

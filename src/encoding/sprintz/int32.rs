@@ -1,5 +1,5 @@
 use super::base::*;
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 
@@ -197,7 +197,7 @@ impl Int32SprintzDecoder {
 
     fn decode_block(&mut self, input: &[u8], pos: &mut usize) -> Result<()> {
         if *pos >= input.len() {
-            return Err(TsFileError::DecodingError("Insufficient data".to_string()));
+            return Err(TimbreError::DecodingError("Insufficient data".to_string()));
         }
 
         let bit_width = input[*pos];
@@ -210,7 +210,7 @@ impl Int32SprintzDecoder {
 
             for i in 0..size {
                 if *pos + 4 > input.len() {
-                    return Err(TsFileError::DecodingError(
+                    return Err(TimbreError::DecodingError(
                         "Insufficient data for RLE block".to_string(),
                     ));
                 }
@@ -227,7 +227,7 @@ impl Int32SprintzDecoder {
 
             // Read packed data
             if *pos + bit_width as usize > input.len() {
-                return Err(TsFileError::DecodingError(
+                return Err(TimbreError::DecodingError(
                     "Insufficient data for packed values".to_string(),
                 ));
             }
@@ -308,7 +308,7 @@ fn read_var_uint(input: &[u8], pos: &mut usize) -> Result<u32> {
 
     loop {
         if *pos >= input.len() {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "Insufficient data for varint".to_string(),
             ));
         }
@@ -324,7 +324,7 @@ fn read_var_uint(input: &[u8], pos: &mut usize) -> Result<u32> {
 
         shift += 7;
         if shift >= 32 {
-            return Err(TsFileError::DecodingError("Varint too large".to_string()));
+            return Err(TimbreError::DecodingError("Varint too large".to_string()));
         }
     }
 

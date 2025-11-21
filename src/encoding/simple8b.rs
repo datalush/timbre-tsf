@@ -44,7 +44,7 @@
 
 use crate::common::TSDataType;
 use crate::encoding::{Decoder, Encoder};
-use crate::error::{Result, TsFileError};
+use crate::error::{Result, TimbreError};
 use byteorder::{LittleEndian, WriteBytesExt};
 
 /// Simple8b selector modes (count, bits per value).
@@ -247,14 +247,14 @@ impl Simple8bEncoder {
 
 impl Encoder for Simple8bEncoder {
     fn encode_bool(&mut self, _value: bool, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Simple8b does not support boolean".to_string(),
         ))
     }
 
     fn encode_i32(&mut self, value: i32, _out: &mut Vec<u8>) -> Result<()> {
         if self.data_type != TSDataType::Int32 && self.data_type != TSDataType::Date {
-            return Err(TsFileError::EncodingError(
+            return Err(TimbreError::EncodingError(
                 "Simple8b: wrong data type for i32".to_string(),
             ));
         }
@@ -264,7 +264,7 @@ impl Encoder for Simple8bEncoder {
 
     fn encode_i64(&mut self, value: i64, _out: &mut Vec<u8>) -> Result<()> {
         if self.data_type != TSDataType::Int64 && self.data_type != TSDataType::Timestamp {
-            return Err(TsFileError::EncodingError(
+            return Err(TimbreError::EncodingError(
                 "Simple8b: wrong data type for i64".to_string(),
             ));
         }
@@ -273,19 +273,19 @@ impl Encoder for Simple8bEncoder {
     }
 
     fn encode_f32(&mut self, _value: f32, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Simple8b does not support f32".to_string(),
         ))
     }
 
     fn encode_f64(&mut self, _value: f64, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Simple8b does not support f64".to_string(),
         ))
     }
 
     fn encode_string(&mut self, _value: &str, _out: &mut Vec<u8>) -> Result<()> {
-        Err(TsFileError::EncodingError(
+        Err(TimbreError::EncodingError(
             "Simple8b does not support string".to_string(),
         ))
     }
@@ -336,7 +336,7 @@ impl Simple8bDecoder {
     fn ensure_word(&mut self, data: &[u8], pos: &mut usize) -> Result<()> {
         if self.current_pos == 0 {
             if *pos + 8 > data.len() {
-                return Err(TsFileError::DecodingError(
+                return Err(TimbreError::DecodingError(
                     "Simple8b: unexpected end of data".to_string(),
                 ));
             }
@@ -404,14 +404,14 @@ impl Simple8bDecoder {
 
 impl Decoder for Simple8bDecoder {
     fn read_bool(&mut self, _data: &[u8], _pos: &mut usize) -> Result<bool> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Simple8b does not support boolean".to_string(),
         ))
     }
 
     fn read_i32(&mut self, data: &[u8], pos: &mut usize) -> Result<i32> {
         if self.data_type != TSDataType::Int32 && self.data_type != TSDataType::Date {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "Simple8b: wrong data type for i32".to_string(),
             ));
         }
@@ -420,7 +420,7 @@ impl Decoder for Simple8bDecoder {
 
     fn read_i64(&mut self, data: &[u8], pos: &mut usize) -> Result<i64> {
         if self.data_type != TSDataType::Int64 && self.data_type != TSDataType::Timestamp {
-            return Err(TsFileError::DecodingError(
+            return Err(TimbreError::DecodingError(
                 "Simple8b: wrong data type for i64".to_string(),
             ));
         }
@@ -428,19 +428,19 @@ impl Decoder for Simple8bDecoder {
     }
 
     fn read_f32(&mut self, _data: &[u8], _pos: &mut usize) -> Result<f32> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Simple8b does not support f32".to_string(),
         ))
     }
 
     fn read_f64(&mut self, _data: &[u8], _pos: &mut usize) -> Result<f64> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Simple8b does not support f64".to_string(),
         ))
     }
 
     fn read_string(&mut self, _data: &[u8], _pos: &mut usize) -> Result<String> {
-        Err(TsFileError::DecodingError(
+        Err(TimbreError::DecodingError(
             "Simple8b does not support string".to_string(),
         ))
     }
