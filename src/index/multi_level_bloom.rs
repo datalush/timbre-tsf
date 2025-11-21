@@ -275,8 +275,7 @@ impl MultiLevelBloomFilter {
                 "Invalid chunk filter count".to_string(),
             ));
         }
-        let num_chunks =
-            u64::from_le_bytes(data[offset..offset + 8].try_into().unwrap()) as usize;
+        let num_chunks = u64::from_le_bytes(data[offset..offset + 8].try_into().unwrap()) as usize;
         offset += 8;
 
         let mut chunk_filters = HashMap::new();
@@ -328,7 +327,7 @@ impl MultiLevelBloomFilter {
         // on page filters. For optimal performance, rebuild the mapping if needed.
 
         Ok(Self {
-            expected_items: 1000, // Default, doesn't affect querying
+            expected_items: 1000,      // Default, doesn't affect querying
             false_positive_rate: 0.01, // Default, doesn't affect querying
             page_filters,
             chunk_filters,

@@ -1,5 +1,5 @@
 use crate::error::{Result, TsFileError};
-use crate::file::{ChunkMeta, FileFooter, FileHeader, FileFlags, GlobalDictionary};
+use crate::file::{ChunkMeta, FileFlags, FileFooter, FileHeader, GlobalDictionary};
 use crate::writer::ChunkWriter;
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::collections::HashMap;
@@ -301,14 +301,18 @@ mod tests {
         assert!(header.dictionary_offset > 0);
 
         // Leer footer desde el final
-        file.seek(std::io::SeekFrom::End(-(FileFooter::SERIALIZED_SIZE as i64))).unwrap();
+        file.seek(std::io::SeekFrom::End(
+            -(FileFooter::SERIALIZED_SIZE as i64),
+        ))
+        .unwrap();
         let footer = FileFooter::deserialize(&mut file).unwrap();
 
         assert!(footer.dictionary_offset > 0);
         assert!(footer.dictionary_size > 0);
 
         // Leer y verificar diccionario
-        file.seek(std::io::SeekFrom::Start(footer.dictionary_offset)).unwrap();
+        file.seek(std::io::SeekFrom::Start(footer.dictionary_offset))
+            .unwrap();
         let dict = GlobalDictionary::deserialize(&mut file).unwrap();
 
         // Debe tener 4 strings: sensor_000, sensor_001, sensor_002, temperature

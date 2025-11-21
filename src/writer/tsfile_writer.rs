@@ -70,10 +70,7 @@ impl TsFileWriter {
         let _ = self.interner.intern(&device_id);
 
         // OPT-1: Agregar a Vec en lugar de HashMap (mantener orden de registro)
-        self.schemas
-            .entry(device_id)
-            .or_default()
-            .push(schema);
+        self.schemas.entry(device_id).or_default().push(schema);
 
         Ok(())
     }

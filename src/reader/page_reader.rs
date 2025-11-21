@@ -40,8 +40,9 @@ impl PageReader {
         reader.read_exact(&mut compressed_data)?;
 
         // Descomprimir (reutilizando compressor instance) - OPT-READ-1
-        let uncompressed =
-            self.compressor.decompress(&compressed_data, header.uncompressed_size as usize)?;
+        let uncompressed = self
+            .compressor
+            .decompress(&compressed_data, header.uncompressed_size as usize)?;
 
         // Leer tamaños y decodificar
         use byteorder::{LittleEndian, ReadBytesExt};
@@ -109,12 +110,28 @@ impl PageReader {
 
                 // Descomprimir timestamps y values independientemente usando tamaños del header
                 let time_uncompressed = mb_compressor
-                    .decompress(&miniblock.timestamp_data, miniblock.header.timestamp_uncompressed_size as usize)
-                    .map_err(|e| TsFileError::DecompressionError(format!("Timestamp decompression failed: {}", e)))?;
+                    .decompress(
+                        &miniblock.timestamp_data,
+                        miniblock.header.timestamp_uncompressed_size as usize,
+                    )
+                    .map_err(|e| {
+                        TsFileError::DecompressionError(format!(
+                            "Timestamp decompression failed: {}",
+                            e
+                        ))
+                    })?;
 
                 let value_uncompressed = mb_compressor
-                    .decompress(&miniblock.value_data, miniblock.header.value_uncompressed_size as usize)
-                    .map_err(|e| TsFileError::DecompressionError(format!("Value decompression failed: {}", e)))?;
+                    .decompress(
+                        &miniblock.value_data,
+                        miniblock.header.value_uncompressed_size as usize,
+                    )
+                    .map_err(|e| {
+                        TsFileError::DecompressionError(format!(
+                            "Value decompression failed: {}",
+                            e
+                        ))
+                    })?;
 
                 // Decodificar timestamps
                 let mut time_decoder = create_decoder(TSEncoding::DeltaOfDelta, TSDataType::Int64);
@@ -124,8 +141,11 @@ impl PageReader {
                 while time_decoder.has_remaining(&time_uncompressed, pos)
                     && timestamps.len() < miniblock.header.point_count as usize
                 {
-                    let ts = time_decoder.read_i64(&time_uncompressed, &mut pos)
-                        .map_err(|e| TsFileError::EncodingError(format!("Timestamp decode failed: {}", e)))?;
+                    let ts = time_decoder
+                        .read_i64(&time_uncompressed, &mut pos)
+                        .map_err(|e| {
+                            TsFileError::EncodingError(format!("Timestamp decode failed: {}", e))
+                        })?;
                     timestamps.push(ts);
                 }
 
@@ -359,7 +379,7 @@ impl DecodedValues {
                 return Err(TsFileError::TypeMismatch {
                     expected: format!("{:?}", left),
                     actual: format!("{:?}", right),
-                })
+                });
             }
         }
         Ok(())

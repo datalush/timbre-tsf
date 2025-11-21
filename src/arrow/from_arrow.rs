@@ -78,7 +78,10 @@ impl ArrowToTsFileConverter {
 
     /// Write an Arrow RecordBatch to TsFile (optimized columnar processing with parallelization)
     pub fn write_batch(&mut self, batch: &RecordBatch) -> Result<()> {
-        log::debug!("ArrowToTsFileConverter::write_batch - Processing {} rows", batch.num_rows());
+        log::debug!(
+            "ArrowToTsFileConverter::write_batch - Processing {} rows",
+            batch.num_rows()
+        );
 
         // Initialize schema on first batch
         if !self.schema_initialized {
@@ -94,7 +97,8 @@ impl ArrowToTsFileConverter {
         let timestamp_array = self.get_timestamp_array(batch)?;
 
         // Collect measurement columns metadata (avoid re-extracting in loops)
-        let mut measurement_cols: Vec<(String, Arc<dyn arrow::array::Array>, DataType)> = Vec::new();
+        let mut measurement_cols: Vec<(String, Arc<dyn arrow::array::Array>, DataType)> =
+            Vec::new();
         for field in arrow_schema.fields() {
             let field_name = field.name();
             if field_name != &self.device_column && field_name != &self.timestamp_column {
@@ -116,7 +120,8 @@ impl ArrowToTsFileConverter {
             .collect();
 
         // Now group with zero allocations per row (use &str keys)
-        let mut device_indices: HashMap<&str, Vec<usize>> = HashMap::with_capacity(unique_devices.len());
+        let mut device_indices: HashMap<&str, Vec<usize>> =
+            HashMap::with_capacity(unique_devices.len());
         let expected_rows_per_device = num_rows / unique_devices.len().max(1);
 
         for row_idx in 0..num_rows {
@@ -125,7 +130,8 @@ impl ArrowToTsFileConverter {
             }
             // ZERO ALLOCATION: device_str is &str borrowing from device_array
             let device_str = device_array.value(row_idx);
-            device_indices.entry(device_str)
+            device_indices
+                .entry(device_str)
                 .or_insert_with(|| Vec::with_capacity(expected_rows_per_device))
                 .push(row_idx);
         }
@@ -138,7 +144,10 @@ impl ArrowToTsFileConverter {
 
         if device_indices.len() >= PARALLEL_THRESHOLD {
             // Parallel path: process devices in parallel, then write sequentially
-            log::debug!("  Using parallel device processing ({} devices)", device_indices.len());
+            log::debug!(
+                "  Using parallel device processing ({} devices)",
+                device_indices.len()
+            );
 
             use rayon::prelude::*;
 
@@ -162,7 +171,10 @@ impl ArrowToTsFileConverter {
             }
         } else {
             // Sequential path: process and write devices one at a time
-            log::debug!("  Using sequential device processing ({} devices)", device_indices.len());
+            log::debug!(
+                "  Using sequential device processing ({} devices)",
+                device_indices.len()
+            );
 
             for (device_id, indices) in device_indices {
                 if indices.is_empty() {
@@ -193,7 +205,11 @@ impl ArrowToTsFileConverter {
         measurement_cols: &[(String, Arc<dyn arrow::array::Array>, DataType)],
         timestamp_array: &[i64],
     ) -> Result<Tablet> {
-        log::debug!("  Device '{}': {} rows (bulk extraction)", device_id, indices.len());
+        log::debug!(
+            "  Device '{}': {} rows (bulk extraction)",
+            device_id,
+            indices.len()
+        );
 
         // Build schemas from first row only once
         let mut schemas = Vec::with_capacity(measurement_cols.len());
@@ -201,7 +217,8 @@ impl ArrowToTsFileConverter {
             let ts_data_type = crate::arrow::schema_mapping::arrow_type_to_tsfile(data_type)?;
 
             // Check for encoding hint in field metadata
-            let field = arrow_schema.field_with_name(field_name)
+            let field = arrow_schema
+                .field_with_name(field_name)
                 .expect("field should exist");
             let encoding = self.get_encoding_for_field(field, ts_data_type);
 
@@ -226,7 +243,8 @@ impl ArrowToTsFileConverter {
         //
         // Benchmark impact: Eliminates 6M TsValue allocations for 2M rows × 3 measurements
         // Expected speedup: ~25-30% (100-120ms saved)
-        let mut value_matrices: Vec<crate::common::ValueMatrix> = Vec::with_capacity(measurement_cols.len());
+        let mut value_matrices: Vec<crate::common::ValueMatrix> =
+            Vec::with_capacity(measurement_cols.len());
         let mut bitmaps: Vec<crate::common::BitMap> = Vec::with_capacity(measurement_cols.len());
 
         for (_, column, data_type) in measurement_cols {
@@ -696,17 +714,20 @@ impl ArrowToTsFileConverter {
 
     /// Extract device ID column as string array
     fn get_device_array(&self, batch: &RecordBatch) -> Result<Arc<StringArray>> {
-        let device_col = batch
-            .column_by_name(&self.device_column)
-            .ok_or_else(|| {
-                TsFileError::InvalidState(format!(
-                    "Device column '{}' not found in RecordBatch",
-                    self.device_column
-                ))
-            })?;
+        let device_col = batch.column_by_name(&self.device_column).ok_or_else(|| {
+            TsFileError::InvalidState(format!(
+                "Device column '{}' not found in RecordBatch",
+                self.device_column
+            ))
+        })?;
 
         match device_col.data_type() {
-            DataType::Utf8 => Ok(device_col.as_any().downcast_ref::<StringArray>().unwrap().to_owned().into()),
+            DataType::Utf8 => Ok(device_col
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .to_owned()
+                .into()),
             _ => Err(TsFileError::InvalidState(format!(
                 "Device column '{}' must be of type Utf8, got {:?}",
                 self.device_column,
@@ -735,7 +756,12 @@ impl ArrowToTsFileConverter {
                         timestamp_col
                             .as_any()
                             .downcast_ref::<TimestampMicrosecondArray>()
-                            .map(|_| timestamp_col.as_any().downcast_ref::<TimestampMillisecondArray>().unwrap())
+                            .map(|_| {
+                                timestamp_col
+                                    .as_any()
+                                    .downcast_ref::<TimestampMillisecondArray>()
+                                    .unwrap()
+                            })
                     })
                     .ok_or_else(|| {
                         TsFileError::InvalidState(format!(
@@ -776,7 +802,13 @@ impl ArrowToTsFileConverter {
                     })?;
 
                 let timestamps: Vec<i64> = (0..int_array.len())
-                    .map(|i| if int_array.is_null(i) { 0 } else { int_array.value(i) })
+                    .map(|i| {
+                        if int_array.is_null(i) {
+                            0
+                        } else {
+                            int_array.value(i)
+                        }
+                    })
                     .collect();
 
                 Ok(timestamps)
@@ -841,7 +873,6 @@ impl ArrowToTsFileConverter {
             _ => TSEncoding::Plain,
         }
     }
-
 }
 
 impl ArrowToTsFileConverterBuilder {
@@ -914,11 +945,8 @@ mod tests {
         let device_array = Arc::new(StringArray::from(vec!["device1", "device1", "device1"]));
         let temp_array = Arc::new(Float32Array::from(vec![25.5, 26.0, 26.5]));
 
-        let batch = RecordBatch::try_new(
-            schema,
-            vec![timestamp_array, device_array, temp_array],
-        )
-        .unwrap();
+        let batch =
+            RecordBatch::try_new(schema, vec![timestamp_array, device_array, temp_array]).unwrap();
 
         // Convert to TsFile
         let mut converter = ArrowToTsFileConverter::builder(path)
@@ -954,8 +982,7 @@ mod tests {
         let value_array = Arc::new(Float32Array::from(vec![10.0, 20.0, 11.0, 21.0]));
 
         let batch =
-            RecordBatch::try_new(schema, vec![timestamp_array, device_array, value_array])
-                .unwrap();
+            RecordBatch::try_new(schema, vec![timestamp_array, device_array, value_array]).unwrap();
 
         // Convert to TsFile
         let mut converter = ArrowToTsFileConverter::builder(path)
@@ -987,10 +1014,8 @@ mod tests {
         let schema = Arc::new(Schema::new(vec![
             Field::new("timestamp", DataType::Int64, false),
             Field::new("device_id", DataType::Utf8, false),
-            Field::new("temperature", DataType::Float32, true)
-                .with_metadata(temp_metadata),
-            Field::new("humidity", DataType::Float32, true)
-                .with_metadata(humidity_metadata),
+            Field::new("temperature", DataType::Float32, true).with_metadata(temp_metadata),
+            Field::new("humidity", DataType::Float32, true).with_metadata(humidity_metadata),
         ]));
 
         // Create RecordBatch
@@ -1033,23 +1058,18 @@ mod tests {
 
         // Create RecordBatch with >= 4 devices to trigger parallel processing
         let timestamp_array = Arc::new(Int64Array::from(vec![
-            1000, 1000, 1000, 1000, 1000,
-            2000, 2000, 2000, 2000, 2000,
+            1000, 1000, 1000, 1000, 1000, 2000, 2000, 2000, 2000, 2000,
         ]));
         let device_array = Arc::new(StringArray::from(vec![
-            "device1", "device2", "device3", "device4", "device5",
-            "device1", "device2", "device3", "device4", "device5",
+            "device1", "device2", "device3", "device4", "device5", "device1", "device2", "device3",
+            "device4", "device5",
         ]));
         let value_array = Arc::new(Float32Array::from(vec![
-            10.0, 20.0, 30.0, 40.0, 50.0,
-            11.0, 21.0, 31.0, 41.0, 51.0,
+            10.0, 20.0, 30.0, 40.0, 50.0, 11.0, 21.0, 31.0, 41.0, 51.0,
         ]));
 
-        let batch = RecordBatch::try_new(
-            schema,
-            vec![timestamp_array, device_array, value_array],
-        )
-        .unwrap();
+        let batch =
+            RecordBatch::try_new(schema, vec![timestamp_array, device_array, value_array]).unwrap();
 
         // Convert to TsFile (should trigger parallel processing path)
         let mut converter = ArrowToTsFileConverter::builder(path)

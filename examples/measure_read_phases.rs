@@ -1,12 +1,11 @@
+use std::time::{Duration, Instant};
 /// PRECISE PHASE MEASUREMENT using manual timing
 ///
 /// This manually times each component operation to get EXACT measurements
 /// Run with: cargo run --release --example measure_read_phases
-
 use timbre_tsf::common::*;
 use timbre_tsf::compress::Lz4Compressor;
-use timbre_tsf::encoding::{Encoder, Decoder, GorillaEncoder, GorillaDecoder, create_decoder};
-use std::time::{Duration, Instant};
+use timbre_tsf::encoding::{Decoder, Encoder, GorillaDecoder, GorillaEncoder, create_decoder};
 
 fn main() {
     println!("========================================");
@@ -16,46 +15,85 @@ fn main() {
     let num_values = 200_000; // Per measurement
 
     // PHASE 1: Measure Gorilla ENCODING (to create test data)
-    println!("Phase 1: Encoding {} float values with Gorilla...", num_values);
+    println!(
+        "Phase 1: Encoding {} float values with Gorilla...",
+        num_values
+    );
     let (gorilla_encoded, gorilla_encode_time) = measure_gorilla_encode(num_values);
     println!("  Encoded size: {} bytes", gorilla_encoded.len());
-    println!("  Encode time:  {:.2} ms\n", gorilla_encode_time.as_secs_f64() * 1000.0);
+    println!(
+        "  Encode time:  {:.2} ms\n",
+        gorilla_encode_time.as_secs_f64() * 1000.0
+    );
 
     // PHASE 2: Measure LZ4 COMPRESSION
-    println!("Phase 2: Compressing {} bytes with LZ4...", gorilla_encoded.len());
+    println!(
+        "Phase 2: Compressing {} bytes with LZ4...",
+        gorilla_encoded.len()
+    );
     let (compressed, compress_time) = measure_lz4_compress(&gorilla_encoded);
-    println!("  Compressed size: {} bytes ({:.1}% of original)",
+    println!(
+        "  Compressed size: {} bytes ({:.1}% of original)",
         compressed.len(),
-        (compressed.len() as f64 / gorilla_encoded.len() as f64) * 100.0);
-    println!("  Compress time:   {:.2} ms\n", compress_time.as_secs_f64() * 1000.0);
+        (compressed.len() as f64 / gorilla_encoded.len() as f64) * 100.0
+    );
+    println!(
+        "  Compress time:   {:.2} ms\n",
+        compress_time.as_secs_f64() * 1000.0
+    );
 
     // PHASE 3: Measure LZ4 DECOMPRESSION
-    println!("Phase 3: Decompressing {} bytes with LZ4...", compressed.len());
-    let (decompressed, decompress_time) = measure_lz4_decompress(&compressed, gorilla_encoded.len());
+    println!(
+        "Phase 3: Decompressing {} bytes with LZ4...",
+        compressed.len()
+    );
+    let (decompressed, decompress_time) =
+        measure_lz4_decompress(&compressed, gorilla_encoded.len());
     println!("  Decompressed size: {} bytes", decompressed.len());
-    println!("  Decompress time:   {:.2} ms\n", decompress_time.as_secs_f64() * 1000.0);
+    println!(
+        "  Decompress time:   {:.2} ms\n",
+        decompress_time.as_secs_f64() * 1000.0
+    );
 
     // PHASE 4: Measure Gorilla DECODING
     println!("Phase 4: Decoding {} values with Gorilla...", num_values);
     let (decoded_values, gorilla_decode_time) = measure_gorilla_decode(&decompressed, num_values);
     println!("  Decoded values: {}", decoded_values.len());
-    println!("  Decode time:    {:.2} ms\n", gorilla_decode_time.as_secs_f64() * 1000.0);
+    println!(
+        "  Decode time:    {:.2} ms\n",
+        gorilla_decode_time.as_secs_f64() * 1000.0
+    );
 
     // PHASE 5: Measure DeltaOfDelta timestamp encoding/decoding
-    println!("Phase 5: Encoding {} timestamps with DeltaOfDelta...", num_values);
+    println!(
+        "Phase 5: Encoding {} timestamps with DeltaOfDelta...",
+        num_values
+    );
     let (ts_encoded, ts_encode_time) = measure_dod_encode(num_values);
     println!("  Encoded size: {} bytes", ts_encoded.len());
-    println!("  Encode time:  {:.2} ms\n", ts_encode_time.as_secs_f64() * 1000.0);
+    println!(
+        "  Encode time:  {:.2} ms\n",
+        ts_encode_time.as_secs_f64() * 1000.0
+    );
 
-    println!("Phase 6: Decoding {} timestamps with DeltaOfDelta...", num_values);
+    println!(
+        "Phase 6: Decoding {} timestamps with DeltaOfDelta...",
+        num_values
+    );
     let (decoded_timestamps, ts_decode_time) = measure_dod_decode(&ts_encoded, num_values);
     println!("  Decoded timestamps: {}", decoded_timestamps.len());
-    println!("  Decode time:        {:.2} ms\n", ts_decode_time.as_secs_f64() * 1000.0);
+    println!(
+        "  Decode time:        {:.2} ms\n",
+        ts_decode_time.as_secs_f64() * 1000.0
+    );
 
     // PHASE 7: Measure Arrow array building
     println!("Phase 7: Building Arrow arrays...");
     let arrow_time = measure_arrow_build(&decoded_values, &decoded_timestamps);
-    println!("  Arrow build time: {:.2} ms\n", arrow_time.as_secs_f64() * 1000.0);
+    println!(
+        "  Arrow build time: {:.2} ms\n",
+        arrow_time.as_secs_f64() * 1000.0
+    );
 
     // SUMMARY
     println!("========================================");
@@ -79,14 +117,17 @@ fn main() {
     println!("\n");
 
     // Throughput calculations
-    let decompress_mb_s = (gorilla_encoded.len() as f64 / 1_000_000.0) / total_decompress.as_secs_f64();
+    let decompress_mb_s =
+        (gorilla_encoded.len() as f64 / 1_000_000.0) / total_decompress.as_secs_f64();
     let decode_mv_s = (num_values as f64 / 1_000_000.0) / gorilla_decode_time.as_secs_f64();
 
     println!("Throughput:");
     println!("  Decompression: {:.1} MB/s", decompress_mb_s);
     println!("  Gorilla decode: {:.1} M values/s", decode_mv_s);
-    println!("  DeltaOfDelta decode: {:.1} M timestamps/s",
-        (num_values as f64 / 1_000_000.0) / ts_decode_time.as_secs_f64());
+    println!(
+        "  DeltaOfDelta decode: {:.1} M timestamps/s",
+        (num_values as f64 / 1_000_000.0) / ts_decode_time.as_secs_f64()
+    );
 
     println!("\n========================================");
     println!("BOTTLENECK ANALYSIS");
@@ -104,7 +145,13 @@ fn main() {
 
     for (i, (name, time)) in sorted.iter().enumerate() {
         let pct = (time.as_secs_f64() / total_measured.as_secs_f64()) * 100.0;
-        println!("  {}. {:20} {:.2} ms ({:.1}%)", i + 1, name, time.as_secs_f64() * 1000.0, pct);
+        println!(
+            "  {}. {:20} {:.2} ms ({:.1}%)",
+            i + 1,
+            name,
+            time.as_secs_f64() * 1000.0,
+            pct
+        );
     }
 
     println!("\nConclusion:");
@@ -112,7 +159,10 @@ fn main() {
     let top_pct = (top.1.as_secs_f64() / total_measured.as_secs_f64()) * 100.0;
 
     if top_pct > 35.0 {
-        println!("  {} is the PRIMARY bottleneck ({:.1}% of time).", top.0, top_pct);
+        println!(
+            "  {} is the PRIMARY bottleneck ({:.1}% of time).",
+            top.0, top_pct
+        );
         println!("  Focus optimization efforts here for maximum impact.");
     } else {
         println!("  No single dominant bottleneck detected.");

@@ -4,12 +4,11 @@
 /// Objetivo: 40-60x con Chimp128 solo, 6-10x vs Raw+Zstd
 ///
 /// Run with: cargo bench --bench compression_rigorous
-
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
-use timbre_tsf::common::{TSDataType, TSEncoding};
-use timbre_tsf::encoding::create_encoder;
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use rand::Rng;
 use std::time::Duration;
+use timbre_tsf::common::{TSDataType, TSEncoding};
+use timbre_tsf::encoding::create_encoder;
 
 /// Genera datos IoT realistas con estabilidad configurable
 ///
@@ -24,7 +23,7 @@ fn generate_iot_temperature(n: usize, stability: f64) -> Vec<f64> {
 
     // Valores discretos de temperatura (cuantizados a 0.1°C, realista para sensores)
     let possible_temps: Vec<f64> = (180..=250)
-        .map(|t| t as f64 / 10.0)  // 18.0, 18.1, 18.2, ..., 25.0
+        .map(|t| t as f64 / 10.0) // 18.0, 18.1, 18.2, ..., 25.0
         .collect();
 
     // Temperatura actual (índice en possible_temps)
@@ -116,28 +115,20 @@ fn compression_benchmark(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(data_size as u64));
 
         // === Benchmark 1: Raw ===
-        group.bench_with_input(
-            BenchmarkId::new("1_raw", size),
-            &data,
-            |b, data| {
-                b.iter(|| {
-                    let compressed = compress_raw(black_box(data));
-                    black_box(compressed);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("1_raw", size), &data, |b, data| {
+            b.iter(|| {
+                let compressed = compress_raw(black_box(data));
+                black_box(compressed);
+            });
+        });
 
         // === Benchmark 2: Raw + Zstd ===
-        group.bench_with_input(
-            BenchmarkId::new("2_raw_zstd", size),
-            &data,
-            |b, data| {
-                b.iter(|| {
-                    let compressed = compress_raw_zstd(black_box(data));
-                    black_box(compressed);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("2_raw_zstd", size), &data, |b, data| {
+            b.iter(|| {
+                let compressed = compress_raw_zstd(black_box(data));
+                black_box(compressed);
+            });
+        });
 
         // === Benchmark 3: Chimp128 only ===
         group.bench_with_input(
@@ -177,7 +168,10 @@ fn compression_benchmark(c: &mut Criterion) {
 
         // === Imprimir Tabla de Ratios ===
         if size == 100_000 {
-            println!("\n=== Compression Ratios ({} puntos, temperatura IoT, 85% estabilidad) ===\n", size);
+            println!(
+                "\n=== Compression Ratios ({} puntos, temperatura IoT, 85% estabilidad) ===\n",
+                size
+            );
 
             let raw = compress_raw(&data);
             let raw_zstd = compress_raw_zstd(&data);
@@ -185,7 +179,10 @@ fn compression_benchmark(c: &mut Criterion) {
             let chimp_zstd = compress_chimp128_zstd(&data);
             let chimp_zstd_dict = compress_chimp128_zstd_dict(&data, &dictionary);
 
-            println!("{:<25} | {:>10} | {:>10} | {:>10} | {:>10} | {:>12}", "Método", "Bytes", "Bits/Valor", "Ratio", "vs Raw", "vs Raw+Zstd");
+            println!(
+                "{:<25} | {:>10} | {:>10} | {:>10} | {:>10} | {:>12}",
+                "Método", "Bytes", "Bits/Valor", "Ratio", "vs Raw", "vs Raw+Zstd"
+            );
             println!("{}", "-".repeat(95));
 
             let print_row = |name: &str, size: usize, marker: &str| {
@@ -240,12 +237,18 @@ mod tests {
 
         let bits_per_value = (encoded.len() * 8) as f64 / data.len() as f64;
 
-        println!("Chimp128 stable data: {} bytes, {:.2} bits/valor", encoded.len(), bits_per_value);
+        println!(
+            "Chimp128 stable data: {} bytes, {:.2} bits/valor",
+            encoded.len(),
+            bits_per_value
+        );
 
         // Para datos constantes, Chimp128 debería usar ~1 bit/valor
-        assert!(bits_per_value < 2.0,
-                "Chimp128 debería comprimir datos constantes a <2 bits/valor, obtenido: {:.2}",
-                bits_per_value);
+        assert!(
+            bits_per_value < 2.0,
+            "Chimp128 debería comprimir datos constantes a <2 bits/valor, obtenido: {:.2}",
+            bits_per_value
+        );
     }
 
     #[test]
@@ -261,9 +264,11 @@ mod tests {
         println!("Chimp128+Zstd: {} bytes", chimp_zstd.len());
         println!("Improvement: {:.2}x", improvement);
 
-        assert!(improvement >= 3.0,
-                "Debería tener al menos 3x mejora vs Raw+Zstd, obtenido: {:.2}x",
-                improvement);
+        assert!(
+            improvement >= 3.0,
+            "Debería tener al menos 3x mejora vs Raw+Zstd, obtenido: {:.2}x",
+            improvement
+        );
     }
 
     #[test]
@@ -279,9 +284,11 @@ mod tests {
         println!("Chimp128: {} bytes", chimp.len());
         println!("Ratio: {:.2}x", ratio);
 
-        assert!(ratio >= 20.0,
-                "Chimp128 solo debería comprimir a 20x+ para datos estables, obtenido: {:.2}x",
-                ratio);
+        assert!(
+            ratio >= 20.0,
+            "Chimp128 solo debería comprimir a 20x+ para datos estables, obtenido: {:.2}x",
+            ratio
+        );
     }
 }
 

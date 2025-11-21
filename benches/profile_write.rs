@@ -1,6 +1,6 @@
+use std::hint::black_box;
 use timbre_tsf::common::*;
 use timbre_tsf::writer::TsFileWriter;
-use std::hint::black_box;
 
 fn main() {
     let path = "/tmp/profile_write.ts";
@@ -36,7 +36,9 @@ fn main() {
             ];
 
             for schema in &schemas {
-                writer.register_timeseries(&device_id, schema.clone()).unwrap();
+                writer
+                    .register_timeseries(&device_id, schema.clone())
+                    .unwrap();
             }
 
             let mut tablet = Tablet::new(
@@ -48,14 +50,16 @@ fn main() {
 
             for i in 0..2000 {
                 let timestamp = 1000 + i as i64 * 100;
-                tablet.add_row(
-                    timestamp,
-                    vec![
-                        Some(TsValue::Float(25.0 + (i % 100) as f32 * 0.1)),
-                        Some(TsValue::Float(1013.25 + (i % 50) as f32 * 0.5)),
-                        Some(TsValue::Float(60.0 + (i % 40) as f32 * 0.25)),
-                    ],
-                ).unwrap();
+                tablet
+                    .add_row(
+                        timestamp,
+                        vec![
+                            Some(TsValue::Float(25.0 + (i % 100) as f32 * 0.1)),
+                            Some(TsValue::Float(1013.25 + (i % 50) as f32 * 0.5)),
+                            Some(TsValue::Float(60.0 + (i % 40) as f32 * 0.25)),
+                        ],
+                    )
+                    .unwrap();
             }
 
             black_box(writer.write_tablet(&tablet).unwrap());

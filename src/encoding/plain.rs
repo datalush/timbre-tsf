@@ -24,7 +24,7 @@
 //!
 //! ```
 //! use timbre_tsf::encoding::{PlainEncoder, PlainDecoder, Encoder, Decoder};
-//! 
+//!
 //! use timbre_tsf::common::TSDataType;
 //!
 //! let mut encoder = PlainEncoder::new(TSDataType::Int32);
@@ -54,6 +54,11 @@ impl PlainEncoder {
     /// Creates a new plain encoder for the specified data type
     pub fn new(_data_type: TSDataType) -> Self {
         Self
+    }
+
+    /// Resets the encoder state (no-op for PlainEncoder as it's stateless)
+    pub fn reset(&mut self) {
+        // PlainEncoder has no state to reset
     }
 }
 

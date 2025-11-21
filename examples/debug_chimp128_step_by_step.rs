@@ -14,9 +14,16 @@ fn compress_chimp128_step_by_step(data: &[f64]) -> Vec<u8> {
         // Note: encode_f64 doesn't write to output immediately in Chimp128
         // It accumulates in internal buffer
 
-        if i < 20 || (i > 0 && value != data[i-1]) {
-            let same = if i > 0 && value == data[i-1] { "SAME" } else { "DIFF" };
-            println!("[{:5}] {:8.4}°C  {} (buffer not yet written)", i, value, same);
+        if i < 20 || (i > 0 && value != data[i - 1]) {
+            let same = if i > 0 && value == data[i - 1] {
+                "SAME"
+            } else {
+                "DIFF"
+            };
+            println!(
+                "[{:5}] {:8.4}°C  {} (buffer not yet written)",
+                i, value, same
+            );
         }
     }
 
@@ -32,10 +39,13 @@ fn main() {
     let constant_data = vec![20.0; 100];
     let encoded = compress_chimp128_step_by_step(&constant_data);
 
-    let expected_bits: usize = 64 + 99;  // First value (64) + 99 × 1 bit
+    let expected_bits: usize = 64 + 99; // First value (64) + 99 × 1 bit
     let expected_bytes = expected_bits.div_ceil(8);
 
-    println!("\nExpected: {} bits = {} bytes", expected_bits, expected_bytes);
+    println!(
+        "\nExpected: {} bits = {} bytes",
+        expected_bits, expected_bytes
+    );
     println!("Got:      {} bytes", encoded.len());
     println!("Bits per value: {:.2}", (encoded.len() * 8) as f64 / 100.0);
 
@@ -67,7 +77,10 @@ fn main() {
     let expected_bits = 121;
     let expected_bytes = (expected_bits + 7) / 8;
 
-    println!("\nExpected: ~{} bits = ~{} bytes", expected_bits, expected_bytes);
+    println!(
+        "\nExpected: ~{} bits = ~{} bytes",
+        expected_bits, expected_bytes
+    );
     println!("Got:      {} bytes", encoded.len());
     println!("Bits per value: {:.2}", (encoded.len() * 8) as f64 / 30.0);
 
@@ -76,7 +89,10 @@ fn main() {
     let tiny_data = vec![20.0, 20.0, 20.0, 20.1, 20.1];
     let encoded = compress_chimp128_step_by_step(&tiny_data);
 
-    println!("\nRaw bytes (first 20): {:02x?}", &encoded[..std::cmp::min(20, encoded.len())]);
+    println!(
+        "\nRaw bytes (first 20): {:02x?}",
+        &encoded[..std::cmp::min(20, encoded.len())]
+    );
     println!("Total size: {} bytes", encoded.len());
 
     // Expected: 64 + 2 + 15 + 1 = 82 bits = 11 bytes

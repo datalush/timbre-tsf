@@ -20,7 +20,7 @@
 //! // Application then uses the appropriate encoder based on recommendation
 //! ```
 
-use crate::common::{TSEncoding, CompressionType};
+use crate::common::{CompressionType, TSEncoding};
 use crate::encoding::quantized::detect_quantization;
 use std::collections::HashSet;
 
@@ -48,47 +48,46 @@ pub enum DataPattern {
 /// This is the core analysis function that classifies data into different patterns
 /// to help applications choose the best encoding strategy.
 pub fn analyze_pattern(data: &[f64]) -> DataPattern {
-        if data.is_empty() {
-            return DataPattern::HighEntropy;
-        }
-
-        // 1. Check for quantization (highest priority)
-        if let Some((min, step)) = detect_quantization(data) {
-            return DataPattern::Quantized { min, step };
-        }
-
-        // 2. Analyze repetition and unique values
-        let unique_values: HashSet<u64> = data.iter().map(|v| v.to_bits()).collect();
-        let repetition_pct = 1.0 - (unique_values.len() as f64 / data.len() as f64);
-
-        // High repetition with discrete values → DictionaryRLE
-        if repetition_pct > 0.5 && unique_values.len() < 256 {
-            return DataPattern::HighRepetition {
-                unique_count: unique_values.len(),
-                repetition_pct,
-            };
-        }
-
-        // 3. Analyze deltas for drift detection
-        if data.len() > 1 {
-            let deltas: Vec<f64> = data.windows(2).map(|w| (w[1] - w[0]).abs()).collect();
-
-            let avg_delta = deltas.iter().sum::<f64>() / deltas.len() as f64;
-            let max_delta = deltas.iter().fold(0.0f64, |acc, &d| acc.max(d));
-
-            // Continuous small changes → Chimp128
-            if avg_delta < 1.0 && max_delta < 10.0 {
-                return DataPattern::ContinuousDrift {
-                    avg_delta,
-                    max_delta,
-                };
-            }
-        }
-
-        // Default: high entropy
-        DataPattern::HighEntropy
+    if data.is_empty() {
+        return DataPattern::HighEntropy;
     }
 
+    // 1. Check for quantization (highest priority)
+    if let Some((min, step)) = detect_quantization(data) {
+        return DataPattern::Quantized { min, step };
+    }
+
+    // 2. Analyze repetition and unique values
+    let unique_values: HashSet<u64> = data.iter().map(|v| v.to_bits()).collect();
+    let repetition_pct = 1.0 - (unique_values.len() as f64 / data.len() as f64);
+
+    // High repetition with discrete values → DictionaryRLE
+    if repetition_pct > 0.5 && unique_values.len() < 256 {
+        return DataPattern::HighRepetition {
+            unique_count: unique_values.len(),
+            repetition_pct,
+        };
+    }
+
+    // 3. Analyze deltas for drift detection
+    if data.len() > 1 {
+        let deltas: Vec<f64> = data.windows(2).map(|w| (w[1] - w[0]).abs()).collect();
+
+        let avg_delta = deltas.iter().sum::<f64>() / deltas.len() as f64;
+        let max_delta = deltas.iter().fold(0.0f64, |acc, &d| acc.max(d));
+
+        // Continuous small changes → Chimp128
+        if avg_delta < 1.0 && max_delta < 10.0 {
+            return DataPattern::ContinuousDrift {
+                avg_delta,
+                max_delta,
+            };
+        }
+    }
+
+    // Default: high entropy
+    DataPattern::HighEntropy
+}
 
 /// Analyzes a data sample and recommends the optimal TSEncoding.
 ///
@@ -251,7 +250,10 @@ mod tests {
             DataPattern::Quantized { .. } => {
                 // Also acceptable if pattern is so regular it looks quantized
             }
-            _ => panic!("Expected ContinuousDrift or Quantized pattern, got {:?}", pattern),
+            _ => panic!(
+                "Expected ContinuousDrift or Quantized pattern, got {:?}",
+                pattern
+            ),
         }
     }
 

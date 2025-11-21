@@ -9,8 +9,8 @@ use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::ipc::reader::FileReader;
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::ArrowWriter;
-use parquet::file::properties::WriterProperties;
 use parquet::basic::Compression;
+use parquet::file::properties::WriterProperties;
 use std::fs::File;
 use std::sync::Arc;
 use std::time::Instant;
@@ -28,7 +28,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let batches: Vec<RecordBatch> = reader.collect::<Result<Vec<_>, _>>()?;
 
     let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
-    println!("✓ Cargado: {} rows en {} batches\n", total_rows, batches.len());
+    println!(
+        "✓ Cargado: {} rows en {} batches\n",
+        total_rows,
+        batches.len()
+    );
 
     // ========================================
     // Test 1: Arrow → Parquet (conversión + encoding + I/O)
@@ -56,7 +60,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("   Tiempo TOTAL: {:?}", parquet_total_time);
     println!("   Tamaño: {} MB", parquet_size / 1_000_000);
-    println!("   Throughput: {:.2} MB/s\n", 1040.0 / parquet_total_time.as_secs_f64());
+    println!(
+        "   Throughput: {:.2} MB/s\n",
+        1040.0 / parquet_total_time.as_secs_f64()
+    );
 
     // ========================================
     // Test 2: Arrow → Timbre (conversión + encoding + I/O)
@@ -82,7 +89,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("   Tiempo TOTAL: {:?}", timbre_total_time);
     println!("   Tamaño: {} MB", timbre_size / 1_000_000);
-    println!("   Throughput: {:.2} MB/s\n", 1040.0 / timbre_total_time.as_secs_f64());
+    println!(
+        "   Throughput: {:.2} MB/s\n",
+        1040.0 / timbre_total_time.as_secs_f64()
+    );
 
     // ========================================
     // Test 3: Arrow → Memoria (SOLO conversión, sin I/O)
@@ -94,7 +104,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Simular lo que haría zero-copy: solo leer punteros
     for batch in &batches {
-        for col_idx in 2..batch.num_columns() {  // Skip timestamp/device_id
+        for col_idx in 2..batch.num_columns() {
+            // Skip timestamp/device_id
             let array = batch.column(col_idx);
 
             // En zero-copy perfecto: solo acceder al buffer, no copiar
@@ -128,7 +139,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("   Tiempo (solo acceso): {:?}", memory_only_time);
     println!("   Values: {}", total_values);
-    println!("   Throughput teórico: {:.2} GB/s\n", 1.04 / memory_only_time.as_secs_f64());
+    println!(
+        "   Throughput teórico: {:.2} GB/s\n",
+        1.04 / memory_only_time.as_secs_f64()
+    );
 
     // ========================================
     // Análisis
@@ -146,8 +160,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let parquet_overhead = parquet_ms - memory_ms;
     let timbre_overhead = timbre_ms - memory_ms;
 
-    println!("   Overhead Parquet:  {} ms (encoding + I/O)", parquet_overhead);
-    println!("   Overhead Timbre:   {} ms (encoding + I/O)\n", timbre_overhead);
+    println!(
+        "   Overhead Parquet:  {} ms (encoding + I/O)",
+        parquet_overhead
+    );
+    println!(
+        "   Overhead Timbre:   {} ms (encoding + I/O)\n",
+        timbre_overhead
+    );
 
     println!("💡 Conclusiones:");
 
@@ -155,16 +175,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("   ✅ Conversión Arrow es casi instantánea (<100ms)");
         println!("   ✅ Zero-copy funciona correctamente");
     } else {
-        println!("   ⚠️  Conversión Arrow toma {}ms - puede haber copias ocultas", memory_ms);
+        println!(
+            "   ⚠️  Conversión Arrow toma {}ms - puede haber copias ocultas",
+            memory_ms
+        );
     }
 
     let encoding_ratio = (timbre_overhead as f64) / (parquet_overhead as f64);
-    println!("\n   Ratio encoding/I/O: Timbre es {:.2}x del overhead de Parquet", encoding_ratio);
+    println!(
+        "\n   Ratio encoding/I/O: Timbre es {:.2}x del overhead de Parquet",
+        encoding_ratio
+    );
 
     if encoding_ratio > 2.0 {
-        println!("   ⚠️  Timbre encoding es {}x más lento - optimización necesaria", encoding_ratio);
+        println!(
+            "   ⚠️  Timbre encoding es {}x más lento - optimización necesaria",
+            encoding_ratio
+        );
     } else if encoding_ratio > 1.5 {
-        println!("   📈 Timbre encoding es {}x más lento - aceptable (mejor compresión)", encoding_ratio);
+        println!(
+            "   📈 Timbre encoding es {}x más lento - aceptable (mejor compresión)",
+            encoding_ratio
+        );
     } else {
         println!("   ✅ Timbre encoding comparable a Parquet");
     }

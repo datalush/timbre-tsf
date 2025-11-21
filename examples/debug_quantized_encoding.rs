@@ -1,4 +1,4 @@
-use timbre_tsf::encoding::quantized::{detect_quantization, QuantizedEncoder};
+use timbre_tsf::encoding::quantized::{QuantizedEncoder, detect_quantization};
 
 fn main() {
     // Generate IoT-like data
@@ -34,17 +34,18 @@ fn main() {
     println!("\nFirst 20 indices: {:?}", &indices[..20]);
 
     // Compute deltas
-    let deltas: Vec<i64> = indices
-        .windows(2)
-        .map(|w| w[1] - w[0])
-        .collect();
+    let deltas: Vec<i64> = indices.windows(2).map(|w| w[1] - w[0]).collect();
 
     println!("\nFirst 20 deltas: {:?}", &deltas[..20]);
 
     // Count zeros
     let zero_count = deltas.iter().filter(|&&d| d == 0).count();
-    println!("\nZero deltas: {}/{} ({:.1}%)", zero_count, deltas.len(),
-             100.0 * zero_count as f64 / deltas.len() as f64);
+    println!(
+        "\nZero deltas: {}/{} ({:.1}%)",
+        zero_count,
+        deltas.len(),
+        100.0 * zero_count as f64 / deltas.len() as f64
+    );
 
     // Encode
     let mut encoder = QuantizedEncoder::new(min, step);
@@ -53,7 +54,10 @@ fn main() {
     println!("\n=== Encoding Results ===");
     println!("Raw size: {} bytes", data.len() * 8);
     println!("Encoded size: {} bytes", encoded.len());
-    println!("Compression: {:.2}x", (data.len() * 8) as f64 / encoded.len() as f64);
+    println!(
+        "Compression: {:.2}x",
+        (data.len() * 8) as f64 / encoded.len() as f64
+    );
 
     // Breakdown
     let header_size = 8 + 8 + 4 + 8; // min + step + count + first_value
@@ -61,7 +65,10 @@ fn main() {
     println!("\nBreakdown:");
     println!("  Header: {} bytes", header_size);
     println!("  Simple8b data: {} bytes", simple8b_size);
-    println!("  Bits per delta: {:.2}", (simple8b_size * 8) as f64 / deltas.len() as f64);
+    println!(
+        "  Bits per delta: {:.2}",
+        (simple8b_size * 8) as f64 / deltas.len() as f64
+    );
 
     // Show first bytes
     println!("\nFirst 40 bytes of encoded data:");
@@ -78,7 +85,13 @@ fn main() {
     assert_eq!(data.len(), decoded.len());
 
     for (i, (&orig, &dec)) in data.iter().zip(decoded.iter()).enumerate() {
-        assert!((orig - dec).abs() < 1e-6, "Mismatch at {}: {} != {}", i, orig, dec);
+        assert!(
+            (orig - dec).abs() < 1e-6,
+            "Mismatch at {}: {} != {}",
+            i,
+            orig,
+            dec
+        );
     }
 
     println!("\n✅ Lossless roundtrip verified");

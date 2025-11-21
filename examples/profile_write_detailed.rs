@@ -1,8 +1,8 @@
-use timbre_tsf::common::*;
-use timbre_tsf::writer::TsFileWriter;
-use timbre_tsf::encoding::create_encoder;
-use timbre_tsf::compress::create_compressor;
 use std::time::Instant;
+use timbre_tsf::common::*;
+use timbre_tsf::compress::create_compressor;
+use timbre_tsf::encoding::create_encoder;
+use timbre_tsf::writer::TsFileWriter;
 
 fn main() {
     println!("=== Detailed Write Profiling ===\n");
@@ -35,7 +35,12 @@ fn benchmark_encoding_only() {
         let elapsed = start.elapsed();
 
         total_time += elapsed.as_micros();
-        println!("  Run {}: {:?} (size: {} bytes)", run + 1, elapsed, out.len());
+        println!(
+            "  Run {}: {:?} (size: {} bytes)",
+            run + 1,
+            elapsed,
+            out.len()
+        );
     }
 
     let avg = total_time / 5;
@@ -65,9 +70,14 @@ fn benchmark_encoding_compression() {
         let elapsed = start.elapsed();
 
         total_time += elapsed.as_micros();
-        println!("  Run {}: {:?} (compressed: {} → {} bytes, ratio: {:.2}x)",
-                 run + 1, elapsed, encoded.len(), compressed.len(),
-                 encoded.len() as f64 / compressed.len() as f64);
+        println!(
+            "  Run {}: {:?} (compressed: {} → {} bytes, ratio: {:.2}x)",
+            run + 1,
+            elapsed,
+            encoded.len(),
+            compressed.len(),
+            encoded.len() as f64 / compressed.len() as f64
+        );
     }
 
     let avg = total_time / 5;

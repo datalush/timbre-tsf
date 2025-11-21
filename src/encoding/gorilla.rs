@@ -124,11 +124,7 @@ impl GorillaEncoder {
         };
 
         // Estimate capacity: worst case ~9 bytes per value (64 bits + overhead)
-        let estimated_capacity = if capacity > 0 {
-            capacity * 9
-        } else {
-            0
-        };
+        let estimated_capacity = if capacity > 0 { capacity * 9 } else { 0 };
 
         Self {
             first_value: None,
@@ -210,6 +206,7 @@ impl GorillaEncoder {
     ///
     /// The first value is stored in full. Subsequent values are XOR'd with the
     /// previous value and encoded based on the pattern of leading and trailing zeros.
+    #[inline]
     fn encode_value(&mut self, bits: u64) {
         if self.first_value.is_none() {
             self.first_value = Some(bits);
@@ -263,6 +260,31 @@ impl GorillaEncoder {
 
         self.previous_value = bits;
     }
+
+
+    /// Resets the encoder state for reuse.
+    ///
+    /// This allows the encoder to be reused for encoding a new sequence of values
+    /// without needing to allocate a new encoder instance. The internal buffer is
+    /// reused (capacity preserved), avoiding reallocations.
+    ///
+    /// # Performance
+    ///
+    /// Reusing encoders avoids:
+    /// - Heap allocation of new encoder (~100-200ns)
+    /// - Vec buffer allocation (~50-100ns)
+    /// - Potential memory fragmentation
+    ///
+    /// For 8 mini-blocks per page, this saves ~1-2μs per page.
+    pub fn reset(&mut self) {
+        self.first_value = None;
+        self.previous_value = 0;
+        self.previous_leading = i32::MAX as u32; // Reset to impossible value
+        self.previous_trailing = 0;
+        self.buffer.clear(); // Clears content but keeps capacity
+        self.bit_buffer = 0;
+        self.bits_in_buffer = 0;
+    }
 }
 
 impl Encoder for GorillaEncoder {
@@ -298,7 +320,10 @@ impl Encoder for GorillaEncoder {
     }
 
     fn flush(&mut self, out: &mut Vec<u8>) -> Result<()> {
+        // Flush bit buffer to byte buffer
         self.flush_bits();
+
+        // Append to output
         out.append(&mut self.buffer);
         Ok(())
     }
@@ -342,7 +367,6 @@ pub struct GorillaDecoder {
     value_bits: u8,
 }
 
-
 impl GorillaDecoder {
     /// Creates a new Gorilla decoder for the specified data type
     pub fn new(data_type: TSDataType) -> Self {
@@ -382,13 +406,13 @@ impl GorillaDecoder {
         // Check remaining input
         let remaining = input.len() - self.byte_pos;
         if remaining == 0 {
-            return Ok(false);  // No data added
+            return Ok(false); // No data added
         }
 
         // Calculate how many bytes we can add without overflow
         let max_bytes = ((64 - self.bits_available) / 8) as usize;
         if max_bytes == 0 {
-            return Ok(false);  // Buffer full
+            return Ok(false); // Buffer full
         }
 
         // Read up to max_bytes, limited by available input
@@ -396,9 +420,7 @@ impl GorillaDecoder {
 
         // Load bytes into 8-byte array (zero-padded)
         let mut buf = [0u8; 8];
-        buf[..bytes_to_read].copy_from_slice(
-            &input[self.byte_pos..self.byte_pos + bytes_to_read]
-        );
+        buf[..bytes_to_read].copy_from_slice(&input[self.byte_pos..self.byte_pos + bytes_to_read]);
 
         // Convert to u64 (big-endian: first byte becomes MSB)
         let new_data = u64::from_be_bytes(buf);
@@ -409,7 +431,7 @@ impl GorillaDecoder {
         self.byte_pos += bytes_to_read;
         self.bits_available += (bytes_to_read * 8) as u8;
 
-        Ok(true)  // Data added
+        Ok(true) // Data added
     }
 
     /// Reads a variable number of bits from the input stream
@@ -659,4 +681,141 @@ mod tests {
             assert_eq!(decoded, expected);
         }
     }
+
+    // ============================================================================
+    // SIMD Integration Tests
+    // ============================================================================
+
+    #[test]
+    fn test_gorilla_f32_simd_batch() {
+        // Test with exactly 8 values (one SIMD batch)
+        let mut encoder = GorillaEncoder::new(TSDataType::Float);
+        let mut out = Vec::new();
+
+        let values = vec![20.0f32, 20.1, 20.2, 20.3, 20.4, 20.5, 20.6, 20.7];
+        for &val in &values {
+            encoder.encode_f32(val, &mut out).unwrap();
+        }
+        encoder.flush(&mut out).unwrap();
+
+        let mut decoder = GorillaDecoder::new(TSDataType::Float);
+        let mut pos = 0;
+        for &expected in &values {
+            let decoded = decoder.read_f32(&out, &mut pos).unwrap();
+            assert_eq!(decoded, expected, "Mismatch for value {}", expected);
+        }
+    }
+
+    #[test]
+    fn test_gorilla_f32_simd_multiple_batches() {
+        // Test with 20 values (2 full batches + 4 remainder)
+        let mut encoder = GorillaEncoder::new(TSDataType::Float);
+        let mut out = Vec::new();
+
+        let values: Vec<f32> = (0..20).map(|i| 100.0 + i as f32 * 0.1).collect();
+        for &val in &values {
+            encoder.encode_f32(val, &mut out).unwrap();
+        }
+        encoder.flush(&mut out).unwrap();
+
+        let mut decoder = GorillaDecoder::new(TSDataType::Float);
+        let mut pos = 0;
+        for &expected in &values {
+            let decoded = decoder.read_f32(&out, &mut pos).unwrap();
+            assert_eq!(decoded, expected);
+        }
+    }
+
+    #[test]
+    fn test_gorilla_f64_simd_batch() {
+        // Test with exactly 4 values (one SIMD batch for f64)
+        let mut encoder = GorillaEncoder::new(TSDataType::Double);
+        let mut out = Vec::new();
+
+        let values = vec![23.5f64, 23.52, 23.48, 23.51];
+        for &val in &values {
+            encoder.encode_f64(val, &mut out).unwrap();
+        }
+        encoder.flush(&mut out).unwrap();
+
+        let mut decoder = GorillaDecoder::new(TSDataType::Double);
+        let mut pos = 0;
+        for &expected in &values {
+            let decoded = decoder.read_f64(&out, &mut pos).unwrap();
+            assert_eq!(decoded, expected);
+        }
+    }
+
+    #[test]
+    fn test_gorilla_f64_simd_multiple_batches() {
+        // Test with 10 values (2 full batches + 2 remainder)
+        let mut encoder = GorillaEncoder::new(TSDataType::Double);
+        let mut out = Vec::new();
+
+        let values: Vec<f64> = (0..10).map(|i| 50.0 + i as f64 * 0.5).collect();
+        for &val in &values {
+            encoder.encode_f64(val, &mut out).unwrap();
+        }
+        encoder.flush(&mut out).unwrap();
+
+        let mut decoder = GorillaDecoder::new(TSDataType::Double);
+        let mut pos = 0;
+        for &expected in &values {
+            let decoded = decoder.read_f64(&out, &mut pos).unwrap();
+            assert_eq!(decoded, expected);
+        }
+    }
+
+    #[test]
+    fn test_gorilla_simd_identical_values() {
+        // Test SIMD with many identical values (should encode very efficiently)
+        let mut encoder = GorillaEncoder::new(TSDataType::Float);
+        let mut out = Vec::new();
+
+        let values = vec![25.5f32; 16]; // 16 identical values (2 SIMD batches)
+        for &val in &values {
+            encoder.encode_f32(val, &mut out).unwrap();
+        }
+        encoder.flush(&mut out).unwrap();
+
+        // Verify compression: identical values should be ~1 bit each after first
+        // First value: 32 bits, rest: ~1 bit each
+        // Expected: ~32 + 15 = 47 bits = ~6 bytes
+        assert!(
+            out.len() < 10,
+            "Expected good compression for identical values, got {} bytes",
+            out.len()
+        );
+
+        let mut decoder = GorillaDecoder::new(TSDataType::Float);
+        let mut pos = 0;
+        for &expected in &values {
+            let decoded = decoder.read_f32(&out, &mut pos).unwrap();
+            assert_eq!(decoded, expected);
+        }
+    }
+
+    #[test]
+    fn test_gorilla_simd_random_pattern() {
+        // Test SIMD with pseudo-random pattern
+        let mut encoder = GorillaEncoder::new(TSDataType::Float);
+        let mut out = Vec::new();
+
+        let values: Vec<f32> = vec![
+            12.34, 56.78, 90.12, 34.56, 78.90, 23.45, 67.89, 11.11, 22.22, 33.33, 44.44, 55.55,
+            66.66, 77.77, 88.88, 99.99,
+        ];
+        for &val in &values {
+            encoder.encode_f32(val, &mut out).unwrap();
+        }
+        encoder.flush(&mut out).unwrap();
+
+        let mut decoder = GorillaDecoder::new(TSDataType::Float);
+        let mut pos = 0;
+        for &expected in &values {
+            let decoded = decoder.read_f32(&out, &mut pos).unwrap();
+            assert_eq!(decoded, expected);
+        }
+    }
+
 }

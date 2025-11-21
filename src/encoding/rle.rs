@@ -37,7 +37,7 @@
 //!
 //! ```
 //! use timbre_tsf::encoding::{RleEncoder, RleDecoder, Encoder, Decoder};
-//! 
+//!
 //! use timbre_tsf::common::TSDataType;
 //!
 //! let mut encoder = RleEncoder::new(TSDataType::Int32);

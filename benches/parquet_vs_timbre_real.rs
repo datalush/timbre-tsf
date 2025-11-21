@@ -10,36 +10,37 @@
 //!
 //! Run with: cargo bench --bench parquet_vs_timbre_real
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use arrow::ipc::reader::FileReader;
 use arrow::record_batch::RecordBatch;
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use parquet::arrow::ArrowWriter;
-use parquet::file::properties::{WriterProperties, WriterVersion};
 use parquet::basic::Compression as ParquetCompression;
+use parquet::file::properties::{WriterProperties, WriterVersion};
 use std::fs::File;
 use std::path::Path;
 use std::time::Instant;
 use timbre_tsf::arrow::ArrowToTsFileConverter;
-use timbre_tsf::common::{TSDataType, TSEncoding, CompressionType};
+use timbre_tsf::common::{CompressionType, TSDataType, TSEncoding};
 
 const DATASET_PATH: &str = "data/dataset.arrow";
 
 /// Load the Arrow dataset
 fn load_arrow_dataset() -> Vec<RecordBatch> {
-    let file = File::open(DATASET_PATH)
-        .expect("Failed to open dataset.arrow - did you download it?");
+    let file =
+        File::open(DATASET_PATH).expect("Failed to open dataset.arrow - did you download it?");
 
-    let reader = FileReader::try_new(file, None)
-        .expect("Failed to create Arrow IPC reader");
+    let reader = FileReader::try_new(file, None).expect("Failed to create Arrow IPC reader");
 
     let mut batches = Vec::new();
     for batch_result in reader {
         batches.push(batch_result.expect("Failed to read batch"));
     }
 
-    println!("✓ Loaded {} batches ({} total rows)",
-             batches.len(),
-             batches.iter().map(|b| b.num_rows()).sum::<usize>());
+    println!(
+        "✓ Loaded {} batches ({} total rows)",
+        batches.len(),
+        batches.iter().map(|b| b.num_rows()).sum::<usize>()
+    );
 
     batches
 }
@@ -60,11 +61,13 @@ fn write_parquet_snappy(batches: &[RecordBatch], output_path: &Path) -> std::io:
 
     // Write all batches
     for batch in batches {
-        writer.write(batch)
+        writer
+            .write(batch)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     }
 
-    writer.close()
+    writer
+        .close()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     // Get file size
@@ -78,18 +81,20 @@ fn write_timbre_adaptive(batches: &[RecordBatch], output_path: &Path) -> std::io
 
     // Build converter with automatic encoding selection
     let mut converter = ArrowToTsFileConverter::builder(output_path)
-        .with_device_column("Label")  // Use Label as device_id (will fail, need to fix)
-        .with_timestamp_column("Flow Duration")  // Use Flow Duration as timestamp
+        .with_device_column("Label") // Use Label as device_id (will fail, need to fix)
+        .with_timestamp_column("Flow Duration") // Use Flow Duration as timestamp
         .build()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     // Write all batches
     for batch in batches {
-        converter.write_batch(batch)
+        converter
+            .write_batch(batch)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     }
 
-    converter.finish()
+    converter
+        .finish()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     // Get file size
@@ -109,14 +114,14 @@ fn benchmark_write_formats(c: &mut Criterion) {
     println!("Source size: 2.84 GB (Arrow IPC)\n");
 
     let mut group = c.benchmark_group("parquet_vs_timbre");
-    group.sample_size(10);  // Fewer samples for large dataset
+    group.sample_size(10); // Fewer samples for large dataset
 
     // Benchmark: Write to Parquet with Snappy
     group.bench_function("parquet_snappy", |b| {
         b.iter(|| {
             let output = Path::new("/tmp/benchmark.parquet");
-            let size = write_parquet_snappy(black_box(&batches), output)
-                .expect("Failed to write Parquet");
+            let size =
+                write_parquet_snappy(black_box(&batches), output).expect("Failed to write Parquet");
             std::fs::remove_file(output).ok();
             size
         })
@@ -144,13 +149,19 @@ fn benchmark_write_formats(c: &mut Criterion) {
     println!("Writing Parquet with Snappy...");
     let parquet_path = Path::new("/tmp/comparison.parquet");
     let start = Instant::now();
-    let parquet_size = write_parquet_snappy(&batches, parquet_path)
-        .expect("Failed to write Parquet");
+    let parquet_size =
+        write_parquet_snappy(&batches, parquet_path).expect("Failed to write Parquet");
     let parquet_time = start.elapsed();
 
-    println!("✓ Parquet: {} MB in {:?}", parquet_size / 1_000_000, parquet_time);
-    println!("  Ratio: {:.2}x vs source (2.84 GB)",
-             2_840_000_000.0 / parquet_size as f64);
+    println!(
+        "✓ Parquet: {} MB in {:?}",
+        parquet_size / 1_000_000,
+        parquet_time
+    );
+    println!(
+        "  Ratio: {:.2}x vs source (2.84 GB)",
+        2_840_000_000.0 / parquet_size as f64
+    );
 
     // Cleanup
     std::fs::remove_file(parquet_path).ok();

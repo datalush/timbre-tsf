@@ -12,12 +12,12 @@
 //!
 //! Run with: cargo bench --bench parquet_vs_timbre_iot
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use arrow::ipc::reader::FileReader;
 use arrow::record_batch::RecordBatch;
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use parquet::arrow::ArrowWriter;
-use parquet::file::properties::{WriterProperties, WriterVersion};
 use parquet::basic::Compression as ParquetCompression;
+use parquet::file::properties::{WriterProperties, WriterVersion};
 use std::fs::File;
 use std::path::Path;
 use std::time::Instant;
@@ -29,10 +29,10 @@ fn load_dataset() -> Vec<RecordBatch> {
     let file = File::open(DATASET_PATH)
         .expect("Failed to open iot_dataset.arrow - run: cargo run --example generate_iot_dataset");
 
-    let reader = FileReader::try_new(file, None)
-        .expect("Failed to create Arrow reader");
+    let reader = FileReader::try_new(file, None).expect("Failed to create Arrow reader");
 
-    reader.collect::<Result<Vec<_>, _>>()
+    reader
+        .collect::<Result<Vec<_>, _>>()
         .expect("Failed to read batches")
 }
 
@@ -49,11 +49,13 @@ fn write_parquet_snappy(batches: &[RecordBatch], path: &Path) -> std::io::Result
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     for batch in batches {
-        writer.write(batch)
+        writer
+            .write(batch)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     }
 
-    writer.close()
+    writer
+        .close()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     Ok(std::fs::metadata(path)?.len())
@@ -68,11 +70,13 @@ fn write_timbre_adaptive(batches: &[RecordBatch], path: &Path) -> std::io::Resul
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     for batch in batches {
-        converter.write_batch(batch)
+        converter
+            .write_batch(batch)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     }
 
-    converter.finish()
+    converter
+        .finish()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     Ok(std::fs::metadata(path)?.len())
@@ -87,8 +91,8 @@ fn write_timbre_fast(batches: &[RecordBatch], path: &Path) -> std::io::Result<u6
         .with_compression(CompressionType::Snappy)
         .with_f32_encoding(TSEncoding::Chimp128)
         .with_f64_encoding(TSEncoding::Chimp128)
-        .with_string_encoding(TSEncoding::Plain)  // Avoid Dictionary overhead
-        .with_max_rows_per_chunk(50_000);  // Larger chunks
+        .with_string_encoding(TSEncoding::Plain) // Avoid Dictionary overhead
+        .with_max_rows_per_chunk(50_000); // Larger chunks
 
     let mut converter = ArrowToTsFileConverter::builder(path)
         .with_device_column("device_id")
@@ -98,11 +102,13 @@ fn write_timbre_fast(batches: &[RecordBatch], path: &Path) -> std::io::Result<u6
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     for batch in batches {
-        converter.write_batch(batch)
+        converter
+            .write_batch(batch)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     }
 
-    converter.finish()
+    converter
+        .finish()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     Ok(std::fs::metadata(path)?.len())
@@ -117,7 +123,7 @@ fn benchmark_compression(c: &mut Criterion) {
     println!("✓ Source size: 1.04 GB (Arrow IPC)\n");
 
     let mut group = c.benchmark_group("parquet_vs_timbre_iot");
-    group.sample_size(10);  // Fewer samples for large dataset
+    group.sample_size(10); // Fewer samples for large dataset
 
     // Benchmark Parquet with Snappy
     group.bench_function("parquet_snappy", |b| {
@@ -163,9 +169,14 @@ fn benchmark_compression(c: &mut Criterion) {
 
     println!("   Write time: {:?}", parquet_time);
     println!("   File size:  {} MB", parquet_size / 1_000_000);
-    println!("   Ratio:      {:.2}x vs source", 1_040_000_000.0 / parquet_size as f64);
-    println!("   Throughput: {:.2} MB/s\n",
-             (1040.0 / parquet_time.as_secs_f64()));
+    println!(
+        "   Ratio:      {:.2}x vs source",
+        1_040_000_000.0 / parquet_size as f64
+    );
+    println!(
+        "   Throughput: {:.2} MB/s\n",
+        (1040.0 / parquet_time.as_secs_f64())
+    );
 
     // Timbre Default
     println!("🎵 Timbre (default: LZ4, Gorilla, 10K chunks)");
@@ -176,9 +187,14 @@ fn benchmark_compression(c: &mut Criterion) {
 
     println!("   Write time: {:?}", timbre_default_time);
     println!("   File size:  {} MB", timbre_default_size / 1_000_000);
-    println!("   Ratio:      {:.2}x vs source", 1_040_000_000.0 / timbre_default_size as f64);
-    println!("   Throughput: {:.2} MB/s\n",
-             (1040.0 / timbre_default_time.as_secs_f64()));
+    println!(
+        "   Ratio:      {:.2}x vs source",
+        1_040_000_000.0 / timbre_default_size as f64
+    );
+    println!(
+        "   Throughput: {:.2} MB/s\n",
+        (1040.0 / timbre_default_time.as_secs_f64())
+    );
 
     // Timbre Fast
     println!("🚀 Timbre (fast: Snappy, Chimp128, 50K chunks)");
@@ -189,15 +205,20 @@ fn benchmark_compression(c: &mut Criterion) {
 
     println!("   Write time: {:?}", timbre_fast_time);
     println!("   File size:  {} MB", timbre_fast_size / 1_000_000);
-    println!("   Ratio:      {:.2}x vs source", 1_040_000_000.0 / timbre_fast_size as f64);
-    println!("   Throughput: {:.2} MB/s\n",
-             (1040.0 / timbre_fast_time.as_secs_f64()));
+    println!(
+        "   Ratio:      {:.2}x vs source",
+        1_040_000_000.0 / timbre_fast_size as f64
+    );
+    println!(
+        "   Throughput: {:.2} MB/s\n",
+        (1040.0 / timbre_fast_time.as_secs_f64())
+    );
 
     // Comparison: Parquet vs Timbre Fast
     println!("📊 Comparison: Parquet vs Timbre (fast config)");
     let speedup = parquet_time.as_secs_f64() / timbre_fast_time.as_secs_f64();
-    let ratio_improvement = (1_040_000_000.0 / timbre_fast_size as f64) /
-                            (1_040_000_000.0 / parquet_size as f64);
+    let ratio_improvement =
+        (1_040_000_000.0 / timbre_fast_size as f64) / (1_040_000_000.0 / parquet_size as f64);
 
     if speedup > 1.0 {
         println!("   ✅ Timbre is {:.2}x FASTER", speedup);
@@ -208,10 +229,16 @@ fn benchmark_compression(c: &mut Criterion) {
     if ratio_improvement > 1.0 {
         println!("   ✅ Timbre compresses {:.2}x BETTER", ratio_improvement);
     } else {
-        println!("   ⚠️  Parquet compresses {:.2}x better", 1.0 / ratio_improvement);
+        println!(
+            "   ⚠️  Parquet compresses {:.2}x better",
+            1.0 / ratio_improvement
+        );
     }
 
-    println!("   Size difference: {} MB", (parquet_size as i64 - timbre_fast_size as i64).abs() / 1_000_000);
+    println!(
+        "   Size difference: {} MB",
+        (parquet_size as i64 - timbre_fast_size as i64).abs() / 1_000_000
+    );
 
     // Cleanup
     std::fs::remove_file(parquet_path).ok();

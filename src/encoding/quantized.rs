@@ -36,8 +36,8 @@
 //! - **Lossless**: 100% accuracy (no floating-point precision loss)
 
 use crate::common::TSDataType;
-use crate::encoding::simple8b::{Simple8bEncoder, Simple8bDecoder};
-use crate::encoding::{Encoder, Decoder};  // Needed for trait methods
+use crate::encoding::simple8b::{Simple8bDecoder, Simple8bEncoder};
+use crate::encoding::{Decoder, Encoder}; // Needed for trait methods
 use crate::error::{Result, TsFileError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
@@ -79,11 +79,7 @@ pub fn detect_quantization(data: &[f64]) -> Option<(f64, f64)> {
         .windows(2)
         .filter_map(|w| {
             let diff = (w[1] - w[0]).abs();
-            if diff > 1e-10 {
-                Some(diff)
-            } else {
-                None
-            }
+            if diff > 1e-10 { Some(diff) } else { None }
         })
         .collect();
 
@@ -101,7 +97,7 @@ pub fn detect_quantization(data: &[f64]) -> Option<(f64, f64)> {
     // Verify all differences are multiples of candidate_step
     let is_quantized = diffs.iter().all(|&diff| {
         let ratio = diff / candidate_step;
-        (ratio - ratio.round()).abs() < 0.05  // Relaxed tolerance
+        (ratio - ratio.round()).abs() < 0.05 // Relaxed tolerance
     });
 
     if !is_quantized {
@@ -112,7 +108,7 @@ pub fn detect_quantization(data: &[f64]) -> Option<(f64, f64)> {
     let all_quantized = data.iter().all(|&value| {
         let offset = value - min;
         let index = offset / candidate_step;
-        (index - index.round()).abs() < 0.05  // Relaxed tolerance
+        (index - index.round()).abs() < 0.05 // Relaxed tolerance
     });
 
     if all_quantized {
@@ -182,10 +178,7 @@ impl QuantizedEncoder {
         output.write_i64::<LittleEndian>(indices[0])?;
 
         // Delta encoding
-        let deltas: Vec<i64> = indices
-            .windows(2)
-            .map(|w| w[1] - w[0])
-            .collect();
+        let deltas: Vec<i64> = indices.windows(2).map(|w| w[1] - w[0]).collect();
 
         // Simple8b encoding (handles zigzag internally)
         let mut simple8b = Simple8bEncoder::new(TSDataType::Int64);
@@ -350,7 +343,9 @@ mod tests {
 
         println!(
             "Quantized encoding: {} bytes → {} bytes ({:.2}x compression)",
-            raw_size, encoded.len(), compression_ratio
+            raw_size,
+            encoded.len(),
+            compression_ratio
         );
 
         // Should achieve good compression for this pattern

@@ -201,8 +201,9 @@ impl GlobalDictionary {
             let mut bytes = vec![0u8; len];
             reader.read_exact(&mut bytes)?;
 
-            let s = String::from_utf8(bytes)
-                .map_err(|e| TsFileError::InvalidState(format!("Invalid UTF-8 in dictionary: {}", e)))?;
+            let s = String::from_utf8(bytes).map_err(|e| {
+                TsFileError::InvalidState(format!("Invalid UTF-8 in dictionary: {}", e))
+            })?;
 
             // Clone necessary: s is inserted into HashMap and pushed into Vec
             string_to_id.insert(s.clone(), id);
@@ -364,11 +365,26 @@ mod tests {
 
         // Decode and verify
         let mut pos = 0;
-        assert_eq!(GlobalDictionary::decode_varint(&buffer, &mut pos).unwrap(), 0);
-        assert_eq!(GlobalDictionary::decode_varint(&buffer, &mut pos).unwrap(), 127);
-        assert_eq!(GlobalDictionary::decode_varint(&buffer, &mut pos).unwrap(), 128);
-        assert_eq!(GlobalDictionary::decode_varint(&buffer, &mut pos).unwrap(), 16383);
-        assert_eq!(GlobalDictionary::decode_varint(&buffer, &mut pos).unwrap(), 16384);
+        assert_eq!(
+            GlobalDictionary::decode_varint(&buffer, &mut pos).unwrap(),
+            0
+        );
+        assert_eq!(
+            GlobalDictionary::decode_varint(&buffer, &mut pos).unwrap(),
+            127
+        );
+        assert_eq!(
+            GlobalDictionary::decode_varint(&buffer, &mut pos).unwrap(),
+            128
+        );
+        assert_eq!(
+            GlobalDictionary::decode_varint(&buffer, &mut pos).unwrap(),
+            16383
+        );
+        assert_eq!(
+            GlobalDictionary::decode_varint(&buffer, &mut pos).unwrap(),
+            16384
+        );
     }
 
     #[test]

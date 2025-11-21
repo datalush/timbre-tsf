@@ -169,8 +169,8 @@ pub mod writer;
 
 // Re-export core types for convenience
 pub use common::*;
-pub use compress::{create_compressor, Compressor};
-pub use encoding::{create_decoder, create_encoder, Decoder, Encoder};
+pub use compress::{Compressor, create_compressor};
+pub use encoding::{Decoder, Encoder, create_decoder, create_encoder};
 pub use error::{Result, TsFileError};
 
 /// Timbre format constants and magic numbers.

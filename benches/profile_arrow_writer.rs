@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use std::sync::Arc;
 use std::time::Instant;
 use tempfile::NamedTempFile;
@@ -91,18 +91,30 @@ fn profile_arrow_tsfile(batch: &RecordBatch) {
     let total_time = start_total.elapsed();
 
     eprintln!("\n=== PROFILING RESULTS (100K rows) ===");
-    eprintln!("Phase 1 (Converter init):  {:>8.2} ms ({:>5.1}%)",
+    eprintln!(
+        "Phase 1 (Converter init):  {:>8.2} ms ({:>5.1}%)",
         phase1_time.as_secs_f64() * 1000.0,
-        phase1_time.as_secs_f64() / total_time.as_secs_f64() * 100.0);
-    eprintln!("Phase 2 (write_batch):     {:>8.2} ms ({:>5.1}%)",
+        phase1_time.as_secs_f64() / total_time.as_secs_f64() * 100.0
+    );
+    eprintln!(
+        "Phase 2 (write_batch):     {:>8.2} ms ({:>5.1}%)",
         phase2_time.as_secs_f64() * 1000.0,
-        phase2_time.as_secs_f64() / total_time.as_secs_f64() * 100.0);
-    eprintln!("Phase 3 (finish):          {:>8.2} ms ({:>5.1}%)",
+        phase2_time.as_secs_f64() / total_time.as_secs_f64() * 100.0
+    );
+    eprintln!(
+        "Phase 3 (finish):          {:>8.2} ms ({:>5.1}%)",
         phase3_time.as_secs_f64() * 1000.0,
-        phase3_time.as_secs_f64() / total_time.as_secs_f64() * 100.0);
-    eprintln!("Total time:                {:>8.2} ms", total_time.as_secs_f64() * 1000.0);
+        phase3_time.as_secs_f64() / total_time.as_secs_f64() * 100.0
+    );
+    eprintln!(
+        "Total time:                {:>8.2} ms",
+        total_time.as_secs_f64() * 1000.0
+    );
     eprintln!("Target (Parquet):          {:>8.2} ms", 14.99);
-    eprintln!("Gap to close:              {:>8.2} ms", total_time.as_secs_f64() * 1000.0 - 14.99);
+    eprintln!(
+        "Gap to close:              {:>8.2} ms",
+        total_time.as_secs_f64() * 1000.0 - 14.99
+    );
 }
 
 fn benchmark_profile(c: &mut Criterion) {

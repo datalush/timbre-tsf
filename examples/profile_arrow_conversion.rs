@@ -2,7 +2,6 @@
 ///
 /// This example profiles the hot paths in arrow::from_arrow conversion
 /// to identify bottlenecks causing the 1.9x slowdown vs Parquet.
-
 use std::sync::Arc;
 use std::time::Instant;
 use tempfile::NamedTempFile;
@@ -20,14 +19,26 @@ fn generate_large_batch(num_rows: usize) -> RecordBatch {
     let devices = ["device_1", "device_2", "device_3", "device_4", "device_5"];
     let base_time = 1700000000000i64;
 
-    let timestamps: Vec<i64> = (0..num_rows).map(|i| base_time + (i as i64 * 1000)).collect();
+    let timestamps: Vec<i64> = (0..num_rows)
+        .map(|i| base_time + (i as i64 * 1000))
+        .collect();
     let device_ids: Vec<&str> = (0..num_rows).map(|i| devices[i % devices.len()]).collect();
-    let temperatures: Vec<f32> = (0..num_rows).map(|i| 20.0 + (i as f32 * 0.001) % 10.0).collect();
-    let humidity: Vec<f32> = (0..num_rows).map(|i| 50.0 + (i as f32 * 0.002) % 20.0).collect();
-    let pressure: Vec<f32> = (0..num_rows).map(|i| 1013.0 + (i as f32 * 0.0005) % 50.0).collect();
+    let temperatures: Vec<f32> = (0..num_rows)
+        .map(|i| 20.0 + (i as f32 * 0.001) % 10.0)
+        .collect();
+    let humidity: Vec<f32> = (0..num_rows)
+        .map(|i| 50.0 + (i as f32 * 0.002) % 20.0)
+        .collect();
+    let pressure: Vec<f32> = (0..num_rows)
+        .map(|i| 1013.0 + (i as f32 * 0.0005) % 50.0)
+        .collect();
 
     let schema = Arc::new(Schema::new(vec![
-        Field::new("timestamp", DataType::Timestamp(TimeUnit::Millisecond, None), false),
+        Field::new(
+            "timestamp",
+            DataType::Timestamp(TimeUnit::Millisecond, None),
+            false,
+        ),
         Field::new("device_id", DataType::Utf8, false),
         Field::new("temperature", DataType::Float32, false),
         Field::new("humidity", DataType::Float32, false),
@@ -48,7 +59,10 @@ fn generate_large_batch(num_rows: usize) -> RecordBatch {
 }
 
 fn profile_write_batch(batch: &RecordBatch, batch_size: usize) {
-    println!("\n=== Profiling write_batch with batch_size={} ===", batch_size);
+    println!(
+        "\n=== Profiling write_batch with batch_size={} ===",
+        batch_size
+    );
 
     let temp_file = NamedTempFile::new().unwrap();
     let path = temp_file.path();
@@ -64,7 +78,12 @@ fn profile_write_batch(batch: &RecordBatch, batch_size: usize) {
 
     // Split into smaller batches
     let num_batches = (batch.num_rows() + batch_size - 1) / batch_size;
-    println!("Writing {} rows in {} batches of ~{} rows", batch.num_rows(), num_batches, batch_size);
+    println!(
+        "Writing {} rows in {} batches of ~{} rows",
+        batch.num_rows(),
+        num_batches,
+        batch_size
+    );
 
     for batch_idx in 0..num_batches {
         let start = batch_idx * batch_size;
@@ -79,9 +98,14 @@ fn profile_write_batch(batch: &RecordBatch, batch_size: usize) {
         batch_times.push(batch_elapsed);
 
         if batch_idx < 5 || batch_idx % 100 == 0 {
-            println!("  Batch {}/{}: {} rows in {:?} ({:.0} rows/sec)",
-                batch_idx + 1, num_batches, mini_batch.num_rows(),
-                batch_elapsed, mini_batch.num_rows() as f64 / batch_elapsed.as_secs_f64());
+            println!(
+                "  Batch {}/{}: {} rows in {:?} ({:.0} rows/sec)",
+                batch_idx + 1,
+                num_batches,
+                mini_batch.num_rows(),
+                batch_elapsed,
+                mini_batch.num_rows() as f64 / batch_elapsed.as_secs_f64()
+            );
         }
     }
 
@@ -95,15 +119,26 @@ fn profile_write_batch(batch: &RecordBatch, batch_size: usize) {
     let total_elapsed = total_start.elapsed();
 
     println!("\nTiming breakdown:");
-    println!("  Write batches: {:?} ({:.1}%)", write_elapsed, 100.0 * write_elapsed.as_secs_f64() / total_elapsed.as_secs_f64());
-    println!("  Finish/close:  {:?} ({:.1}%)", finish_elapsed, 100.0 * finish_elapsed.as_secs_f64() / total_elapsed.as_secs_f64());
+    println!(
+        "  Write batches: {:?} ({:.1}%)",
+        write_elapsed,
+        100.0 * write_elapsed.as_secs_f64() / total_elapsed.as_secs_f64()
+    );
+    println!(
+        "  Finish/close:  {:?} ({:.1}%)",
+        finish_elapsed,
+        100.0 * finish_elapsed.as_secs_f64() / total_elapsed.as_secs_f64()
+    );
     println!("  Total:         {:?}", total_elapsed);
 
     let file_size = std::fs::metadata(path).unwrap().len();
     let throughput_mb = (file_size as f64 / 1_000_000.0) / total_elapsed.as_secs_f64();
 
     println!("\nPerformance:");
-    println!("  Rows/sec:      {:.0}", batch.num_rows() as f64 / total_elapsed.as_secs_f64());
+    println!(
+        "  Rows/sec:      {:.0}",
+        batch.num_rows() as f64 / total_elapsed.as_secs_f64()
+    );
     println!("  File size:     {:.2} MB", file_size as f64 / 1_000_000.0);
     println!("  Throughput:    {:.2} MB/s", throughput_mb);
 
@@ -118,7 +153,10 @@ fn profile_write_batch(batch: &RecordBatch, batch_size: usize) {
         println!("  Average: {:?}", avg_batch);
         println!("  Min:     {:?}", min_batch);
         println!("  Max:     {:?}", max_batch);
-        println!("  Rows/sec (avg batch): {:.0}", batch_size as f64 / avg_batch.as_secs_f64());
+        println!(
+            "  Rows/sec (avg batch): {:.0}",
+            batch_size as f64 / avg_batch.as_secs_f64()
+        );
     }
 }
 

@@ -101,10 +101,7 @@ impl InvertedIndex {
         // Add device ID to each tag's bitmap
         for (key, value) in tags {
             let tag = format!("{}={}", key, value);
-            self.tag_index
-                .entry(tag)
-                .or_default()
-                .insert(device_id);
+            self.tag_index.entry(tag).or_default().insert(device_id);
         }
     }
 
@@ -288,8 +285,9 @@ impl InvertedIndex {
             let mut name_bytes = vec![0u8; name_len];
             reader.read_exact(&mut name_bytes)?;
 
-            let name = String::from_utf8(name_bytes)
-                .map_err(|e| TsFileError::InvalidState(format!("Invalid UTF-8 in device name: {}", e)))?;
+            let name = String::from_utf8(name_bytes).map_err(|e| {
+                TsFileError::InvalidState(format!("Invalid UTF-8 in device name: {}", e))
+            })?;
 
             // Clone necessary: name inserted into two HashMaps
             index.device_id_to_name.insert(id, name.clone());
@@ -317,8 +315,9 @@ impl InvertedIndex {
             let mut bitmap_bytes = vec![0u8; bitmap_len];
             reader.read_exact(&mut bitmap_bytes)?;
 
-            let bitmap = RoaringBitmap::deserialize_from(&bitmap_bytes[..])
-                .map_err(|e| TsFileError::DecodingError(format!("Failed to deserialize bitmap: {}", e)))?;
+            let bitmap = RoaringBitmap::deserialize_from(&bitmap_bytes[..]).map_err(|e| {
+                TsFileError::DecodingError(format!("Failed to deserialize bitmap: {}", e))
+            })?;
 
             index.tag_index.insert(tag, bitmap);
         }
@@ -341,9 +340,18 @@ mod tests {
     fn test_inverted_index_single_tag() {
         let mut index = InvertedIndex::new();
 
-        index.add_device("sensor_001", &[("location", "datacenter1"), ("type", "temperature")]);
-        index.add_device("sensor_002", &[("location", "datacenter2"), ("type", "temperature")]);
-        index.add_device("sensor_003", &[("location", "datacenter1"), ("type", "humidity")]);
+        index.add_device(
+            "sensor_001",
+            &[("location", "datacenter1"), ("type", "temperature")],
+        );
+        index.add_device(
+            "sensor_002",
+            &[("location", "datacenter2"), ("type", "temperature")],
+        );
+        index.add_device(
+            "sensor_003",
+            &[("location", "datacenter1"), ("type", "humidity")],
+        );
 
         let devices = index.query_tag("location", "datacenter1");
         assert_eq!(devices.len(), 2);
@@ -355,10 +363,22 @@ mod tests {
     fn test_inverted_index_and_query() {
         let mut index = InvertedIndex::new();
 
-        index.add_device("sensor_001", &[("location", "datacenter1"), ("type", "temperature")]);
-        index.add_device("sensor_002", &[("location", "datacenter2"), ("type", "temperature")]);
-        index.add_device("sensor_003", &[("location", "datacenter1"), ("type", "humidity")]);
-        index.add_device("sensor_004", &[("location", "datacenter1"), ("type", "temperature")]);
+        index.add_device(
+            "sensor_001",
+            &[("location", "datacenter1"), ("type", "temperature")],
+        );
+        index.add_device(
+            "sensor_002",
+            &[("location", "datacenter2"), ("type", "temperature")],
+        );
+        index.add_device(
+            "sensor_003",
+            &[("location", "datacenter1"), ("type", "humidity")],
+        );
+        index.add_device(
+            "sensor_004",
+            &[("location", "datacenter1"), ("type", "temperature")],
+        );
 
         // Query: datacenter1 AND temperature
         let devices = index.query_tags_and(&[("location", "datacenter1"), ("type", "temperature")]);

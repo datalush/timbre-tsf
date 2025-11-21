@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 /// DEEP READ PROFILING - Measures EVERY phase of TsFile read pipeline
 ///
 /// This example instruments the entire read path to identify ACTUAL bottlenecks:
@@ -10,12 +12,9 @@
 /// Run with: cargo run --release --example profile_read_detailed
 ///
 /// Expected output: Time breakdown showing % of total for each phase
-
 use timbre_tsf::arrow::TsFileRecordBatchReader;
 use timbre_tsf::common::*;
 use timbre_tsf::writer::TsFileWriter;
-use std::time::{Duration, Instant};
-use std::sync::atomic::{AtomicU64, Ordering};
 
 // Global timing accumulators (atomic for thread-safety with rayon)
 static DECOMPRESS_TIME_NS: AtomicU64 = AtomicU64::new(0);
@@ -54,9 +53,14 @@ impl ReadProfile {
         println!("  Measurements:  {}", self.num_measurements);
         println!("  Total rows:    {}", self.total_rows);
         println!("  Bytes read:    {} KB", self.total_bytes_read / 1024);
-        println!("  Decompressed:  {} KB", self.total_bytes_decompressed / 1024);
-        println!("  Compression:   {:.1}%\n",
-            (self.total_bytes_read as f64 / self.total_bytes_decompressed as f64) * 100.0);
+        println!(
+            "  Decompressed:  {} KB",
+            self.total_bytes_decompressed / 1024
+        );
+        println!(
+            "  Compression:   {:.1}%\n",
+            (self.total_bytes_read as f64 / self.total_bytes_decompressed as f64) * 100.0
+        );
 
         println!("Time Breakdown:");
         println!("  Total:         {:.2} ms (100.0%)", total_ms);
@@ -64,7 +68,11 @@ impl ReadProfile {
 
         self.print_phase("I/O (disk read)", self.io_time, total_ms);
         self.print_phase("Decompression (LZ4)", self.decompress_time, total_ms);
-        self.print_phase("Decode timestamps (DeltaOfDelta)", self.decode_timestamps_time, total_ms);
+        self.print_phase(
+            "Decode timestamps (DeltaOfDelta)",
+            self.decode_timestamps_time,
+            total_ms,
+        );
         self.print_phase("Decode values (Gorilla)", self.decode_values_time, total_ms);
         self.print_phase("Arrow conversion", self.arrow_conversion_time, total_ms);
         self.print_phase("Other overhead", self.other_time, total_ms);
@@ -72,7 +80,8 @@ impl ReadProfile {
         println!("\n");
 
         // Throughput metrics
-        let throughput_mb_s = (self.total_bytes_decompressed as f64 / 1_000_000.0) / self.total_time.as_secs_f64();
+        let throughput_mb_s =
+            (self.total_bytes_decompressed as f64 / 1_000_000.0) / self.total_time.as_secs_f64();
         let rows_per_sec = self.total_rows as f64 / self.total_time.as_secs_f64();
 
         println!("Throughput:");
@@ -112,31 +121,44 @@ impl ReadProfile {
 
         println!("\nRecommendations:");
 
-        let top_bottleneck_pct = (sorted_phases[0].1.as_secs_f64() / self.total_time.as_secs_f64()) * 100.0;
+        let top_bottleneck_pct =
+            (sorted_phases[0].1.as_secs_f64() / self.total_time.as_secs_f64()) * 100.0;
 
         if sorted_phases[0].0 == "Decompression" && top_bottleneck_pct > 25.0 {
-            println!("  - Decompression is the PRIMARY bottleneck ({:.1}%)", top_bottleneck_pct);
+            println!(
+                "  - Decompression is the PRIMARY bottleneck ({:.1}%)",
+                top_bottleneck_pct
+            );
             println!("    * Consider parallel decompression with rayon");
             println!("    * Or try faster compression (SNAPPY vs LZ4)");
             println!("    * Expected improvement: 30-50% if parallelized");
         }
 
         if sorted_phases[0].0 == "Value decoding" && top_bottleneck_pct > 25.0 {
-            println!("  - Value decoding is the PRIMARY bottleneck ({:.1}%)", top_bottleneck_pct);
+            println!(
+                "  - Value decoding is the PRIMARY bottleneck ({:.1}%)",
+                top_bottleneck_pct
+            );
             println!("    * Gorilla decoder may have branch mispredictions");
             println!("    * Consider SIMD optimization for bit operations");
             println!("    * Expected improvement: 20-40% with SIMD");
         }
 
         if sorted_phases[0].0 == "Arrow conversion" && top_bottleneck_pct > 25.0 {
-            println!("  - Arrow conversion is the PRIMARY bottleneck ({:.1}%)", top_bottleneck_pct);
+            println!(
+                "  - Arrow conversion is the PRIMARY bottleneck ({:.1}%)",
+                top_bottleneck_pct
+            );
             println!("    * Too many allocations in array building");
             println!("    * Consider pre-allocating with exact capacity");
             println!("    * Expected improvement: 15-25%");
         }
 
         if sorted_phases[0].0 == "I/O" && top_bottleneck_pct > 25.0 {
-            println!("  - I/O is the PRIMARY bottleneck ({:.1}%)", top_bottleneck_pct);
+            println!(
+                "  - I/O is the PRIMARY bottleneck ({:.1}%)",
+                top_bottleneck_pct
+            );
             println!("    * Consider memory-mapped I/O (mmap)");
             println!("    * Or increase BufReader buffer size");
             println!("    * Expected improvement: 20-30%");
@@ -151,7 +173,9 @@ impl ReadProfile {
 
         let bar_width = 40;
         let filled = ((pct / 100.0) * bar_width as f64) as usize;
-        let bar: String = (0..bar_width).map(|i| if i < filled { '█' } else { '░' }).collect();
+        let bar: String = (0..bar_width)
+            .map(|i| if i < filled { '█' } else { '░' })
+            .collect();
 
         println!("  {:25} {:6.2} ms  {:5.1}%  {}", name, ms, pct, bar);
     }
@@ -206,9 +230,24 @@ fn generate_test_file(path: &str, total_rows: usize, num_devices: usize) {
         let mut tablet = Tablet::new(
             &device_id,
             vec![
-                MeasurementSchema::new("temperature", TSDataType::Float, TSEncoding::Gorilla, CompressionType::Lz4),
-                MeasurementSchema::new("pressure", TSDataType::Float, TSEncoding::Gorilla, CompressionType::Lz4),
-                MeasurementSchema::new("humidity", TSDataType::Float, TSEncoding::Gorilla, CompressionType::Lz4),
+                MeasurementSchema::new(
+                    "temperature",
+                    TSDataType::Float,
+                    TSEncoding::Gorilla,
+                    CompressionType::Lz4,
+                ),
+                MeasurementSchema::new(
+                    "pressure",
+                    TSDataType::Float,
+                    TSEncoding::Gorilla,
+                    CompressionType::Lz4,
+                ),
+                MeasurementSchema::new(
+                    "humidity",
+                    TSDataType::Float,
+                    TSEncoding::Gorilla,
+                    CompressionType::Lz4,
+                ),
             ],
             vec![ColumnCategory::Field; 3],
             rows_per_device,
@@ -216,14 +255,16 @@ fn generate_test_file(path: &str, total_rows: usize, num_devices: usize) {
 
         for i in 0..rows_per_device {
             let timestamp = 1000 + i as i64 * 100;
-            tablet.add_row(
-                timestamp,
-                vec![
-                    Some(TsValue::Float(25.0 + (i % 100) as f32 * 0.1)),
-                    Some(TsValue::Float(1013.25 + (i % 50) as f32 * 0.5)),
-                    Some(TsValue::Float(60.0 + (i % 40) as f32 * 0.25)),
-                ],
-            ).unwrap();
+            tablet
+                .add_row(
+                    timestamp,
+                    vec![
+                        Some(TsValue::Float(25.0 + (i % 100) as f32 * 0.1)),
+                        Some(TsValue::Float(1013.25 + (i % 50) as f32 * 0.5)),
+                        Some(TsValue::Float(60.0 + (i % 40) as f32 * 0.25)),
+                    ],
+                )
+                .unwrap();
         }
 
         writer.write_tablet(&tablet).unwrap();
@@ -232,7 +273,12 @@ fn generate_test_file(path: &str, total_rows: usize, num_devices: usize) {
     writer.close().unwrap();
 }
 
-fn profile_read(path: &str, num_devices: usize, num_measurements: usize, _expected_rows: usize) -> ReadProfile {
+fn profile_read(
+    path: &str,
+    num_devices: usize,
+    num_measurements: usize,
+    _expected_rows: usize,
+) -> ReadProfile {
     // Reset global counters
     DECOMPRESS_TIME_NS.store(0, Ordering::SeqCst);
     DECODE_TIME_NS.store(0, Ordering::SeqCst);
@@ -282,7 +328,11 @@ fn profile_read(path: &str, num_devices: usize, num_measurements: usize, _expect
     let io_time = total_time * 12 / 100;
 
     // Other overhead
-    let accounted = decode_timestamps_time + decode_values_time + decompress_time + arrow_conversion_time + io_time;
+    let accounted = decode_timestamps_time
+        + decode_values_time
+        + decompress_time
+        + arrow_conversion_time
+        + io_time;
     let other_time = total_time.saturating_sub(accounted);
 
     ReadProfile {

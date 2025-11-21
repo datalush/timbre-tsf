@@ -68,8 +68,8 @@ mod schema_mapping;
 mod to_arrow;
 mod types;
 
-pub use aligned_buffer::{alloc_aligned_vec, AlignedVec, ARROW_ALIGNMENT};
+pub use aligned_buffer::{ARROW_ALIGNMENT, AlignedVec, alloc_aligned_vec};
 pub use from_arrow::ArrowToTsFileConverter;
-pub use schema_mapping::{arrow_type_to_tsfile, tsfile_type_to_arrow, ArrowSchemaMapping};
+pub use schema_mapping::{ArrowSchemaMapping, arrow_type_to_tsfile, tsfile_type_to_arrow};
 pub use to_arrow::TsFileRecordBatchReader;
 pub use types::{ArrowConversionConfig, EncodingHint};

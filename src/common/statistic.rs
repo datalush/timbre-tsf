@@ -41,8 +41,8 @@
 //! assert_eq!(stat.end_time(), 3000);
 //! ```
 
-use super::types::TSDataType;
 use super::TsValue;
+use super::types::TSDataType;
 use crate::error::Result;
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::Write;

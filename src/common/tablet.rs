@@ -597,24 +597,31 @@ impl Tablet {
         }
 
         if self.row_count() + num_rows > self.max_rows {
-            return Err(TsFileError::InvalidState(
-                format!("Bulk insert would exceed max_rows: {} + {} > {}",
-                    self.row_count(), num_rows, self.max_rows)
-            ));
+            return Err(TsFileError::InvalidState(format!(
+                "Bulk insert would exceed max_rows: {} + {} > {}",
+                self.row_count(),
+                num_rows,
+                self.max_rows
+            )));
         }
 
         if values.len() != self.column_count() {
-            return Err(TsFileError::InvalidState(
-                format!("Expected {} columns, got {}", self.column_count(), values.len())
-            ));
+            return Err(TsFileError::InvalidState(format!(
+                "Expected {} columns, got {}",
+                self.column_count(),
+                values.len()
+            )));
         }
 
         // Validate all columns have correct length
         for (col_idx, col_values) in values.iter().enumerate() {
             if col_values.len() != num_rows {
-                return Err(TsFileError::InvalidState(
-                    format!("Column {} has {} rows, expected {}", col_idx, col_values.len(), num_rows)
-                ));
+                return Err(TsFileError::InvalidState(format!(
+                    "Column {} has {} rows, expected {}",
+                    col_idx,
+                    col_values.len(),
+                    num_rows
+                )));
             }
         }
 

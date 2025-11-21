@@ -4,8 +4,8 @@ use arrow::array::{Float32Array, StringArray, TimestampMillisecondArray};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::ArrowWriter;
-use parquet::file::properties::{EnabledStatistics, WriterProperties};
 use parquet::basic::{Compression, Encoding};
+use parquet::file::properties::{EnabledStatistics, WriterProperties};
 use std::sync::Arc;
 use std::time::Instant;
 use tempfile::NamedTempFile;
@@ -43,7 +43,11 @@ fn generate_timeseries_data(num_rows: usize) -> RecordBatch {
     }
 
     let schema = Arc::new(Schema::new(vec![
-        Field::new("timestamp", DataType::Timestamp(TimeUnit::Millisecond, None), false),
+        Field::new(
+            "timestamp",
+            DataType::Timestamp(TimeUnit::Millisecond, None),
+            false,
+        ),
         Field::new("device_id", DataType::Utf8, false),
         Field::new("temperature", DataType::Float32, false),
         Field::new("humidity", DataType::Float32, false),
@@ -63,7 +67,11 @@ fn generate_timeseries_data(num_rows: usize) -> RecordBatch {
     .unwrap()
 }
 
-fn benchmark_parquet(batch: &RecordBatch, compression: Compression, use_byte_stream_split: bool) -> (f64, usize) {
+fn benchmark_parquet(
+    batch: &RecordBatch,
+    compression: Compression,
+    use_byte_stream_split: bool,
+) -> (f64, usize) {
     let temp_file = NamedTempFile::new().unwrap();
     let path = temp_file.path();
 
@@ -100,7 +108,11 @@ fn benchmark_parquet(batch: &RecordBatch, compression: Compression, use_byte_str
     (avg_time, file_size)
 }
 
-fn benchmark_tsfile(batch: &RecordBatch, encoding: TSEncoding, compression: CompressionType) -> (f64, usize) {
+fn benchmark_tsfile(
+    batch: &RecordBatch,
+    encoding: TSEncoding,
+    compression: CompressionType,
+) -> (f64, usize) {
     let temp_file = NamedTempFile::new().unwrap();
     let path = temp_file.path();
 
@@ -147,9 +159,17 @@ fn main() {
     // PARQUET: Diferentes configuraciones
     let configs = vec![
         ("Parquet (Plain + Snappy)", Compression::SNAPPY, false),
-        ("Parquet (ByteStreamSplit + Snappy)", Compression::SNAPPY, true),
+        (
+            "Parquet (ByteStreamSplit + Snappy)",
+            Compression::SNAPPY,
+            true,
+        ),
         ("Parquet (ByteStreamSplit + LZ4)", Compression::LZ4, true),
-        ("Parquet (ByteStreamSplit + ZSTD)", Compression::ZSTD(Default::default()), true),
+        (
+            "Parquet (ByteStreamSplit + ZSTD)",
+            Compression::ZSTD(Default::default()),
+            true,
+        ),
     ];
 
     let mut results = Vec::new();
@@ -157,21 +177,47 @@ fn main() {
     for (name, compression, use_bss) in configs {
         let (time, size) = benchmark_parquet(&batch, compression, use_bss);
         results.push((name, time, size));
-        println!("│ {:<32} │ {:>7.2} ms │ {:>6} KB │       │", name, time, size / 1024);
+        println!(
+            "│ {:<32} │ {:>7.2} ms │ {:>6} KB │       │",
+            name,
+            time,
+            size / 1024
+        );
     }
 
     // TSFILE: Diferentes configuraciones
     let tsfile_configs = vec![
-        ("TsFile (Plain + Uncompressed)", TSEncoding::Plain, CompressionType::Uncompressed),
-        ("TsFile (Plain + LZ4)", TSEncoding::Plain, CompressionType::Lz4),
-        ("TsFile (Gorilla + Uncompressed)", TSEncoding::Gorilla, CompressionType::Uncompressed),
-        ("TsFile (Gorilla + LZ4)", TSEncoding::Gorilla, CompressionType::Lz4),
+        (
+            "TsFile (Plain + Uncompressed)",
+            TSEncoding::Plain,
+            CompressionType::Uncompressed,
+        ),
+        (
+            "TsFile (Plain + LZ4)",
+            TSEncoding::Plain,
+            CompressionType::Lz4,
+        ),
+        (
+            "TsFile (Gorilla + Uncompressed)",
+            TSEncoding::Gorilla,
+            CompressionType::Uncompressed,
+        ),
+        (
+            "TsFile (Gorilla + LZ4)",
+            TSEncoding::Gorilla,
+            CompressionType::Lz4,
+        ),
     ];
 
     for (name, encoding, compression) in tsfile_configs {
         let (time, size) = benchmark_tsfile(&batch, encoding, compression);
         results.push((name, time, size));
-        println!("│ {:<32} │ {:>7.2} ms │ {:>6} KB │       │", name, time, size / 1024);
+        println!(
+            "│ {:<32} │ {:>7.2} ms │ {:>6} KB │       │",
+            name,
+            time,
+            size / 1024
+        );
     }
 
     println!("└────────────────────────────────────────────────────────────────────┘\n");
@@ -198,14 +244,23 @@ fn main() {
     println!("                       RECOMENDACIONES                             ");
     println!("═══════════════════════════════════════════════════════════════════\n");
 
-    let gorilla_lz4 = results.iter().find(|r| r.0 == "TsFile (Gorilla + LZ4)").unwrap();
-    let parquet_snappy = results.iter().find(|r| r.0 == "Parquet (Plain + Snappy)").unwrap();
+    let gorilla_lz4 = results
+        .iter()
+        .find(|r| r.0 == "TsFile (Gorilla + LZ4)")
+        .unwrap();
+    let parquet_snappy = results
+        .iter()
+        .find(|r| r.0 == "Parquet (Plain + Snappy)")
+        .unwrap();
 
     let compression_ratio = parquet_snappy.2 as f64 / gorilla_lz4.2 as f64;
     let speed_ratio = gorilla_lz4.1 / parquet_snappy.1;
 
     println!("  📊 Para SERIES TEMPORALES (datos con cambios pequeños):");
-    println!("     → TsFile (Gorilla + LZ4): {:.1}x mejor compresión", compression_ratio);
+    println!(
+        "     → TsFile (Gorilla + LZ4): {:.1}x mejor compresión",
+        compression_ratio
+    );
     println!("     → Pero {:.1}x más lento en escritura\n", speed_ratio);
 
     println!("  ⚡ Para MÁXIMA VELOCIDAD:");

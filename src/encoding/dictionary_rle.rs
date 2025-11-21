@@ -305,11 +305,7 @@ mod tests {
         // Verify lossless
         assert_eq!(data.len(), decoded.len());
         for (i, (&orig, &dec)) in data.iter().zip(decoded.iter()).enumerate() {
-            assert_eq!(
-                orig, dec,
-                "Mismatch at index {}: {} != {}",
-                i, orig, dec
-            );
+            assert_eq!(orig, dec, "Mismatch at index {}: {} != {}", i, orig, dec);
         }
 
         // Check compression

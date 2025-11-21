@@ -634,10 +634,7 @@ impl PageData {
         header: PageHeader,
         miniblocks: Vec<crate::file::miniblock::MiniBlock>,
     ) -> Self {
-        Self {
-            header,
-            miniblocks,
-        }
+        Self { header, miniblocks }
     }
 }
 

@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 /// INSTRUMENTED READ PROFILING - ACTUAL measurements with real timing data
 ///
 /// This example creates an instrumented version of the read pipeline that
@@ -12,12 +14,9 @@
 /// Run with: cargo run --release --example profile_read_instrumented
 ///
 /// This gives REAL DATA about where time is spent!
-
 use timbre_tsf::common::*;
-use timbre_tsf::writer::TsFileWriter;
 use timbre_tsf::reader::TsFileIOReader;
-use std::time::{Duration, Instant};
-use std::sync::{Arc, Mutex};
+use timbre_tsf::writer::TsFileWriter;
 
 #[derive(Debug, Clone, Default)]
 struct TimingData {
@@ -38,9 +37,12 @@ struct TimingData {
 
 impl TimingData {
     fn total_measured(&self) -> Duration {
-        self.io_time + self.decompress_time +
-        self.decode_timestamp_time + self.decode_value_time +
-        self.merge_time + self.arrow_build_time
+        self.io_time
+            + self.decompress_time
+            + self.decode_timestamp_time
+            + self.decode_value_time
+            + self.merge_time
+            + self.arrow_build_time
     }
 
     fn print_report(&self, total_time: Duration, metadata: &DatasetMetadata) {
@@ -64,21 +66,34 @@ impl TimingData {
         println!("  Decompress calls:   {}", self.decompress_calls);
         println!("  Decode calls:       {}", self.decode_calls);
         println!("  Bytes read:         {} KB", self.bytes_read / 1024);
-        println!("  Bytes decompressed: {} KB", self.bytes_decompressed / 1024);
+        println!(
+            "  Bytes decompressed: {} KB",
+            self.bytes_decompressed / 1024
+        );
         println!("  Values decoded:     {}", self.values_decoded);
         println!();
 
         println!("Time Breakdown:");
         println!("  Total wall time:   {:.2} ms (100.0%)", total_ms);
-        println!("  Measured time:     {:.2} ms ({:.1}%)",
-            measured_ms, (measured_ms / total_ms) * 100.0);
-        println!("  Overhead:          {:.2} ms ({:.1}%)\n",
-            overhead_ms, (overhead_ms / total_ms) * 100.0);
+        println!(
+            "  Measured time:     {:.2} ms ({:.1}%)",
+            measured_ms,
+            (measured_ms / total_ms) * 100.0
+        );
+        println!(
+            "  Overhead:          {:.2} ms ({:.1}%)\n",
+            overhead_ms,
+            (overhead_ms / total_ms) * 100.0
+        );
         println!("  ----------------------------------------");
 
         self.print_phase("I/O (disk reads)", self.io_time, total_ms);
         self.print_phase("LZ4 Decompression", self.decompress_time, total_ms);
-        self.print_phase("DeltaOfDelta Decode (timestamps)", self.decode_timestamp_time, total_ms);
+        self.print_phase(
+            "DeltaOfDelta Decode (timestamps)",
+            self.decode_timestamp_time,
+            total_ms,
+        );
         self.print_phase("Gorilla Decode (values)", self.decode_value_time, total_ms);
         self.print_phase("Merge/Concatenate", self.merge_time, total_ms);
         self.print_phase("Arrow Array Building", self.arrow_build_time, total_ms);
@@ -87,19 +102,22 @@ impl TimingData {
 
         // Derived metrics
         if self.decompress_time.as_secs_f64() > 0.0 {
-            let decompress_throughput = (self.bytes_decompressed as f64 / 1_000_000.0)
-                / self.decompress_time.as_secs_f64();
-            println!("Decompression throughput: {:.2} MB/s", decompress_throughput);
+            let decompress_throughput =
+                (self.bytes_decompressed as f64 / 1_000_000.0) / self.decompress_time.as_secs_f64();
+            println!(
+                "Decompression throughput: {:.2} MB/s",
+                decompress_throughput
+            );
         }
 
         if self.decode_value_time.as_secs_f64() > 0.0 {
-            let decode_throughput = (self.values_decoded as f64 / 1_000_000.0)
-                / self.decode_value_time.as_secs_f64();
+            let decode_throughput =
+                (self.values_decoded as f64 / 1_000_000.0) / self.decode_value_time.as_secs_f64();
             println!("Decode throughput: {:.2} M values/s", decode_throughput);
         }
 
-        let overall_throughput = (metadata.total_rows as f64 / 1_000_000.0)
-            / total_time.as_secs_f64();
+        let overall_throughput =
+            (metadata.total_rows as f64 / 1_000_000.0) / total_time.as_secs_f64();
         println!("Overall throughput: {:.2} M rows/s\n", overall_throughput);
 
         println!("========================================");
@@ -135,8 +153,14 @@ impl TimingData {
                 "P4-MINIMAL"
             };
 
-            println!("  {}. {:30} {:7.2} ms  ({:5.1}%)  [{}]",
-                i + 1, name, ms, pct, priority);
+            println!(
+                "  {}. {:30} {:7.2} ms  ({:5.1}%)  [{}]",
+                i + 1,
+                name,
+                ms,
+                pct,
+                priority
+            );
         }
 
         println!("\n========================================");
@@ -199,7 +223,10 @@ impl TimingData {
             println!("    Risk:     Low");
             println!();
         } else if top.0 == "Value Decoding (Gorilla)" && top_pct > 20.0 {
-            println!("PRIMARY BOTTLENECK: Gorilla Value Decoding ({:.1}%)", top_pct);
+            println!(
+                "PRIMARY BOTTLENECK: Gorilla Value Decoding ({:.1}%)",
+                top_pct
+            );
             println!();
             println!("Root Cause:");
             println!("  - Bit-level operations (read_bits, XOR, leading/trailing zeros)");
@@ -230,7 +257,10 @@ impl TimingData {
             println!("    Risk:     Medium");
             println!();
         } else if top.0 == "Timestamp Decoding" && top_pct > 20.0 {
-            println!("PRIMARY BOTTLENECK: DeltaOfDelta Timestamp Decoding ({:.1}%)", top_pct);
+            println!(
+                "PRIMARY BOTTLENECK: DeltaOfDelta Timestamp Decoding ({:.1}%)",
+                top_pct
+            );
             println!();
             println!("Root Cause:");
             println!("  - Delta-of-delta encoding requires sequential processing");
@@ -311,8 +341,10 @@ fn main() {
     let num_devices = 5;
     let num_measurements = 3;
 
-    println!("Creating test file ({} rows, {} devices, {} measurements each)...",
-        num_rows, num_devices, num_measurements);
+    println!(
+        "Creating test file ({} rows, {} devices, {} measurements each)...",
+        num_rows, num_devices, num_measurements
+    );
 
     generate_test_file(path, num_rows, num_devices);
 
@@ -363,9 +395,24 @@ fn generate_test_file(path: &str, total_rows: usize, num_devices: usize) {
         let mut tablet = Tablet::new(
             &device_id,
             vec![
-                MeasurementSchema::new("temperature", TSDataType::Float, TSEncoding::Gorilla, CompressionType::Lz4),
-                MeasurementSchema::new("pressure", TSDataType::Float, TSEncoding::Gorilla, CompressionType::Lz4),
-                MeasurementSchema::new("humidity", TSDataType::Float, TSEncoding::Gorilla, CompressionType::Lz4),
+                MeasurementSchema::new(
+                    "temperature",
+                    TSDataType::Float,
+                    TSEncoding::Gorilla,
+                    CompressionType::Lz4,
+                ),
+                MeasurementSchema::new(
+                    "pressure",
+                    TSDataType::Float,
+                    TSEncoding::Gorilla,
+                    CompressionType::Lz4,
+                ),
+                MeasurementSchema::new(
+                    "humidity",
+                    TSDataType::Float,
+                    TSEncoding::Gorilla,
+                    CompressionType::Lz4,
+                ),
             ],
             vec![ColumnCategory::Field; 3],
             rows_per_device,
@@ -373,14 +420,16 @@ fn generate_test_file(path: &str, total_rows: usize, num_devices: usize) {
 
         for i in 0..rows_per_device {
             let timestamp = 1000 + i as i64 * 100;
-            tablet.add_row(
-                timestamp,
-                vec![
-                    Some(TsValue::Float(25.0 + (i % 100) as f32 * 0.1)),
-                    Some(TsValue::Float(1013.25 + (i % 50) as f32 * 0.5)),
-                    Some(TsValue::Float(60.0 + (i % 40) as f32 * 0.25)),
-                ],
-            ).unwrap();
+            tablet
+                .add_row(
+                    timestamp,
+                    vec![
+                        Some(TsValue::Float(25.0 + (i % 100) as f32 * 0.1)),
+                        Some(TsValue::Float(1013.25 + (i % 50) as f32 * 0.5)),
+                        Some(TsValue::Float(60.0 + (i % 40) as f32 * 0.25)),
+                    ],
+                )
+                .unwrap();
         }
 
         writer.write_tablet(&tablet).unwrap();

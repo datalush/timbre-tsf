@@ -249,9 +249,6 @@ mod tests {
             EncodingHint::RepetitiveString.select_encoding(),
             TSEncoding::Dictionary
         );
-        assert_eq!(
-            EncodingHint::Boolean.select_encoding(),
-            TSEncoding::Rle
-        );
+        assert_eq!(EncodingHint::Boolean.select_encoding(), TSEncoding::Rle);
     }
 }

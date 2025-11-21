@@ -1,6 +1,6 @@
+use std::time::Instant;
 use timbre_tsf::common::*;
 use timbre_tsf::writer::TsFileWriter;
-use std::time::Instant;
 
 fn main() {
     let path = "/tmp/profile_write.ts";

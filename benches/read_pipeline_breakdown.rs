@@ -8,15 +8,14 @@
 /// - Complete end-to-end read
 ///
 /// Run with: cargo bench --bench read_pipeline_breakdown
-
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use std::time::Duration;
+use tempfile::NamedTempFile;
 use timbre_tsf::common::*;
-use timbre_tsf::writer::TsFileWriter;
-use timbre_tsf::reader::TsFileIOReader;
 use timbre_tsf::compress::{Compressor, Lz4Compressor};
 use timbre_tsf::encoding::create_decoder;
-use tempfile::NamedTempFile;
-use std::time::Duration;
+use timbre_tsf::reader::TsFileIOReader;
+use timbre_tsf::writer::TsFileWriter;
 
 /// Generate a test file for benchmarking
 fn generate_test_file(num_rows: usize) -> NamedTempFile {
@@ -105,7 +104,9 @@ fn bench_lz4_decompress(c: &mut Criterion) {
             |b, (comp, uncomp_size)| {
                 b.iter(|| {
                     let mut c = Lz4Compressor;
-                    let result = c.decompress(black_box(comp), black_box(*uncomp_size)).unwrap();
+                    let result = c
+                        .decompress(black_box(comp), black_box(*uncomp_size))
+                        .unwrap();
                     black_box(result);
                 });
             },
@@ -166,7 +167,7 @@ fn bench_dod_decode(c: &mut Criterion) {
 
     for size in sizes {
         // Encode timestamps first
-        use timbre_tsf::encoding::{Encoder, DeltaOfDeltaEncoder};
+        use timbre_tsf::encoding::{DeltaOfDeltaEncoder, Encoder};
         let mut encoder = DeltaOfDeltaEncoder::new(TSDataType::Int64);
         let mut out = Vec::new();
 
@@ -223,16 +224,12 @@ fn bench_arrow_build(c: &mut Criterion) {
             },
         );
 
-        group.bench_with_input(
-            BenchmarkId::new("i64_array", size),
-            &int_data,
-            |b, data| {
-                b.iter(|| {
-                    let array = Int64Array::from(black_box(data.clone()));
-                    black_box(array);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("i64_array", size), &int_data, |b, data| {
+            b.iter(|| {
+                let array = Int64Array::from(black_box(data.clone()));
+                black_box(array);
+            });
+        });
     }
 
     group.finish();

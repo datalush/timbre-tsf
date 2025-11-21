@@ -1,6 +1,6 @@
+use std::time::Instant;
 use timbre_tsf::common::*;
 use timbre_tsf::writer::TsFileWriter;
-use std::time::Instant;
 
 fn main() {
     let path = "/tmp/profile_write_batch.ts";
@@ -138,7 +138,10 @@ fn write_with_tablets(path: &str, total_rows: usize) {
             let humidity = TsValue::Float(60.0 + (i % 40) as f32 * 0.25);
 
             tablet
-                .add_row(timestamp, vec![Some(temperature), Some(pressure), Some(humidity)])
+                .add_row(
+                    timestamp,
+                    vec![Some(temperature), Some(pressure), Some(humidity)],
+                )
                 .unwrap();
         }
 

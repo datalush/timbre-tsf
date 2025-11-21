@@ -1,6 +1,8 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use std::time::Duration;
-use timbre_tsf::encoding::simd::{xor_detect_identical, count_leading_zeros_batch, count_trailing_zeros_batch, features};
+use timbre_tsf::encoding::simd::{
+    count_leading_zeros_batch, count_trailing_zeros_batch, features, xor_detect_identical,
+};
 
 /// Generate realistic sensor data with slow variation
 fn generate_sensor_data(n: usize) -> Vec<f32> {
@@ -37,31 +39,25 @@ fn benchmark_xor_detection(c: &mut Criterion) {
         // Throughput: measure MB/s
         group.throughput(Throughput::Bytes((size * 4) as u64));
 
-        group.bench_with_input(
-            BenchmarkId::from_parameter(size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let mut total_identical = 0u32;
+        group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
+            b.iter(|| {
+                let mut total_identical = 0u32;
 
-                    // Process in batches of 8
-                    for i in (0..size.saturating_sub(8)).step_by(8) {
-                        let curr_batch: [f32; 8] = current[i..i+8].try_into().unwrap();
-                        let prev_batch: [f32; 8] = previous[i..i+8].try_into().unwrap();
+                // Process in batches of 8
+                for i in (0..size.saturating_sub(8)).step_by(8) {
+                    let curr_batch: [f32; 8] = current[i..i + 8].try_into().unwrap();
+                    let prev_batch: [f32; 8] = previous[i..i + 8].try_into().unwrap();
 
-                        let result = xor_detect_identical(
-                            black_box(&curr_batch),
-                            black_box(&prev_batch)
-                        );
+                    let result =
+                        xor_detect_identical(black_box(&curr_batch), black_box(&prev_batch));
 
-                        // Count identical values
-                        total_identical += result.identical_mask.count_ones();
-                    }
+                    // Count identical values
+                    total_identical += result.identical_mask.count_ones();
+                }
 
-                    total_identical
-                });
-            },
-        );
+                total_identical
+            });
+        });
     }
 
     group.finish();
@@ -81,25 +77,21 @@ fn benchmark_leading_zeros(c: &mut Criterion) {
 
         group.throughput(Throughput::Bytes((size * 4) as u64));
 
-        group.bench_with_input(
-            BenchmarkId::from_parameter(size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let mut total = 0u32;
+        group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
+            b.iter(|| {
+                let mut total = 0u32;
 
-                    // Process in batches of 8
-                    for i in (0..size.saturating_sub(8)).step_by(8) {
-                        let batch: [u32; 8] = bits[i..i+8].try_into().unwrap();
-                        let lz = count_leading_zeros_batch(black_box(&batch));
+                // Process in batches of 8
+                for i in (0..size.saturating_sub(8)).step_by(8) {
+                    let batch: [u32; 8] = bits[i..i + 8].try_into().unwrap();
+                    let lz = count_leading_zeros_batch(black_box(&batch));
 
-                        total += lz.iter().map(|&x| x as u32).sum::<u32>();
-                    }
+                    total += lz.iter().map(|&x| x as u32).sum::<u32>();
+                }
 
-                    total
-                });
-            },
-        );
+                total
+            });
+        });
     }
 
     group.finish();
@@ -117,24 +109,20 @@ fn benchmark_trailing_zeros(c: &mut Criterion) {
 
         group.throughput(Throughput::Bytes((size * 4) as u64));
 
-        group.bench_with_input(
-            BenchmarkId::from_parameter(size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let mut total = 0u32;
+        group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
+            b.iter(|| {
+                let mut total = 0u32;
 
-                    for i in (0..size.saturating_sub(8)).step_by(8) {
-                        let batch: [u32; 8] = bits[i..i+8].try_into().unwrap();
-                        let tz = count_trailing_zeros_batch(black_box(&batch));
+                for i in (0..size.saturating_sub(8)).step_by(8) {
+                    let batch: [u32; 8] = bits[i..i + 8].try_into().unwrap();
+                    let tz = count_trailing_zeros_batch(black_box(&batch));
 
-                        total += tz.iter().map(|&x| x as u32).sum::<u32>();
-                    }
+                    total += tz.iter().map(|&x| x as u32).sum::<u32>();
+                }
 
-                    total
-                });
-            },
-        );
+                total
+            });
+        });
     }
 
     group.finish();
@@ -155,77 +143,67 @@ fn benchmark_encoding_simulation(c: &mut Criterion) {
         group.throughput(Throughput::Bytes((size * 4) as u64));
 
         // Simulate Chimp128/Gorilla encoding pipeline with SIMD
-        group.bench_with_input(
-            BenchmarkId::new("simd", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let mut encoded_bits = 0u64;
+        group.bench_with_input(BenchmarkId::new("simd", size), &size, |b, _| {
+            b.iter(|| {
+                let mut encoded_bits = 0u64;
 
-                    for i in (0..size.saturating_sub(8)).step_by(8) {
-                        let curr_batch: [f32; 8] = current[i..i+8].try_into().unwrap();
-                        let prev_batch: [f32; 8] = previous[i..i+8].try_into().unwrap();
+                for i in (0..size.saturating_sub(8)).step_by(8) {
+                    let curr_batch: [f32; 8] = current[i..i + 8].try_into().unwrap();
+                    let prev_batch: [f32; 8] = previous[i..i + 8].try_into().unwrap();
 
-                        // SIMD: XOR + detect identical
-                        let result = xor_detect_identical(
-                            black_box(&curr_batch),
-                            black_box(&prev_batch)
-                        );
+                    // SIMD: XOR + detect identical
+                    let result =
+                        xor_detect_identical(black_box(&curr_batch), black_box(&prev_batch));
 
-                        // Write control bits (1 byte for 8 values)
-                        encoded_bits += 8;
+                    // Write control bits (1 byte for 8 values)
+                    encoded_bits += 8;
 
-                        // Scalar: leading/trailing zeros for non-identical values
-                        let lz = count_leading_zeros_batch(&result.xors);
-                        let tz = count_trailing_zeros_batch(&result.xors);
+                    // Scalar: leading/trailing zeros for non-identical values
+                    let lz = count_leading_zeros_batch(&result.xors);
+                    let tz = count_trailing_zeros_batch(&result.xors);
 
-                        for j in 0..8 {
-                            if (result.identical_mask & (1 << j)) == 0 {
-                                // Value changed - encode
-                                let significant = 32 - lz[j] - tz[j];
-                                encoded_bits += significant as u64;
-                            }
-                        }
-                    }
-
-                    encoded_bits
-                });
-            },
-        );
-
-        // Simulate scalar encoding (baseline)
-        group.bench_with_input(
-            BenchmarkId::new("scalar", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let mut encoded_bits = 0u64;
-
-                    for i in 0..size.saturating_sub(1) {
-                        let curr = black_box(current[i].to_bits());
-                        let prev = black_box(previous[i].to_bits());
-
-                        let xor = curr ^ prev;
-
-                        if xor == 0 {
-                            // Identical
-                            encoded_bits += 1;
-                        } else {
-                            // Changed
-                            encoded_bits += 1; // control bit
-
-                            let lz = xor.leading_zeros() as u8;
-                            let tz = xor.trailing_zeros() as u8;
-                            let significant = 32 - lz - tz;
-
+                    for j in 0..8 {
+                        if (result.identical_mask & (1 << j)) == 0 {
+                            // Value changed - encode
+                            let significant = 32 - lz[j] - tz[j];
                             encoded_bits += significant as u64;
                         }
                     }
+                }
 
-                    encoded_bits
-                });
-            },
-        );
+                encoded_bits
+            });
+        });
+
+        // Simulate scalar encoding (baseline)
+        group.bench_with_input(BenchmarkId::new("scalar", size), &size, |b, _| {
+            b.iter(|| {
+                let mut encoded_bits = 0u64;
+
+                for i in 0..size.saturating_sub(1) {
+                    let curr = black_box(current[i].to_bits());
+                    let prev = black_box(previous[i].to_bits());
+
+                    let xor = curr ^ prev;
+
+                    if xor == 0 {
+                        // Identical
+                        encoded_bits += 1;
+                    } else {
+                        // Changed
+                        encoded_bits += 1; // control bit
+
+                        let lz = xor.leading_zeros() as u8;
+                        let tz = xor.trailing_zeros() as u8;
+                        let significant = 32 - lz - tz;
+
+                        encoded_bits += significant as u64;
+                    }
+                }
+
+                encoded_bits
+            });
+        });
     }
 
     group.finish();

@@ -8,10 +8,10 @@
 //!
 //! Run with: cargo bench --bench chimp128_vs_gorilla
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
-use timbre_tsf::common::{TSDataType, TSEncoding};
-use timbre_tsf::encoding::{create_encoder, create_decoder};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use std::time::Duration;
+use timbre_tsf::common::{TSDataType, TSEncoding};
+use timbre_tsf::encoding::{create_decoder, create_encoder};
 
 /// Generate IoT sensor data (temperature, humidity, pressure, battery)
 fn generate_iot_sensor_data(num_points: usize) -> Vec<f64> {
@@ -53,38 +53,30 @@ fn bench_encoding_f64(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(bytes));
 
         // Chimp128
-        group.bench_with_input(
-            BenchmarkId::new("chimp128", size),
-            &data,
-            |b, data| {
-                b.iter(|| {
-                    let mut encoder = create_encoder(TSEncoding::Chimp128, TSDataType::Double);
-                    let mut out = Vec::new();
-                    for &val in data {
-                        encoder.encode_f64(black_box(val), &mut out).unwrap();
-                    }
-                    encoder.flush(&mut out).unwrap();
-                    black_box(out)
-                })
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("chimp128", size), &data, |b, data| {
+            b.iter(|| {
+                let mut encoder = create_encoder(TSEncoding::Chimp128, TSDataType::Double);
+                let mut out = Vec::new();
+                for &val in data {
+                    encoder.encode_f64(black_box(val), &mut out).unwrap();
+                }
+                encoder.flush(&mut out).unwrap();
+                black_box(out)
+            })
+        });
 
         // Gorilla
-        group.bench_with_input(
-            BenchmarkId::new("gorilla", size),
-            &data,
-            |b, data| {
-                b.iter(|| {
-                    let mut encoder = create_encoder(TSEncoding::Gorilla, TSDataType::Double);
-                    let mut out = Vec::new();
-                    for &val in data {
-                        encoder.encode_f64(black_box(val), &mut out).unwrap();
-                    }
-                    encoder.flush(&mut out).unwrap();
-                    black_box(out)
-                })
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("gorilla", size), &data, |b, data| {
+            b.iter(|| {
+                let mut encoder = create_encoder(TSEncoding::Gorilla, TSDataType::Double);
+                let mut out = Vec::new();
+                for &val in data {
+                    encoder.encode_f64(black_box(val), &mut out).unwrap();
+                }
+                encoder.flush(&mut out).unwrap();
+                black_box(out)
+            })
+        });
     }
 
     group.finish();
@@ -101,38 +93,30 @@ fn bench_encoding_f32(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(bytes));
 
         // Chimp128
-        group.bench_with_input(
-            BenchmarkId::new("chimp128", size),
-            &data,
-            |b, data| {
-                b.iter(|| {
-                    let mut encoder = create_encoder(TSEncoding::Chimp128, TSDataType::Float);
-                    let mut out = Vec::new();
-                    for &val in data {
-                        encoder.encode_f32(black_box(val), &mut out).unwrap();
-                    }
-                    encoder.flush(&mut out).unwrap();
-                    black_box(out)
-                })
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("chimp128", size), &data, |b, data| {
+            b.iter(|| {
+                let mut encoder = create_encoder(TSEncoding::Chimp128, TSDataType::Float);
+                let mut out = Vec::new();
+                for &val in data {
+                    encoder.encode_f32(black_box(val), &mut out).unwrap();
+                }
+                encoder.flush(&mut out).unwrap();
+                black_box(out)
+            })
+        });
 
         // Gorilla
-        group.bench_with_input(
-            BenchmarkId::new("gorilla", size),
-            &data,
-            |b, data| {
-                b.iter(|| {
-                    let mut encoder = create_encoder(TSEncoding::Gorilla, TSDataType::Float);
-                    let mut out = Vec::new();
-                    for &val in data {
-                        encoder.encode_f32(black_box(val), &mut out).unwrap();
-                    }
-                    encoder.flush(&mut out).unwrap();
-                    black_box(out)
-                })
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("gorilla", size), &data, |b, data| {
+            b.iter(|| {
+                let mut encoder = create_encoder(TSEncoding::Gorilla, TSDataType::Float);
+                let mut out = Vec::new();
+                for &val in data {
+                    encoder.encode_f32(black_box(val), &mut out).unwrap();
+                }
+                encoder.flush(&mut out).unwrap();
+                black_box(out)
+            })
+        });
     }
 
     group.finish();
@@ -233,11 +217,24 @@ fn bench_compression_ratio(c: &mut Criterion) {
     let raw_size = size * 8;
     let chimp_ratio = raw_size as f64 / encoded_chimp.len() as f64;
     let gorilla_ratio = raw_size as f64 / encoded_gorilla.len() as f64;
-    let improvement = ((encoded_gorilla.len() as f64 - encoded_chimp.len() as f64) / encoded_gorilla.len() as f64) * 100.0;
+    let improvement = ((encoded_gorilla.len() as f64 - encoded_chimp.len() as f64)
+        / encoded_gorilla.len() as f64)
+        * 100.0;
 
-    println!("Chimp128: {} bytes = {:.2}:1 compression", encoded_chimp.len(), chimp_ratio);
-    println!("Gorilla:  {} bytes = {:.2}:1 compression", encoded_gorilla.len(), gorilla_ratio);
-    println!("Chimp128 improvement: {:.1}% smaller than Gorilla\n", improvement);
+    println!(
+        "Chimp128: {} bytes = {:.2}:1 compression",
+        encoded_chimp.len(),
+        chimp_ratio
+    );
+    println!(
+        "Gorilla:  {} bytes = {:.2}:1 compression",
+        encoded_gorilla.len(),
+        gorilla_ratio
+    );
+    println!(
+        "Chimp128 improvement: {:.1}% smaller than Gorilla\n",
+        improvement
+    );
 
     group.finish();
 }

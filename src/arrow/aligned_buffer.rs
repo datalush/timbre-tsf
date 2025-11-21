@@ -39,9 +39,9 @@
 //! - **Cache misses**: ~30% reduction due to alignment
 //! - **Memory bandwidth**: Better utilization of memory bus
 
-use std::alloc::{alloc, Layout};
-use std::mem;
 use crate::error::{Result, TsFileError};
+use std::alloc::{Layout, alloc};
+use std::mem;
 
 /// 64-byte alignment constant (Arrow specification + AVX-512 requirement)
 pub const ARROW_ALIGNMENT: usize = 64;
@@ -94,9 +94,8 @@ pub fn alloc_aligned_vec<T>(capacity: usize) -> Result<Vec<T>> {
 
     unsafe {
         // Allocate aligned memory with safe layout construction
-        let layout = Layout::from_size_align(size, align).map_err(|e| {
-            TsFileError::AllocationError(format!("Invalid layout: {}", e))
-        })?;
+        let layout = Layout::from_size_align(size, align)
+            .map_err(|e| TsFileError::AllocationError(format!("Invalid layout: {}", e)))?;
 
         let ptr = alloc(layout);
 

@@ -1,3 +1,4 @@
+use arrow::array::Array;
 /// Arrow Zero-Copy Integration Example
 ///
 /// Este ejemplo demuestra:
@@ -6,11 +7,11 @@
 /// - Verificación de alignment para optimización SIMD
 ///
 /// Run with: cargo run --example arrow_zerocopy
-
-use timbre_tsf::arrow::{TsFileRecordBatchReader, ARROW_ALIGNMENT};
-use timbre_tsf::common::{CompressionType, MeasurementSchema, TSDataType, TSEncoding, TsRecord, TsValue};
+use timbre_tsf::arrow::{ARROW_ALIGNMENT, TsFileRecordBatchReader};
+use timbre_tsf::common::{
+    CompressionType, MeasurementSchema, TSDataType, TSEncoding, TsRecord, TsValue,
+};
 use timbre_tsf::writer::TsFileWriter;
-use arrow::array::Array;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("════════════════════════════════════════════════");
@@ -122,11 +123,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "❌ NOT ALIGNED"
                 };
 
-                println!("    • {:<12} @ 0x{:016x} → {} (offset: {})",
-                    field_name,
-                    ptr,
-                    status,
-                    alignment
+                println!(
+                    "    • {:<12} @ 0x{:016x} → {} (offset: {})",
+                    field_name, ptr, status, alignment
                 );
             }
         }
@@ -165,7 +164,10 @@ fn format_array_value(array: &dyn Array, index: usize) -> String {
 
     match array.data_type() {
         DataType::Timestamp(_, _) => {
-            let arr = array.as_any().downcast_ref::<TimestampMillisecondArray>().unwrap();
+            let arr = array
+                .as_any()
+                .downcast_ref::<TimestampMillisecondArray>()
+                .unwrap();
             format!("{}", arr.value(index))
         }
         DataType::Utf8 => {
@@ -188,5 +190,6 @@ fn format_array_value(array: &dyn Array, index: usize) -> String {
             let arr = array.as_any().downcast_ref::<Int64Array>().unwrap();
             format!("{}", arr.value(index))
         }
-        _ => format!("<?>")}
+        _ => format!("<?>"),
+    }
 }

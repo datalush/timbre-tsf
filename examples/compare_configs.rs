@@ -12,7 +12,7 @@ use parquet::arrow::ArrowWriter;
 use parquet::file::properties::WriterProperties;
 
 // TsFile imports
-use timbre_tsf::arrow::{ArrowToTsFileConverter, ArrowConversionConfig};
+use timbre_tsf::arrow::{ArrowConversionConfig, ArrowToTsFileConverter};
 
 /// Generate test data
 fn generate_test_data(num_rows: usize) -> RecordBatch {
@@ -83,7 +83,11 @@ fn benchmark_parquet(batch: &RecordBatch) -> (f64, usize) {
     (elapsed, file_size)
 }
 
-fn benchmark_tsfile(batch: &RecordBatch, config: ArrowConversionConfig, _name: &str) -> (f64, usize) {
+fn benchmark_tsfile(
+    batch: &RecordBatch,
+    config: ArrowConversionConfig,
+    _name: &str,
+) -> (f64, usize) {
     let temp_file = NamedTempFile::new().unwrap();
 
     let start = Instant::now();
@@ -130,7 +134,11 @@ fn main() {
         parquet_size = size;
     }
     let parquet_avg = parquet_times.iter().sum::<f64>() / parquet_times.len() as f64;
-    let parquet_min = parquet_times.iter().copied().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+    let parquet_min = parquet_times
+        .iter()
+        .copied()
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
 
     // Benchmark TsFile - Default (Gorilla + LZ4)
     let mut default_times = Vec::new();
@@ -141,7 +149,11 @@ fn main() {
         default_size = size;
     }
     let default_avg = default_times.iter().sum::<f64>() / default_times.len() as f64;
-    let default_min = default_times.iter().copied().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+    let default_min = default_times
+        .iter()
+        .copied()
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
 
     // Benchmark TsFile - Balanced (Plain + LZ4)
     let mut balanced_times = Vec::new();
@@ -152,7 +164,11 @@ fn main() {
         balanced_size = size;
     }
     let balanced_avg = balanced_times.iter().sum::<f64>() / balanced_times.len() as f64;
-    let balanced_min = balanced_times.iter().copied().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+    let balanced_min = balanced_times
+        .iter()
+        .copied()
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
 
     // Benchmark TsFile - Fast (Plain + Uncompressed)
     let mut fast_times = Vec::new();
@@ -163,10 +179,14 @@ fn main() {
         fast_size = size;
     }
     let fast_avg = fast_times.iter().sum::<f64>() / fast_times.len() as f64;
-    let fast_min = fast_times.iter().copied().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+    let fast_min = fast_times
+        .iter()
+        .copied()
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
 
     // Benchmark TsFile - Optimized (Plain + LZ4) - Best of both worlds
-    use timbre_tsf::common::{TSEncoding, CompressionType};
+    use timbre_tsf::common::{CompressionType, TSEncoding};
     let optimized_config = ArrowConversionConfig::default()
         .with_compression(CompressionType::Lz4)
         .with_f32_encoding(TSEncoding::Plain)
@@ -185,7 +205,11 @@ fn main() {
         optimized_size = size;
     }
     let optimized_avg = optimized_times.iter().sum::<f64>() / optimized_times.len() as f64;
-    let optimized_min = optimized_times.iter().copied().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+    let optimized_min = optimized_times
+        .iter()
+        .copied()
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
 
     // Print results
     println!("┌──────────────────────────────────────────────────────────────────┐");
@@ -193,44 +217,102 @@ fn main() {
     println!("├──────────────────────────────────────────────────────────────────┤");
     println!("│ Format             │  Avg Time  │  Min Time  │   File Size      │");
     println!("├──────────────────────────────────────────────────────────────────┤");
-    println!("│ Parquet (Snappy)   │ {:>8.2} ms │ {:>8.2} ms │ {:>7} KB       │",
-        parquet_avg, parquet_min, parquet_size / 1024);
-    println!("│ TsFile (Default)   │ {:>8.2} ms │ {:>8.2} ms │ {:>7} KB ({:>4.1}x) │",
-        default_avg, default_min, default_size / 1024,
-        parquet_size as f64 / default_size as f64);
-    println!("│ TsFile (Balanced)  │ {:>8.2} ms │ {:>8.2} ms │ {:>7} KB ({:>4.1}x) │",
-        balanced_avg, balanced_min, balanced_size / 1024,
-        parquet_size as f64 / balanced_size as f64);
-    println!("│ TsFile (Optimized) │ {:>8.2} ms │ {:>8.2} ms │ {:>7} KB ({:>4.1}x) │",
-        optimized_avg, optimized_min, optimized_size / 1024,
-        parquet_size as f64 / optimized_size as f64);
-    println!("│ TsFile (Fast)      │ {:>8.2} ms │ {:>8.2} ms │ {:>7} KB ({:>4.1}x) │",
-        fast_avg, fast_min, fast_size / 1024,
-        parquet_size as f64 / fast_size as f64);
+    println!(
+        "│ Parquet (Snappy)   │ {:>8.2} ms │ {:>8.2} ms │ {:>7} KB       │",
+        parquet_avg,
+        parquet_min,
+        parquet_size / 1024
+    );
+    println!(
+        "│ TsFile (Default)   │ {:>8.2} ms │ {:>8.2} ms │ {:>7} KB ({:>4.1}x) │",
+        default_avg,
+        default_min,
+        default_size / 1024,
+        parquet_size as f64 / default_size as f64
+    );
+    println!(
+        "│ TsFile (Balanced)  │ {:>8.2} ms │ {:>8.2} ms │ {:>7} KB ({:>4.1}x) │",
+        balanced_avg,
+        balanced_min,
+        balanced_size / 1024,
+        parquet_size as f64 / balanced_size as f64
+    );
+    println!(
+        "│ TsFile (Optimized) │ {:>8.2} ms │ {:>8.2} ms │ {:>7} KB ({:>4.1}x) │",
+        optimized_avg,
+        optimized_min,
+        optimized_size / 1024,
+        parquet_size as f64 / optimized_size as f64
+    );
+    println!(
+        "│ TsFile (Fast)      │ {:>8.2} ms │ {:>8.2} ms │ {:>7} KB ({:>4.1}x) │",
+        fast_avg,
+        fast_min,
+        fast_size / 1024,
+        parquet_size as f64 / fast_size as f64
+    );
     println!("└──────────────────────────────────────────────────────────────────┘");
 
     println!("\n=== SPEED VS PARQUET ===");
-    println!("Default:   {:>6.1}% {} than Parquet",
+    println!(
+        "Default:   {:>6.1}% {} than Parquet",
         ((default_min / parquet_min - 1.0) * 100.0).abs(),
-        if default_min < parquet_min { "FASTER" } else { "slower" });
-    println!("Balanced:  {:>6.1}% {} than Parquet",
+        if default_min < parquet_min {
+            "FASTER"
+        } else {
+            "slower"
+        }
+    );
+    println!(
+        "Balanced:  {:>6.1}% {} than Parquet",
         ((balanced_min / parquet_min - 1.0) * 100.0).abs(),
-        if balanced_min < parquet_min { "FASTER" } else { "slower" });
-    println!("Optimized: {:>6.1}% {} than Parquet",
+        if balanced_min < parquet_min {
+            "FASTER"
+        } else {
+            "slower"
+        }
+    );
+    println!(
+        "Optimized: {:>6.1}% {} than Parquet",
         ((optimized_min / parquet_min - 1.0) * 100.0).abs(),
-        if optimized_min < parquet_min { "FASTER" } else { "slower" });
-    println!("Fast:      {:>6.1}% {} than Parquet",
+        if optimized_min < parquet_min {
+            "FASTER"
+        } else {
+            "slower"
+        }
+    );
+    println!(
+        "Fast:      {:>6.1}% {} than Parquet",
         ((fast_min / parquet_min - 1.0) * 100.0).abs(),
-        if fast_min < parquet_min { "FASTER" } else { "slower" });
+        if fast_min < parquet_min {
+            "FASTER"
+        } else {
+            "slower"
+        }
+    );
 
     let best_min = optimized_min.min(fast_min);
-    let best_name = if optimized_min < fast_min { "Optimized" } else { "Fast" };
+    let best_name = if optimized_min < fast_min {
+        "Optimized"
+    } else {
+        "Fast"
+    };
 
     if best_min < parquet_min {
-        println!("\n🎉 SUCCESS! TsFile ({}) BEATS Parquet by {:.2} ms!", best_name, parquet_min - best_min);
+        println!(
+            "\n🎉 SUCCESS! TsFile ({}) BEATS Parquet by {:.2} ms!",
+            best_name,
+            parquet_min - best_min
+        );
         println!("   Speedup: {:.1}x faster", parquet_min / best_min);
     } else {
-        println!("\n⚠️  Still need {:.2} ms improvement to beat Parquet", best_min - parquet_min);
-        println!("   Current gap: {:.1}%", (best_min / parquet_min - 1.0) * 100.0);
+        println!(
+            "\n⚠️  Still need {:.2} ms improvement to beat Parquet",
+            best_min - parquet_min
+        );
+        println!(
+            "   Current gap: {:.1}%",
+            (best_min / parquet_min - 1.0) * 100.0
+        );
     }
 }

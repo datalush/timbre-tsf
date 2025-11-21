@@ -1,6 +1,6 @@
+use rand::Rng;
 use timbre_tsf::common::{TSDataType, TSEncoding};
 use timbre_tsf::encoding::create_encoder;
-use rand::Rng;
 
 fn generate_iot_temperature(n: usize, stability: f64) -> Vec<f64> {
     let mut rng = rand::thread_rng();
@@ -8,7 +8,7 @@ fn generate_iot_temperature(n: usize, stability: f64) -> Vec<f64> {
 
     // Valores discretos de temperatura (cuantizados a 0.1°C, realista para sensores)
     let possible_temps: Vec<f64> = (180..=250)
-        .map(|t| t as f64 / 10.0)  // 18.0, 18.1, 18.2, ..., 25.0
+        .map(|t| t as f64 / 10.0) // 18.0, 18.1, 18.2, ..., 25.0
         .collect();
 
     // Temperatura actual (índice en possible_temps)
@@ -62,14 +62,23 @@ fn main() {
     let mut unique_values = iot_data.clone();
     unique_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
     unique_values.dedup();
-    println!("Unique values: {} out of {}", unique_values.len(), iot_data.len());
-    println!("Uniqueness: {:.2}%", (unique_values.len() as f64 / iot_data.len() as f64) * 100.0);
+    println!(
+        "Unique values: {} out of {}",
+        unique_values.len(),
+        iot_data.len()
+    );
+    println!(
+        "Uniqueness: {:.2}%",
+        (unique_values.len() as f64 / iot_data.len() as f64) * 100.0
+    );
 
     // Show first 20 values
     println!("\nFirst 20 values:");
     for (i, &val) in iot_data.iter().take(20).enumerate() {
         print!("{:.4} ", val);
-        if (i + 1) % 10 == 0 { println!(); }
+        if (i + 1) % 10 == 0 {
+            println!();
+        }
     }
     println!();
 

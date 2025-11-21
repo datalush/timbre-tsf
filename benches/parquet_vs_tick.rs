@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use std::sync::Arc;
 use std::time::Duration;
 use tempfile::NamedTempFile;
@@ -9,13 +9,15 @@ use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 
 // Parquet imports
-use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
+use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::file::properties::WriterProperties;
 
 // TsFile imports
 use timbre_tsf::arrow::{ArrowToTsFileConverter, TsFileRecordBatchReader};
-use timbre_tsf::common::{ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsValue};
+use timbre_tsf::common::{
+    ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsValue,
+};
 use timbre_tsf::writer::TsFileWriter;
 
 /// Genera datos de prueba con 1M de filas
@@ -91,7 +93,10 @@ fn write_parquet(batch: &RecordBatch, path: &std::path::Path) {
     writer.write(batch).unwrap();
     writer.close().unwrap();
 
-    println!("Parquet escrito: {} bytes", std::fs::metadata(path).unwrap().len());
+    println!(
+        "Parquet escrito: {} bytes",
+        std::fs::metadata(path).unwrap().len()
+    );
 }
 
 /// Escribe datos a un archivo TsFile usando el writer nativo
@@ -99,7 +104,10 @@ fn write_tsfile_native(batch: &RecordBatch, path: &std::path::Path) {
     use std::time::Instant;
 
     let start_total = Instant::now();
-    log::info!("Escribiendo {} filas a TsFile (nativo)...", batch.num_rows());
+    log::info!(
+        "Escribiendo {} filas a TsFile (nativo)...",
+        batch.num_rows()
+    );
 
     let mut writer = TsFileWriter::new(path).unwrap();
     log::info!("  Writer creado ({:?})", start_total.elapsed());
@@ -142,11 +150,18 @@ fn write_tsfile_native(batch: &RecordBatch, path: &std::path::Path) {
             )
             .unwrap();
     }
-    log::info!("  Schemas registrados para {} dispositivos ({:?})", devices.len(), start_total.elapsed());
+    log::info!(
+        "  Schemas registrados para {} dispositivos ({:?})",
+        devices.len(),
+        start_total.elapsed()
+    );
 
     // Verificar que los schemas tienen Gorilla + LZ4
-    log::debug!("  Schema temperature: encoding={:?}, compression={:?}",
-        TSEncoding::Gorilla, CompressionType::Lz4);
+    log::debug!(
+        "  Schema temperature: encoding={:?}, compression={:?}",
+        TSEncoding::Gorilla,
+        CompressionType::Lz4
+    );
 
     // Extraer datos del batch
     let timestamp_array = batch
@@ -195,11 +210,19 @@ fn write_tsfile_native(batch: &RecordBatch, path: &std::path::Path) {
             .push((timestamp, temperature, humidity, pressure));
     }
 
-    log::info!("  Datos agrupados en {} devices ({:?})", rows_by_device.len(), start_total.elapsed());
+    log::info!(
+        "  Datos agrupados en {} devices ({:?})",
+        rows_by_device.len(),
+        start_total.elapsed()
+    );
 
     // Escribir cada device usando batch writing con Tablets (3.8x más rápido!)
     for (device_id, rows) in rows_by_device {
-        log::info!("  Escribiendo device {}: {} rows (usando Tablet)", device_id, rows.len());
+        log::info!(
+            "  Escribiendo device {}: {} rows (usando Tablet)",
+            device_id,
+            rows.len()
+        );
 
         // Crear schemas para este device
         let schemas = vec![
@@ -248,23 +271,39 @@ fn write_tsfile_native(batch: &RecordBatch, path: &std::path::Path) {
         // Escribir todo el tablet de una vez (mucho más rápido!)
         writer.write_tablet(&tablet).unwrap();
 
-        log::info!("  Device {} escrito: {} rows ({:?} total)",
-            device_id, tablet.row_count(), start_total.elapsed());
+        log::info!(
+            "  Device {} escrito: {} rows ({:?} total)",
+            device_id,
+            tablet.row_count(),
+            start_total.elapsed()
+        );
     }
 
-    log::info!("  Todas las filas escritas, cerrando... ({:?})", start_total.elapsed());
+    log::info!(
+        "  Todas las filas escritas, cerrando... ({:?})",
+        start_total.elapsed()
+    );
     writer.close().unwrap();
     let total_time = start_total.elapsed();
     log::info!("  Writer cerrado ({:?})", total_time);
 
     let file_size = std::fs::metadata(path).unwrap().len();
-    log::info!("TsFile escrito: {} bytes ({} MB) en {:?}",
-        file_size, file_size / 1_000_000, total_time);
+    log::info!(
+        "TsFile escrito: {} bytes ({} MB) en {:?}",
+        file_size,
+        file_size / 1_000_000,
+        total_time
+    );
 
     // VERIFICAR: ¿Por qué es tan grande?
     if file_size > 50_000_000 {
-        log::error!("⚠️  ARCHIVO DEMASIADO GRANDE: {} MB (debería ser ~12 MB)", file_size / 1_000_000);
-        log::error!("⚠️  Posible problema: encoding/compression no se está aplicando correctamente");
+        log::error!(
+            "⚠️  ARCHIVO DEMASIADO GRANDE: {} MB (debería ser ~12 MB)",
+            file_size / 1_000_000
+        );
+        log::error!(
+            "⚠️  Posible problema: encoding/compression no se está aplicando correctamente"
+        );
     }
 }
 
@@ -281,7 +320,10 @@ fn write_tsfile_arrow(batch: &RecordBatch, path: &std::path::Path) {
     converter.write_batch(batch).unwrap();
     converter.finish().unwrap();
 
-    println!("TsFile (Arrow) escrito: {} bytes", std::fs::metadata(path).unwrap().len());
+    println!(
+        "TsFile (Arrow) escrito: {} bytes",
+        std::fs::metadata(path).unwrap().len()
+    );
 }
 
 /// Lee un archivo Parquet y convierte a Arrow
@@ -331,12 +373,18 @@ fn benchmark_read_comparison(c: &mut Criterion) {
     write_tsfile_arrow(&batch, tsfile_arrow.path());
 
     println!("\n=== Tamaños de archivo ===");
-    println!("Parquet: {} MB",
-        std::fs::metadata(parquet_file.path()).unwrap().len() / 1_000_000);
-    println!("TsFile (nativo): {} MB",
-        std::fs::metadata(tsfile_native.path()).unwrap().len() / 1_000_000);
-    println!("TsFile (Arrow): {} MB",
-        std::fs::metadata(tsfile_arrow.path()).unwrap().len() / 1_000_000);
+    println!(
+        "Parquet: {} MB",
+        std::fs::metadata(parquet_file.path()).unwrap().len() / 1_000_000
+    );
+    println!(
+        "TsFile (nativo): {} MB",
+        std::fs::metadata(tsfile_native.path()).unwrap().len() / 1_000_000
+    );
+    println!(
+        "TsFile (Arrow): {} MB",
+        std::fs::metadata(tsfile_arrow.path()).unwrap().len() / 1_000_000
+    );
 
     let mut group = c.benchmark_group("read_to_arrow");
     group.sample_size(10);
@@ -394,16 +442,12 @@ fn benchmark_write_comparison(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(30));
 
     // Benchmark Arrow → Parquet
-    group.bench_with_input(
-        BenchmarkId::new("parquet", num_rows),
-        &batch,
-        |b, batch| {
-            b.iter(|| {
-                let temp_file = NamedTempFile::new().unwrap();
-                write_parquet(black_box(batch), temp_file.path());
-            });
-        },
-    );
+    group.bench_with_input(BenchmarkId::new("parquet", num_rows), &batch, |b, batch| {
+        b.iter(|| {
+            let temp_file = NamedTempFile::new().unwrap();
+            write_parquet(black_box(batch), temp_file.path());
+        });
+    });
 
     // Benchmark Arrow → TsFile (nativo)
     group.bench_with_input(
@@ -432,5 +476,9 @@ fn benchmark_write_comparison(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, benchmark_read_comparison, benchmark_write_comparison);
+criterion_group!(
+    benches,
+    benchmark_read_comparison,
+    benchmark_write_comparison
+);
 criterion_main!(benches);

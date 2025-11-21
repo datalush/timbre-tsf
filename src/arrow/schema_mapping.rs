@@ -276,12 +276,14 @@ mod tests {
     #[test]
     fn test_arrow_to_tsfile_unsupported() {
         // Complex types should fail
-        assert!(arrow_type_to_tsfile(&DataType::List(Arc::new(Field::new(
-            "item",
-            DataType::Int32,
-            true
-        ))))
-        .is_err());
+        assert!(
+            arrow_type_to_tsfile(&DataType::List(Arc::new(Field::new(
+                "item",
+                DataType::Int32,
+                true
+            ))))
+            .is_err()
+        );
         let fields: Vec<Arc<Field>> = vec![];
         assert!(arrow_type_to_tsfile(&DataType::Struct(fields.into())).is_err());
     }

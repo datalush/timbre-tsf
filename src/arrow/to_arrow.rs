@@ -75,14 +75,12 @@ impl TsFileRecordBatchReader {
 
         // Build Arrow schema from first device's measurements
         let first_device = &devices[0];
-        let measurements = io_reader
-            .get_measurements(first_device)
-            .ok_or_else(|| {
-                TsFileError::InvalidState(format!(
-                    "Failed to get measurements for device {}",
-                    first_device
-                ))
-            })?;
+        let measurements = io_reader.get_measurements(first_device).ok_or_else(|| {
+            TsFileError::InvalidState(format!(
+                "Failed to get measurements for device {}",
+                first_device
+            ))
+        })?;
 
         let arrow_schema = Self::build_arrow_schema(&io_reader, first_device, &measurements)?;
 
@@ -134,15 +132,12 @@ impl TsFileRecordBatchReader {
         let device_id = &self.devices[self.device_index];
 
         // Get measurements for this device
-        let measurements = self
-            .io_reader
-            .get_measurements(device_id)
-            .ok_or_else(|| {
-                TsFileError::InvalidState(format!(
-                    "Failed to get measurements for device {}",
-                    device_id
-                ))
-            })?;
+        let measurements = self.io_reader.get_measurements(device_id).ok_or_else(|| {
+            TsFileError::InvalidState(format!(
+                "Failed to get measurements for device {}",
+                device_id
+            ))
+        })?;
 
         if measurements.is_empty() {
             self.device_index += 1;
@@ -151,7 +146,8 @@ impl TsFileRecordBatchReader {
 
         // Read all chunks for this device - Zero-copy approach
         let mut all_timestamps: Option<Vec<i64>> = None;
-        let mut arrays: Vec<Arc<dyn arrow::array::Array>> = Vec::with_capacity(measurements.len() + 2);
+        let mut arrays: Vec<Arc<dyn arrow::array::Array>> =
+            Vec::with_capacity(measurements.len() + 2);
 
         // Placeholder for timestamp and device arrays
         arrays.push(Arc::new(Int32Array::from(vec![0i32; 0])) as Arc<dyn arrow::array::Array>);
@@ -171,7 +167,10 @@ impl TsFileRecordBatchReader {
                     arrays.push(array);
                 }
                 Err(e) => {
-                    eprintln!("Warning: Failed to read chunk for {}/{}: {}", device_id, measurement, e);
+                    eprintln!(
+                        "Warning: Failed to read chunk for {}/{}: {}",
+                        device_id, measurement, e
+                    );
                     continue;
                 }
             }
@@ -190,9 +189,10 @@ impl TsFileRecordBatchReader {
         // Replace placeholder arrays with real data
         arrays[0] = Arc::new(TimestampMillisecondArray::from(timestamps));
         // OPT-READ-3: Use from_iter_values with repeat_n() - avoids allocating vec
-        arrays[1] = Arc::new(StringArray::from_iter_values(
-            std::iter::repeat_n(device_id.as_str(), num_rows)
-        ));
+        arrays[1] = Arc::new(StringArray::from_iter_values(std::iter::repeat_n(
+            device_id.as_str(),
+            num_rows,
+        )));
 
         // Create RecordBatch
         let batch = RecordBatch::try_new(Arc::clone(&self.arrow_schema), arrays).map_err(|e| {
@@ -226,7 +226,12 @@ impl TsFileRecordBatchReader {
                     .len(len)
                     .add_buffer(buffer)
                     .build()
-                    .map_err(|e| crate::error::TsFileError::InvalidState(format!("Failed to build Int32Array: {}", e)))?;
+                    .map_err(|e| {
+                        crate::error::TsFileError::InvalidState(format!(
+                            "Failed to build Int32Array: {}",
+                            e
+                        ))
+                    })?;
                 Arc::new(Int32Array::from(data))
             }
             DecodedValues::Int64(vec) => {
@@ -237,7 +242,12 @@ impl TsFileRecordBatchReader {
                     .len(len)
                     .add_buffer(buffer)
                     .build()
-                    .map_err(|e| crate::error::TsFileError::InvalidState(format!("Failed to build Int64Array: {}", e)))?;
+                    .map_err(|e| {
+                        crate::error::TsFileError::InvalidState(format!(
+                            "Failed to build Int64Array: {}",
+                            e
+                        ))
+                    })?;
                 Arc::new(Int64Array::from(data))
             }
             DecodedValues::Float(vec) => {
@@ -248,7 +258,12 @@ impl TsFileRecordBatchReader {
                     .len(len)
                     .add_buffer(buffer)
                     .build()
-                    .map_err(|e| crate::error::TsFileError::InvalidState(format!("Failed to build Float32Array: {}", e)))?;
+                    .map_err(|e| {
+                        crate::error::TsFileError::InvalidState(format!(
+                            "Failed to build Float32Array: {}",
+                            e
+                        ))
+                    })?;
                 Arc::new(Float32Array::from(data))
             }
             DecodedValues::Double(vec) => {
@@ -259,7 +274,12 @@ impl TsFileRecordBatchReader {
                     .len(len)
                     .add_buffer(buffer)
                     .build()
-                    .map_err(|e| crate::error::TsFileError::InvalidState(format!("Failed to build Float64Array: {}", e)))?;
+                    .map_err(|e| {
+                        crate::error::TsFileError::InvalidState(format!(
+                            "Failed to build Float64Array: {}",
+                            e
+                        ))
+                    })?;
                 Arc::new(Float64Array::from(data))
             }
             DecodedValues::Text(vec) => {
@@ -375,7 +395,9 @@ impl IntoIterator for TsFileRecordBatchReader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::{CompressionType, MeasurementSchema, TSDataType, TSEncoding, TsRecord, TsValue};
+    use crate::common::{
+        CompressionType, MeasurementSchema, TSDataType, TSEncoding, TsRecord, TsValue,
+    };
     use crate::writer::TsFileWriter;
     use tempfile::NamedTempFile;
 

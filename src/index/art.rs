@@ -154,12 +154,7 @@ impl ArtIndex {
     }
 
     /// Recursive insertion helper
-    fn insert_recursive(
-        mut node: Box<Node>,
-        key: &[u8],
-        depth: usize,
-        value: u64,
-    ) -> Box<Node> {
+    fn insert_recursive(mut node: Box<Node>, key: &[u8], depth: usize, value: u64) -> Box<Node> {
         // Check if we've reached the end of the key
         if depth >= key.len() {
             // Insert leaf at this position
@@ -175,13 +170,18 @@ impl ArtIndex {
         let key_byte = key[depth];
 
         match &mut *node {
-            Node::Node4 { keys, children, num_children } => {
+            Node::Node4 {
+                keys,
+                children,
+                num_children,
+            } => {
                 // Find child with matching key
                 for i in 0..*num_children as usize {
                     if keys[i] == key_byte {
                         // Recurse into existing child
                         if let Some(child) = children[i].take() {
-                            children[i] = Some(Self::insert_recursive(child, key, depth + 1, value));
+                            children[i] =
+                                Some(Self::insert_recursive(child, key, depth + 1, value));
                         }
                         return node;
                     }
@@ -208,12 +208,17 @@ impl ArtIndex {
                     Self::grow_node4_to_node16(node, key_byte, key, depth, value)
                 }
             }
-            Node::Node16 { keys, children, num_children } => {
+            Node::Node16 {
+                keys,
+                children,
+                num_children,
+            } => {
                 // Binary search for existing key
                 for i in 0..*num_children as usize {
                     if keys[i] == key_byte {
                         if let Some(child) = children[i].take() {
-                            children[i] = Some(Self::insert_recursive(child, key, depth + 1, value));
+                            children[i] =
+                                Some(Self::insert_recursive(child, key, depth + 1, value));
                         }
                         return node;
                     }
@@ -238,12 +243,17 @@ impl ArtIndex {
                     Self::grow_node16_to_node48(node, key_byte, key, depth, value)
                 }
             }
-            Node::Node48 { child_index, children, num_children } => {
+            Node::Node48 {
+                child_index,
+                children,
+                num_children,
+            } => {
                 let idx = child_index[key_byte as usize];
                 if idx != 255 {
                     // Child exists
                     if let Some(child) = children[idx as usize].take() {
-                        children[idx as usize] = Some(Self::insert_recursive(child, key, depth + 1, value));
+                        children[idx as usize] =
+                            Some(Self::insert_recursive(child, key, depth + 1, value));
                     }
                     node
                 } else {
@@ -255,7 +265,12 @@ impl ArtIndex {
                         let child = if depth + 1 >= key.len() {
                             Box::new(Node::Leaf { value })
                         } else {
-                            Self::insert_recursive(Box::new(Node::new_node4()), key, depth + 1, value)
+                            Self::insert_recursive(
+                                Box::new(Node::new_node4()),
+                                key,
+                                depth + 1,
+                                value,
+                            )
                         };
 
                         children[slot] = Some(child);
@@ -267,9 +282,13 @@ impl ArtIndex {
                     }
                 }
             }
-            Node::Node256 { children, num_children } => {
+            Node::Node256 {
+                children,
+                num_children,
+            } => {
                 if let Some(child) = children[key_byte as usize].take() {
-                    children[key_byte as usize] = Some(Self::insert_recursive(child, key, depth + 1, value));
+                    children[key_byte as usize] =
+                        Some(Self::insert_recursive(child, key, depth + 1, value));
                 } else {
                     let child = if depth + 1 >= key.len() {
                         Box::new(Node::Leaf { value })
@@ -294,9 +313,19 @@ impl ArtIndex {
         depth: usize,
         value: u64,
     ) -> Box<Node> {
-        if let Node::Node4 { keys, children, num_children } = *node {
+        if let Node::Node4 {
+            keys,
+            children,
+            num_children,
+        } = *node
+        {
             let mut new_node = Node::new_node16();
-            if let Node::Node16 { keys: new_keys, children: new_children, num_children: new_count } = &mut new_node {
+            if let Node::Node16 {
+                keys: new_keys,
+                children: new_children,
+                num_children: new_count,
+            } = &mut new_node
+            {
                 // Copy existing children
                 let n = num_children as usize;
                 new_keys[..n].copy_from_slice(&keys[..n]);
@@ -325,9 +354,19 @@ impl ArtIndex {
         depth: usize,
         value: u64,
     ) -> Box<Node> {
-        if let Node::Node16 { keys, children, num_children } = *node {
+        if let Node::Node16 {
+            keys,
+            children,
+            num_children,
+        } = *node
+        {
             let mut new_node = Node::new_node48();
-            if let Node::Node48 { child_index, children: new_children, num_children: new_count } = &mut new_node {
+            if let Node::Node48 {
+                child_index,
+                children: new_children,
+                num_children: new_count,
+            } = &mut new_node
+            {
                 // Copy existing children
                 for i in 0..num_children as usize {
                     child_index[keys[i] as usize] = i as u8;
@@ -358,9 +397,18 @@ impl ArtIndex {
         depth: usize,
         value: u64,
     ) -> Box<Node> {
-        if let Node::Node48 { child_index, children, num_children } = *node {
+        if let Node::Node48 {
+            child_index,
+            children,
+            num_children,
+        } = *node
+        {
             let mut new_node = Node::new_node256();
-            if let Node::Node256 { children: new_children, num_children: new_count } = &mut new_node {
+            if let Node::Node256 {
+                children: new_children,
+                num_children: new_count,
+            } = &mut new_node
+            {
                 // Copy existing children
                 for (byte_val, &slot) in child_index.iter().enumerate() {
                     if slot != 255 {
@@ -401,7 +449,11 @@ impl ArtIndex {
                     None
                 }
             }
-            Node::Node4 { keys, children, num_children } => {
+            Node::Node4 {
+                keys,
+                children,
+                num_children,
+            } => {
                 if depth >= key.len() {
                     return None;
                 }
@@ -413,7 +465,11 @@ impl ArtIndex {
                 }
                 None
             }
-            Node::Node16 { keys, children, num_children } => {
+            Node::Node16 {
+                keys,
+                children,
+                num_children,
+            } => {
                 if depth >= key.len() {
                     return None;
                 }
@@ -425,7 +481,11 @@ impl ArtIndex {
                 }
                 None
             }
-            Node::Node48 { child_index, children, .. } => {
+            Node::Node48 {
+                child_index,
+                children,
+                ..
+            } => {
                 if depth >= key.len() {
                     return None;
                 }
@@ -489,7 +549,11 @@ impl ArtIndex {
                 Node::Leaf { value } => {
                     entries.push((path, *value));
                 }
-                Node::Node4 { keys, children, num_children } => {
+                Node::Node4 {
+                    keys,
+                    children,
+                    num_children,
+                } => {
                     for i in 0..*num_children as usize {
                         // Clone necessary: building independent path for each child in tree traversal
                         let mut new_path = path.clone();
@@ -497,7 +561,11 @@ impl ArtIndex {
                         Self::collect_entries(children[i].as_deref(), entries, new_path);
                     }
                 }
-                Node::Node16 { keys, children, num_children } => {
+                Node::Node16 {
+                    keys,
+                    children,
+                    num_children,
+                } => {
                     for i in 0..*num_children as usize {
                         // Clone necessary: building independent path for each child in tree traversal
                         let mut new_path = path.clone();
@@ -505,13 +573,21 @@ impl ArtIndex {
                         Self::collect_entries(children[i].as_deref(), entries, new_path);
                     }
                 }
-                Node::Node48 { child_index, children, .. } => {
+                Node::Node48 {
+                    child_index,
+                    children,
+                    ..
+                } => {
                     for (byte_val, &slot) in child_index.iter().enumerate() {
                         if slot != 255 {
                             // Clone necessary: building independent path for each child in tree traversal
                             let mut new_path = path.clone();
                             new_path.push(byte_val as u8);
-                            Self::collect_entries(children[slot as usize].as_deref(), entries, new_path);
+                            Self::collect_entries(
+                                children[slot as usize].as_deref(),
+                                entries,
+                                new_path,
+                            );
                         }
                     }
                 }
@@ -542,8 +618,9 @@ impl ArtIndex {
             reader.read_exact(&mut key_bytes)?;
             let value = reader.read_u64::<LittleEndian>()?;
 
-            let key = String::from_utf8(key_bytes)
-                .map_err(|e| TsFileError::InvalidState(format!("Invalid UTF-8 in ART key: {}", e)))?;
+            let key = String::from_utf8(key_bytes).map_err(|e| {
+                TsFileError::InvalidState(format!("Invalid UTF-8 in ART key: {}", e))
+            })?;
 
             index.insert(&key, value);
         }

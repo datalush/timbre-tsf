@@ -9,18 +9,17 @@
 /// Dataset: 1 million IoT sensor readings (realistic patterns)
 ///
 /// Run with: cargo bench --bench parquet_vs_timbre
-
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use timbre_tsf::common::*;
-use timbre_tsf::writer::TsFileWriter;
 use timbre_tsf::reader::TsFileReader;
+use timbre_tsf::writer::TsFileWriter;
 
 use arrow::array::*;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::ArrowWriter;
-use parquet::file::properties::WriterProperties;
 use parquet::basic::Compression as ParquetCompression;
+use parquet::file::properties::WriterProperties;
 
 use std::fs::File;
 use std::sync::Arc;
@@ -76,13 +75,13 @@ fn write_timbre_file(
         "temperature",
         TSDataType::Float,
         TSEncoding::Chimp128,  // Specialized float encoding
-        CompressionType::Zstd,  // Industry-standard compression
+        CompressionType::Zstd, // Industry-standard compression
     );
 
     let pressure_schema = MeasurementSchema::new(
         "pressure",
         TSDataType::Double,
-        TSEncoding::Chimp128,  // Specialized double encoding
+        TSEncoding::Chimp128, // Specialized double encoding
         CompressionType::Zstd,
     );
 
@@ -121,7 +120,11 @@ fn write_parquet_file(
 
     // Create Arrow schema
     let schema = Arc::new(Schema::new(vec![
-        Field::new("timestamp", DataType::Timestamp(TimeUnit::Millisecond, None), false),
+        Field::new(
+            "timestamp",
+            DataType::Timestamp(TimeUnit::Millisecond, None),
+            false,
+        ),
         Field::new("device_id", DataType::Utf8, false),
         Field::new("temperature", DataType::Float32, true),
         Field::new("pressure", DataType::Float64, true),
@@ -170,31 +173,52 @@ fn bench_compression_ratio(c: &mut Criterion) {
         let uncompressed_size = (timestamps.len() * 8)  // i64 timestamps
             + (temperatures.len() * 4)  // f32 temps
             + (pressures.len() * 8)  // f64 pressures
-            + device_ids.iter().map(|s| s.len()).sum::<usize>();  // strings
+            + device_ids.iter().map(|s| s.len()).sum::<usize>(); // strings
 
         let timbre_path = format!("/tmp/bench_timbre_{}.timbre", size);
         let parquet_path = format!("/tmp/bench_parquet_{}.parquet", size);
 
         // Write Timbre
-        write_timbre_file(&timbre_path, &timestamps, &temperatures, &pressures, &device_ids)
-            .unwrap();
+        write_timbre_file(
+            &timbre_path,
+            &timestamps,
+            &temperatures,
+            &pressures,
+            &device_ids,
+        )
+        .unwrap();
         let timbre_size = get_file_size(&timbre_path);
 
         // Write Parquet
-        write_parquet_file(&parquet_path, &timestamps, &temperatures, &pressures, &device_ids)
-            .unwrap();
+        write_parquet_file(
+            &parquet_path,
+            &timestamps,
+            &temperatures,
+            &pressures,
+            &device_ids,
+        )
+        .unwrap();
         let parquet_size = get_file_size(&parquet_path);
 
         println!("\n=== Compression Ratio for {} points ===", size);
-        println!("Uncompressed: {:.2} MB", uncompressed_size as f64 / 1_048_576.0);
-        println!("Timbre:       {:.2} MB ({:.1}x compression)",
+        println!(
+            "Uncompressed: {:.2} MB",
+            uncompressed_size as f64 / 1_048_576.0
+        );
+        println!(
+            "Timbre:       {:.2} MB ({:.1}x compression)",
             timbre_size as f64 / 1_048_576.0,
-            uncompressed_size as f64 / timbre_size as f64);
-        println!("Parquet:      {:.2} MB ({:.1}x compression)",
+            uncompressed_size as f64 / timbre_size as f64
+        );
+        println!(
+            "Parquet:      {:.2} MB ({:.1}x compression)",
             parquet_size as f64 / 1_048_576.0,
-            uncompressed_size as f64 / parquet_size as f64);
-        println!("Timbre vs Parquet: {:.1}% smaller",
-            (1.0 - (timbre_size as f64 / parquet_size as f64)) * 100.0);
+            uncompressed_size as f64 / parquet_size as f64
+        );
+        println!(
+            "Timbre vs Parquet: {:.1}% smaller",
+            (1.0 - (timbre_size as f64 / parquet_size as f64)) * 100.0
+        );
 
         // Cleanup
         let _ = std::fs::remove_file(&timbre_path);
@@ -214,32 +238,24 @@ fn bench_write_throughput(c: &mut Criterion) {
         let (timestamps, temperatures, pressures, device_ids) = generate_iot_data(size);
 
         // Timbre write
-        group.bench_with_input(
-            BenchmarkId::new("timbre", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let path = "/tmp/bench_write_timbre.timbre";
-                    write_timbre_file(path, &timestamps, &temperatures, &pressures, &device_ids)
-                        .unwrap();
-                    let _ = std::fs::remove_file(path);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("timbre", size), &size, |b, _| {
+            b.iter(|| {
+                let path = "/tmp/bench_write_timbre.timbre";
+                write_timbre_file(path, &timestamps, &temperatures, &pressures, &device_ids)
+                    .unwrap();
+                let _ = std::fs::remove_file(path);
+            });
+        });
 
         // Parquet write
-        group.bench_with_input(
-            BenchmarkId::new("parquet", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let path = "/tmp/bench_write_parquet.parquet";
-                    write_parquet_file(path, &timestamps, &temperatures, &pressures, &device_ids)
-                        .unwrap();
-                    let _ = std::fs::remove_file(path);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("parquet", size), &size, |b, _| {
+            b.iter(|| {
+                let path = "/tmp/bench_write_parquet.parquet";
+                write_parquet_file(path, &timestamps, &temperatures, &pressures, &device_ids)
+                    .unwrap();
+                let _ = std::fs::remove_file(path);
+            });
+        });
     }
 
     group.finish();
@@ -258,49 +274,53 @@ fn bench_read_throughput(c: &mut Criterion) {
         let timbre_path = format!("/tmp/bench_read_timbre_{}.timbre", size);
         let parquet_path = format!("/tmp/bench_read_parquet_{}.parquet", size);
 
-        write_timbre_file(&timbre_path, &timestamps, &temperatures, &pressures, &device_ids)
-            .unwrap();
-        write_parquet_file(&parquet_path, &timestamps, &temperatures, &pressures, &device_ids)
-            .unwrap();
+        write_timbre_file(
+            &timbre_path,
+            &timestamps,
+            &temperatures,
+            &pressures,
+            &device_ids,
+        )
+        .unwrap();
+        write_parquet_file(
+            &parquet_path,
+            &timestamps,
+            &temperatures,
+            &pressures,
+            &device_ids,
+        )
+        .unwrap();
 
         // Timbre read
-        group.bench_with_input(
-            BenchmarkId::new("timbre", size),
-            &timbre_path,
-            |b, path| {
-                b.iter(|| {
-                    let mut reader = TsFileReader::open(path).unwrap();
-                    let mut total_points = 0;
-                    for i in 0..10 {
-                        let device = format!("sensor_{:02}", i);
-                        let temp_chunk = reader.read(&device, "temperature").unwrap();
-                        let temp_len = temp_chunk.len();
-                        let pressure_chunk = reader.read(&device, "pressure").unwrap();
-                        let pressure_len = pressure_chunk.len();
-                        total_points += temp_len + pressure_len;
-                    }
-                    black_box(total_points);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("timbre", size), &timbre_path, |b, path| {
+            b.iter(|| {
+                let mut reader = TsFileReader::open(path).unwrap();
+                let mut total_points = 0;
+                for i in 0..10 {
+                    let device = format!("sensor_{:02}", i);
+                    let temp_chunk = reader.read(&device, "temperature").unwrap();
+                    let temp_len = temp_chunk.len();
+                    let pressure_chunk = reader.read(&device, "pressure").unwrap();
+                    let pressure_len = pressure_chunk.len();
+                    total_points += temp_len + pressure_len;
+                }
+                black_box(total_points);
+            });
+        });
 
         // Parquet read
-        group.bench_with_input(
-            BenchmarkId::new("parquet", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-                    let file = File::open(&parquet_path).unwrap();
-                    let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
-                    let mut reader = builder.build().unwrap();
+        group.bench_with_input(BenchmarkId::new("parquet", size), &size, |b, _| {
+            b.iter(|| {
+                use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+                let file = File::open(&parquet_path).unwrap();
+                let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+                let mut reader = builder.build().unwrap();
 
-                    while let Some(Ok(batch)) = reader.next() {
-                        black_box(batch);
-                    }
-                });
-            },
-        );
+                while let Some(Ok(batch)) = reader.next() {
+                    black_box(batch);
+                }
+            });
+        });
 
         // Cleanup
         let _ = std::fs::remove_file(&timbre_path);

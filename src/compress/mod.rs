@@ -191,12 +191,8 @@ impl Compressor for Lz4Compressor {
     fn compress(&mut self, input: &[u8]) -> Result<Vec<u8>> {
         // Use FAST(1) mode - optimal for pre-encoded time-series data
         // See module documentation for rationale
-        lz4::block::compress(
-            input,
-            Some(lz4::block::CompressionMode::FAST(1)),
-            false,
-        )
-        .map_err(|e| TsFileError::CompressionError(e.to_string()))
+        lz4::block::compress(input, Some(lz4::block::CompressionMode::FAST(1)), false)
+            .map_err(|e| TsFileError::CompressionError(e.to_string()))
     }
 
     fn decompress(&mut self, input: &[u8], uncompressed_size: usize) -> Result<Vec<u8>> {

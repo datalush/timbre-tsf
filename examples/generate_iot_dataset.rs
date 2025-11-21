@@ -20,8 +20,8 @@ use std::fs::File;
 use std::sync::Arc;
 use std::time::Instant;
 
-const NUM_DEVICES: usize = 40;  // Doubled for 1GB target
-const MEASUREMENTS_PER_DEVICE: usize = 500_000;  // ~20M total rows
+const NUM_DEVICES: usize = 40; // Doubled for 1GB target
+const MEASUREMENTS_PER_DEVICE: usize = 500_000; // ~20M total rows
 const BATCH_SIZE: usize = 10_000;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -34,15 +34,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create schema
     let schema = Arc::new(Schema::new(vec![
-        Field::new("timestamp", DataType::Timestamp(TimeUnit::Millisecond, None), false),
+        Field::new(
+            "timestamp",
+            DataType::Timestamp(TimeUnit::Millisecond, None),
+            false,
+        ),
         Field::new("device_id", DataType::Utf8, false),
-        Field::new("temperature", DataType::Float32, true),  // °C, 0.1° precision
-        Field::new("humidity", DataType::Float32, true),     // %, 0.1% precision
-        Field::new("pressure", DataType::Float64, true),     // hPa, continuous
-        Field::new("co2", DataType::Int32, true),            // ppm, discrete
-        Field::new("light", DataType::Int32, true),          // lux, high variation
-        Field::new("battery", DataType::Float32, true),      // V, slow drift
-        Field::new("status", DataType::Int8, true),          // 0=ok, 1=warning, 2=error
+        Field::new("temperature", DataType::Float32, true), // °C, 0.1° precision
+        Field::new("humidity", DataType::Float32, true),    // %, 0.1% precision
+        Field::new("pressure", DataType::Float64, true),    // hPa, continuous
+        Field::new("co2", DataType::Int32, true),           // ppm, discrete
+        Field::new("light", DataType::Int32, true),         // lux, high variation
+        Field::new("battery", DataType::Float32, true),     // V, slow drift
+        Field::new("status", DataType::Int8, true),         // 0=ok, 1=warning, 2=error
     ]));
 
     // Create output file
@@ -93,14 +97,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Temperature: quantized to 0.1°C with daily cycle + random walk
                 let temp_daily = (time_of_day.sin() * 5.0) as f32;
-                let temp_noise = ((i * 7919) % 21) as f32 * 0.1 - 1.0;  // Deterministic "random"
+                let temp_noise = ((i * 7919) % 21) as f32 * 0.1 - 1.0; // Deterministic "random"
                 let temperature = (temp_base + temp_daily + temp_noise * 0.3).round() / 10.0 * 10.0;
                 temperatures.push(Some(temperature));
 
                 // Humidity: quantized to 0.1%, inverse of temperature
                 let humidity_daily = (-time_of_day.sin() * 10.0) as f32;
                 let humidity_noise = ((i * 9973) % 21) as f32 * 0.1 - 1.0;
-                let humidity = (humidity_base + humidity_daily + humidity_noise * 0.5).round() / 10.0 * 10.0;
+                let humidity =
+                    (humidity_base + humidity_daily + humidity_noise * 0.5).round() / 10.0 * 10.0;
                 humidities.push(Some(humidity.clamp(0.0, 100.0)));
 
                 // Pressure: continuous drift (not quantized)
@@ -116,10 +121,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 co2_values.push(Some(co2));
 
                 // Light: high variation (0-5000 lux), step changes
-                let light = if i % 43200 < 21600 {  // "Day" period
+                let light = if i % 43200 < 21600 {
+                    // "Day" period
                     (((i * 6421) % 4000) + 1000) as i32
-                } else {  // "Night" period
-                    (((i * 3571) % 100)) as i32
+                } else {
+                    // "Night" period
+                    ((i * 3571) % 100) as i32
                 };
                 light_values.push(Some(light));
 
@@ -130,11 +137,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Status: mostly OK, occasional warnings
                 let status = if i % 1000 == 0 {
-                    2  // Error
+                    2 // Error
                 } else if i % 100 == 0 {
-                    1  // Warning
+                    1 // Warning
                 } else {
-                    0  // OK
+                    0 // OK
                 };
                 status_values.push(Some(status));
             }

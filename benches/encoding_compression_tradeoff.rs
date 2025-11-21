@@ -12,14 +12,14 @@
 //!
 //! Run with: cargo bench --bench encoding_compression_tradeoff
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use std::time::Duration;
 use timbre_tsf::common::*;
 use timbre_tsf::compress::create_compressor;
-use timbre_tsf::encoding::quantized::{QuantizedEncoder, detect_quantization};
-use timbre_tsf::encoding::dictionary_rle::DictionaryRLEEncoder;
 use timbre_tsf::encoding::chimp128::Chimp128Encoder;
 use timbre_tsf::encoding::create_encoder;
-use std::time::Duration;
+use timbre_tsf::encoding::dictionary_rle::DictionaryRLEEncoder;
+use timbre_tsf::encoding::quantized::{QuantizedEncoder, detect_quantization};
 
 /// Genera datos cuantizados realistas (sensor IoT con 0.1°C precisión)
 fn generate_quantized_data(num_points: usize) -> (Vec<i64>, Vec<f64>) {
@@ -113,8 +113,10 @@ fn bench_quantized_zstd_serial(c: &mut Criterion) {
         let compressed_size = time_compressed.len() + value_compressed.len();
         let ratio = raw_size as f64 / compressed_size as f64;
 
-        println!("Quantized+Zstd Serial {}pts: {}B → {}B ({:.2}x)",
-                 size, raw_size, compressed_size, ratio);
+        println!(
+            "Quantized+Zstd Serial {}pts: {}B → {}B ({:.2}x)",
+            size, raw_size, compressed_size, ratio
+        );
 
         group.bench_with_input(
             BenchmarkId::from_parameter(size),
@@ -161,9 +163,7 @@ fn bench_quantized_lz4_parallel(c: &mut Criterion) {
             encoded_blocks.push((time_enc, value_enc));
         }
 
-        let raw_size: usize = encoded_blocks.iter()
-            .map(|(t, v)| t.len() + v.len())
-            .sum();
+        let raw_size: usize = encoded_blocks.iter().map(|(t, v)| t.len() + v.len()).sum();
 
         // Compress parallel
         use rayon::prelude::*;
@@ -177,13 +177,16 @@ fn bench_quantized_lz4_parallel(c: &mut Criterion) {
             })
             .collect();
 
-        let compressed_size: usize = compressed_blocks.iter()
+        let compressed_size: usize = compressed_blocks
+            .iter()
             .map(|(t, v)| t.len() + v.len())
             .sum();
         let ratio = raw_size as f64 / compressed_size as f64;
 
-        println!("Quantized+LZ4 Parallel {}pts: {}B → {}B ({:.2}x)",
-                 size, raw_size, compressed_size, ratio);
+        println!(
+            "Quantized+LZ4 Parallel {}pts: {}B → {}B ({:.2}x)",
+            size, raw_size, compressed_size, ratio
+        );
 
         group.bench_with_input(
             BenchmarkId::from_parameter(size),
@@ -236,8 +239,10 @@ fn bench_chimp128_zstd_serial(c: &mut Criterion) {
         let compressed_size = time_compressed.len() + value_compressed.len();
         let ratio = raw_size as f64 / compressed_size as f64;
 
-        println!("Chimp128+Zstd Serial {}pts: {}B → {}B ({:.2}x)",
-                 size, raw_size, compressed_size, ratio);
+        println!(
+            "Chimp128+Zstd Serial {}pts: {}B → {}B ({:.2}x)",
+            size, raw_size, compressed_size, ratio
+        );
 
         group.bench_with_input(
             BenchmarkId::from_parameter(size),
@@ -287,9 +292,7 @@ fn bench_chimp128_lz4_parallel(c: &mut Criterion) {
             encoded_blocks.push((time_enc, value_enc));
         }
 
-        let raw_size: usize = encoded_blocks.iter()
-            .map(|(t, v)| t.len() + v.len())
-            .sum();
+        let raw_size: usize = encoded_blocks.iter().map(|(t, v)| t.len() + v.len()).sum();
 
         // Compress parallel
         use rayon::prelude::*;
@@ -303,13 +306,16 @@ fn bench_chimp128_lz4_parallel(c: &mut Criterion) {
             })
             .collect();
 
-        let compressed_size: usize = compressed_blocks.iter()
+        let compressed_size: usize = compressed_blocks
+            .iter()
             .map(|(t, v)| t.len() + v.len())
             .sum();
         let ratio = raw_size as f64 / compressed_size as f64;
 
-        println!("Chimp128+LZ4 Parallel {}pts: {}B → {}B ({:.2}x)",
-                 size, raw_size, compressed_size, ratio);
+        println!(
+            "Chimp128+LZ4 Parallel {}pts: {}B → {}B ({:.2}x)",
+            size, raw_size, compressed_size, ratio
+        );
 
         group.bench_with_input(
             BenchmarkId::from_parameter(size),
@@ -358,8 +364,10 @@ fn bench_dictionary_zstd_serial(c: &mut Criterion) {
         let compressed_size = time_compressed.len() + value_compressed.len();
         let ratio = raw_size as f64 / compressed_size as f64;
 
-        println!("DictionaryRLE+Zstd Serial {}pts: {}B → {}B ({:.2}x)",
-                 size, raw_size, compressed_size, ratio);
+        println!(
+            "DictionaryRLE+Zstd Serial {}pts: {}B → {}B ({:.2}x)",
+            size, raw_size, compressed_size, ratio
+        );
 
         group.bench_with_input(
             BenchmarkId::from_parameter(size),
@@ -405,9 +413,7 @@ fn bench_dictionary_lz4_parallel(c: &mut Criterion) {
             encoded_blocks.push((time_enc, value_enc));
         }
 
-        let raw_size: usize = encoded_blocks.iter()
-            .map(|(t, v)| t.len() + v.len())
-            .sum();
+        let raw_size: usize = encoded_blocks.iter().map(|(t, v)| t.len() + v.len()).sum();
 
         // Compress parallel
         use rayon::prelude::*;
@@ -421,13 +427,16 @@ fn bench_dictionary_lz4_parallel(c: &mut Criterion) {
             })
             .collect();
 
-        let compressed_size: usize = compressed_blocks.iter()
+        let compressed_size: usize = compressed_blocks
+            .iter()
             .map(|(t, v)| t.len() + v.len())
             .sum();
         let ratio = raw_size as f64 / compressed_size as f64;
 
-        println!("DictionaryRLE+LZ4 Parallel {}pts: {}B → {}B ({:.2}x)",
-                 size, raw_size, compressed_size, ratio);
+        println!(
+            "DictionaryRLE+LZ4 Parallel {}pts: {}B → {}B ({:.2}x)",
+            size, raw_size, compressed_size, ratio
+        );
 
         group.bench_with_input(
             BenchmarkId::from_parameter(size),

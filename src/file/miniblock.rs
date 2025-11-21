@@ -157,11 +157,7 @@ pub struct MiniBlock {
 
 impl MiniBlock {
     /// Creates a new mini-block
-    pub fn new(
-        header: MiniBlockHeader,
-        timestamp_data: Vec<u8>,
-        value_data: Vec<u8>,
-    ) -> Self {
+    pub fn new(header: MiniBlockHeader, timestamp_data: Vec<u8>, value_data: Vec<u8>) -> Self {
         Self {
             header,
             timestamp_data,
@@ -210,9 +206,7 @@ impl MiniBlock {
 
     /// Total size of the mini-block in bytes
     pub fn size(&self) -> usize {
-        MiniBlockHeader::serialized_size()
-            + self.timestamp_data.len()
-            + self.value_data.len()
+        MiniBlockHeader::serialized_size() + self.timestamp_data.len() + self.value_data.len()
     }
 }
 

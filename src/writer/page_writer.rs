@@ -9,7 +9,7 @@
 use crate::common::statistic::{Statistic, create_statistic};
 use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::compress::create_compressor;
-use crate::encoding::create_encoder;
+use crate::encoding::{EncoderImpl, create_encoder};
 use crate::error::{Result, TsFileError};
 use crate::file::{MiniBlock, MiniBlockConfig, MiniBlockHeader, PageData, PageHeader};
 
@@ -26,6 +26,10 @@ pub struct PageWriter {
     value_data: ValueData,
 
     statistic: Box<dyn Statistic>,
+
+    // OPT: Reusable encoders (avoids 16-32 allocations per page)
+    time_encoder: EncoderImpl,
+    value_encoder: EncoderImpl,
 }
 
 /// Accumulated value data by type
@@ -59,6 +63,10 @@ impl PageWriter {
         encoding: TSEncoding,
         compression_type: CompressionType,
     ) -> Self {
+        // OPT: Pre-create encoders for reuse across mini-blocks
+        let time_encoder = create_encoder(TSEncoding::DeltaOfDelta, TSDataType::Int64);
+        let value_encoder = create_encoder(encoding, data_type);
+
         Self {
             data_type,
             encoding,
@@ -67,6 +75,8 @@ impl PageWriter {
             timestamps: Vec::new(),
             value_data: ValueData::new(data_type),
             statistic: create_statistic(data_type),
+            time_encoder,
+            value_encoder,
         }
     }
 
@@ -75,10 +85,12 @@ impl PageWriter {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
             ValueData::Boolean(v) => v.push(value),
-            _ => return Err(TsFileError::TypeMismatch {
-                expected: "Boolean".to_string(),
-                actual: format!("{:?}", self.data_type),
-            }),
+            _ => {
+                return Err(TsFileError::TypeMismatch {
+                    expected: "Boolean".to_string(),
+                    actual: format!("{:?}", self.data_type),
+                });
+            }
         }
         self.statistic.update_bool(timestamp, value);
         Ok(())
@@ -89,10 +101,12 @@ impl PageWriter {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
             ValueData::Int32(v) => v.push(value),
-            _ => return Err(TsFileError::TypeMismatch {
-                expected: "Int32".to_string(),
-                actual: format!("{:?}", self.data_type),
-            }),
+            _ => {
+                return Err(TsFileError::TypeMismatch {
+                    expected: "Int32".to_string(),
+                    actual: format!("{:?}", self.data_type),
+                });
+            }
         }
         self.statistic.update_i32(timestamp, value);
         Ok(())
@@ -103,10 +117,12 @@ impl PageWriter {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
             ValueData::Int64(v) => v.push(value),
-            _ => return Err(TsFileError::TypeMismatch {
-                expected: "Int64".to_string(),
-                actual: format!("{:?}", self.data_type),
-            }),
+            _ => {
+                return Err(TsFileError::TypeMismatch {
+                    expected: "Int64".to_string(),
+                    actual: format!("{:?}", self.data_type),
+                });
+            }
         }
         self.statistic.update_i64(timestamp, value);
         Ok(())
@@ -117,10 +133,12 @@ impl PageWriter {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
             ValueData::Float(v) => v.push(value),
-            _ => return Err(TsFileError::TypeMismatch {
-                expected: "Float".to_string(),
-                actual: format!("{:?}", self.data_type),
-            }),
+            _ => {
+                return Err(TsFileError::TypeMismatch {
+                    expected: "Float".to_string(),
+                    actual: format!("{:?}", self.data_type),
+                });
+            }
         }
         self.statistic.update_f32(timestamp, value);
         Ok(())
@@ -131,10 +149,12 @@ impl PageWriter {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
             ValueData::Double(v) => v.push(value),
-            _ => return Err(TsFileError::TypeMismatch {
-                expected: "Double".to_string(),
-                actual: format!("{:?}", self.data_type),
-            }),
+            _ => {
+                return Err(TsFileError::TypeMismatch {
+                    expected: "Double".to_string(),
+                    actual: format!("{:?}", self.data_type),
+                });
+            }
         }
         self.statistic.update_f64(timestamp, value);
         Ok(())
@@ -145,10 +165,12 @@ impl PageWriter {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
             ValueData::String(v) => v.push(value.to_string()),
-            _ => return Err(TsFileError::TypeMismatch {
-                expected: "String".to_string(),
-                actual: format!("{:?}", self.data_type),
-            }),
+            _ => {
+                return Err(TsFileError::TypeMismatch {
+                    expected: "String".to_string(),
+                    actual: format!("{:?}", self.data_type),
+                });
+            }
         }
         self.statistic.update_string(timestamp, value);
         Ok(())
@@ -186,58 +208,60 @@ impl PageWriter {
     }
 
     /// Crea un mini-block para un rango específico
-    fn create_miniblock(&self, start: usize, end: usize) -> Result<MiniBlock> {
+    fn create_miniblock(&mut self, start: usize, end: usize) -> Result<MiniBlock> {
         // Extraer timestamps del rango
         let timestamps = &self.timestamps[start..end];
         let point_count = timestamps.len() as u32;
         let min_timestamp = timestamps[0];
         let max_timestamp = timestamps[timestamps.len() - 1];
 
+        // OPT: Reset reusable encoders instead of creating new ones
+        self.time_encoder.reset();
+        self.value_encoder.reset();
+
         // Encodear timestamps
-        let mut time_encoder = create_encoder(TSEncoding::DeltaOfDelta, TSDataType::Int64);
         let mut time_buffer = Vec::new();
         for &ts in timestamps {
-            time_encoder.encode_i64(ts, &mut time_buffer)?;
+            self.time_encoder.encode_i64(ts, &mut time_buffer)?;
         }
-        time_encoder.flush(&mut time_buffer)?;
+        self.time_encoder.flush(&mut time_buffer)?;
 
         // Encodear values según tipo
         let mut value_buffer = Vec::new();
-        let mut value_encoder = create_encoder(self.encoding, self.data_type);
 
         match &self.value_data {
             ValueData::Boolean(v) => {
                 for &val in &v[start..end] {
-                    value_encoder.encode_bool(val, &mut value_buffer)?;
+                    self.value_encoder.encode_bool(val, &mut value_buffer)?;
                 }
             }
             ValueData::Int32(v) => {
                 for &val in &v[start..end] {
-                    value_encoder.encode_i32(val, &mut value_buffer)?;
+                    self.value_encoder.encode_i32(val, &mut value_buffer)?;
                 }
             }
             ValueData::Int64(v) => {
                 for &val in &v[start..end] {
-                    value_encoder.encode_i64(val, &mut value_buffer)?;
+                    self.value_encoder.encode_i64(val, &mut value_buffer)?;
                 }
             }
             ValueData::Float(v) => {
                 for &val in &v[start..end] {
-                    value_encoder.encode_f32(val, &mut value_buffer)?;
+                    self.value_encoder.encode_f32(val, &mut value_buffer)?;
                 }
             }
             ValueData::Double(v) => {
                 for &val in &v[start..end] {
-                    value_encoder.encode_f64(val, &mut value_buffer)?;
+                    self.value_encoder.encode_f64(val, &mut value_buffer)?;
                 }
             }
             ValueData::String(v) => {
                 for val in &v[start..end] {
-                    value_encoder.encode_string(val, &mut value_buffer)?;
+                    self.value_encoder.encode_string(val, &mut value_buffer)?;
                 }
             }
         }
-        value_encoder.flush(&mut value_buffer)?;
+        self.value_encoder.flush(&mut value_buffer)?;
 
         // Comprimir timestamps y values independientemente
         let mut compressor = create_compressor(self.compression_type);
@@ -276,6 +300,9 @@ impl PageWriter {
         self.timestamps.clear();
         self.value_data = ValueData::new(self.data_type);
         self.statistic = create_statistic(self.data_type);
+        // OPT: Reset encoders to reuse them
+        self.time_encoder.reset();
+        self.value_encoder.reset();
     }
 
     /// Tamaño estimado de los datos acumulados
@@ -318,7 +345,9 @@ mod tests {
         assert!(page_data.miniblocks.len() <= 8);
 
         // Verificar conteo total
-        let total_points: u32 = page_data.miniblocks.iter()
+        let total_points: u32 = page_data
+            .miniblocks
+            .iter()
             .map(|mb| mb.header.point_count)
             .sum();
         assert_eq!(total_points, 1000);

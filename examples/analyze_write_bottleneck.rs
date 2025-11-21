@@ -1,8 +1,8 @@
-use timbre_tsf::common::*;
-use timbre_tsf::writer::TsFileWriter;
-use timbre_tsf::encoding::create_encoder;
-use timbre_tsf::compress::create_compressor;
 use std::time::Instant;
+use timbre_tsf::common::*;
+use timbre_tsf::compress::create_compressor;
+use timbre_tsf::encoding::create_encoder;
+use timbre_tsf::writer::TsFileWriter;
 
 fn main() {
     println!("=== Análisis del Bottleneck de Escritura ===\n");
@@ -24,8 +24,15 @@ fn main() {
         encoder.flush(&mut out).unwrap();
         total_encoding += start.elapsed().as_micros();
     }
-    println!("   Promedio: {}µs ({:.2}ms)", total_encoding / 10, total_encoding as f64 / 10_000.0);
-    println!("   Por valor: {:.2}ns\n", (total_encoding as f64 / 10.0) / num_values as f64);
+    println!(
+        "   Promedio: {}µs ({:.2}ms)",
+        total_encoding / 10,
+        total_encoding as f64 / 10_000.0
+    );
+    println!(
+        "   Por valor: {:.2}ns\n",
+        (total_encoding as f64 / 10.0) / num_values as f64
+    );
 
     // Test 2: Encoding + Compresión
     println!("2. ENCODING + COMPRESSION LZ4 (10K valores):");
@@ -46,8 +53,15 @@ fn main() {
         let _compressed = compressor.compress(&encoded).unwrap();
         total_enc_comp += start.elapsed().as_micros();
     }
-    println!("   Promedio: {}µs ({:.2}ms)", total_enc_comp / 10, total_enc_comp as f64 / 10_000.0);
-    println!("   Overhead compresión: {}µs\n", (total_enc_comp - total_encoding) / 10);
+    println!(
+        "   Promedio: {}µs ({:.2}ms)",
+        total_enc_comp / 10,
+        total_enc_comp as f64 / 10_000.0
+    );
+    println!(
+        "   Overhead compresión: {}µs\n",
+        (total_enc_comp - total_encoding) / 10
+    );
 
     // Test 3: Write completo (encoding + compression + I/O)
     println!("3. WRITE COMPLETO (10K rows × 3 measurements):");
@@ -62,13 +76,30 @@ fn main() {
 
         let device_id = "device_1";
         let schemas = vec![
-            MeasurementSchema::new("temp", TSDataType::Float, TSEncoding::Gorilla, CompressionType::Lz4),
-            MeasurementSchema::new("press", TSDataType::Float, TSEncoding::Gorilla, CompressionType::Lz4),
-            MeasurementSchema::new("humid", TSDataType::Float, TSEncoding::Gorilla, CompressionType::Lz4),
+            MeasurementSchema::new(
+                "temp",
+                TSDataType::Float,
+                TSEncoding::Gorilla,
+                CompressionType::Lz4,
+            ),
+            MeasurementSchema::new(
+                "press",
+                TSDataType::Float,
+                TSEncoding::Gorilla,
+                CompressionType::Lz4,
+            ),
+            MeasurementSchema::new(
+                "humid",
+                TSDataType::Float,
+                TSEncoding::Gorilla,
+                CompressionType::Lz4,
+            ),
         ];
 
         for schema in &schemas {
-            writer.register_timeseries(device_id, schema.clone()).unwrap();
+            writer
+                .register_timeseries(device_id, schema.clone())
+                .unwrap();
         }
 
         let mut tablet = Tablet::new(
@@ -79,14 +110,16 @@ fn main() {
         );
 
         for i in 0..10_000 {
-            tablet.add_row(
-                i as i64 * 100,
-                vec![
-                    Some(TsValue::Float(25.0 + (i % 100) as f32 * 0.1)),
-                    Some(TsValue::Float(1013.0 + (i % 50) as f32 * 0.5)),
-                    Some(TsValue::Float(60.0 + (i % 40) as f32 * 0.25)),
-                ],
-            ).unwrap();
+            tablet
+                .add_row(
+                    i as i64 * 100,
+                    vec![
+                        Some(TsValue::Float(25.0 + (i % 100) as f32 * 0.1)),
+                        Some(TsValue::Float(1013.0 + (i % 50) as f32 * 0.5)),
+                        Some(TsValue::Float(60.0 + (i % 40) as f32 * 0.25)),
+                    ],
+                )
+                .unwrap();
         }
 
         writer.write_tablet(&tablet).unwrap();
@@ -94,11 +127,20 @@ fn main() {
 
         let elapsed = start.elapsed().as_micros();
         total_write += elapsed;
-        println!("   Run {}: {}µs ({:.2}ms)", run + 1, elapsed, elapsed as f64 / 1000.0);
+        println!(
+            "   Run {}: {}µs ({:.2}ms)",
+            run + 1,
+            elapsed,
+            elapsed as f64 / 1000.0
+        );
     }
 
     let avg_write = total_write / 5;
-    println!("   Promedio: {}µs ({:.2}ms)\n", avg_write, avg_write as f64 / 1000.0);
+    println!(
+        "   Promedio: {}µs ({:.2}ms)\n",
+        avg_write,
+        avg_write as f64 / 1000.0
+    );
 
     // Análisis
     let encoding_per_30k = (total_encoding / 10) * 3; // 3 measurements
@@ -106,12 +148,21 @@ fn main() {
     let io_and_overhead = avg_write - encoding_per_30k - compression_overhead_per_30k;
 
     println!("=== DESGLOSE DEL TIEMPO (para 10K rows × 3 measurements) ===");
-    println!("Encoding (Gorilla):      {}µs ({:.1}%)", encoding_per_30k,
-        encoding_per_30k as f64 / avg_write as f64 * 100.0);
-    println!("Compression (LZ4):       {}µs ({:.1}%)", compression_overhead_per_30k,
-        compression_overhead_per_30k as f64 / avg_write as f64 * 100.0);
-    println!("I/O + Framework overhead: {}µs ({:.1}%)", io_and_overhead,
-        io_and_overhead as f64 / avg_write as f64 * 100.0);
+    println!(
+        "Encoding (Gorilla):      {}µs ({:.1}%)",
+        encoding_per_30k,
+        encoding_per_30k as f64 / avg_write as f64 * 100.0
+    );
+    println!(
+        "Compression (LZ4):       {}µs ({:.1}%)",
+        compression_overhead_per_30k,
+        compression_overhead_per_30k as f64 / avg_write as f64 * 100.0
+    );
+    println!(
+        "I/O + Framework overhead: {}µs ({:.1}%)",
+        io_and_overhead,
+        io_and_overhead as f64 / avg_write as f64 * 100.0
+    );
     println!("Total:                    {}µs (100.0%)\n", avg_write);
 
     println!("=== CONCLUSIÓN ===");

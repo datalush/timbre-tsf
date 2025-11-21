@@ -8,25 +8,17 @@
 /// - 8 mini-blocks: 6-8x speedup
 ///
 /// Run with: cargo bench --bench miniblock_speedup
-
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use std::time::Duration;
 use timbre_tsf::common::*;
-use timbre_tsf::writer::PageWriter;
-use timbre_tsf::reader::PageReader;
 use timbre_tsf::compress::create_compressor;
 use timbre_tsf::encoding::create_decoder;
-use std::time::Duration;
+use timbre_tsf::reader::PageReader;
+use timbre_tsf::writer::PageWriter;
 
 /// Generate PageData with different number of mini-blocks
-fn generate_page_data(
-    num_points: usize,
-    num_miniblocks: usize,
-) -> timbre_tsf::file::PageData {
-    let mut writer = PageWriter::new(
-        TSDataType::Float,
-        TSEncoding::Gorilla,
-        CompressionType::Lz4,
-    );
+fn generate_page_data(num_points: usize, num_miniblocks: usize) -> timbre_tsf::file::PageData {
+    let mut writer = PageWriter::new(TSDataType::Float, TSEncoding::Gorilla, CompressionType::Lz4);
 
     // Override miniblock config
     writer.miniblock_config.miniblocks_per_page = num_miniblocks;
@@ -81,9 +73,8 @@ fn bench_sequential_decode(c: &mut Criterion) {
                                 create_decoder(TSEncoding::DeltaOfDelta, TSDataType::Int64);
                             let mut pos = 0;
                             while time_decoder.has_remaining(&time_uncompressed, pos) {
-                                let ts = time_decoder
-                                    .read_i64(&time_uncompressed, &mut pos)
-                                    .unwrap();
+                                let ts =
+                                    time_decoder.read_i64(&time_uncompressed, &mut pos).unwrap();
                                 all_timestamps.push(ts);
                             }
 

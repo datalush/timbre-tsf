@@ -46,7 +46,7 @@
 //!
 //! ```
 //! use timbre_tsf::encoding::{SprintzEncoder, SprintzDecoder, Encoder, Decoder};
-//! 
+//!
 //! use timbre_tsf::common::TSDataType;
 //!
 //! let mut encoder = SprintzEncoder::new(TSDataType::Int32);

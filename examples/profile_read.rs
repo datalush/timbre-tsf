@@ -54,7 +54,10 @@ fn generate_test_file(path: &str, total_rows: usize) {
     }
 
     writer.close().unwrap();
-    println!("Generated test file: {} bytes", std::fs::metadata(path).unwrap().len());
+    println!(
+        "Generated test file: {} bytes",
+        std::fs::metadata(path).unwrap().len()
+    );
 }
 
 fn read_tsfile(path: &str) {

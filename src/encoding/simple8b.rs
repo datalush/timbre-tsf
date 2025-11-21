@@ -49,22 +49,22 @@ use byteorder::{LittleEndian, WriteBytesExt};
 
 /// Simple8b selector modes (count, bits per value).
 const SELECTORS: [(u8, u8); 16] = [
-    (240, 0),  // 0: 240 values of 0 bits (all zeros)
-    (120, 0),  // 1: 120 values of 0 bits (all ones)
-    (60, 1),   // 2: 60 values of 1 bit
-    (30, 2),   // 3: 30 values of 2 bits
-    (20, 3),   // 4: 20 values of 3 bits
-    (15, 4),   // 5: 15 values of 4 bits
-    (12, 5),   // 6: 12 values of 5 bits
-    (10, 6),   // 7: 10 values of 6 bits
-    (8, 7),    // 8: 8 values of 7 bits
-    (7, 8),    // 9: 7 values of 8 bits
-    (6, 10),   // 10: 6 values of 10 bits
-    (5, 12),   // 11: 5 values of 12 bits
-    (4, 15),   // 12: 4 values of 15 bits
-    (3, 20),   // 13: 3 values of 20 bits
-    (2, 30),   // 14: 2 values of 30 bits
-    (1, 60),   // 15: 1 value of 60 bits
+    (240, 0), // 0: 240 values of 0 bits (all zeros)
+    (120, 0), // 1: 120 values of 0 bits (all ones)
+    (60, 1),  // 2: 60 values of 1 bit
+    (30, 2),  // 3: 30 values of 2 bits
+    (20, 3),  // 4: 20 values of 3 bits
+    (15, 4),  // 5: 15 values of 4 bits
+    (12, 5),  // 6: 12 values of 5 bits
+    (10, 6),  // 7: 10 values of 6 bits
+    (8, 7),   // 8: 8 values of 7 bits
+    (7, 8),   // 9: 7 values of 8 bits
+    (6, 10),  // 10: 6 values of 10 bits
+    (5, 12),  // 11: 5 values of 12 bits
+    (4, 15),  // 12: 4 values of 15 bits
+    (3, 20),  // 13: 3 values of 20 bits
+    (2, 30),  // 14: 2 values of 30 bits
+    (1, 60),  // 15: 1 value of 60 bits
 ];
 
 /// Simple8b encoder for integer values.
@@ -119,11 +119,7 @@ impl Simple8bEncoder {
         // Find the best selector that can fit the pending values
         for (selector_idx, &(count, bits)) in SELECTORS.iter().enumerate() {
             if count as usize <= self.pending.len() {
-                let max_value = if bits == 0 {
-                    0
-                } else {
-                    (1u64 << bits) - 1
-                };
+                let max_value = if bits == 0 { 0 } else { (1u64 << bits) - 1 };
 
                 // Check if all values fit in this selector
                 let values_to_pack = &self.pending[..count as usize];
@@ -179,16 +175,15 @@ impl Simple8bEncoder {
 
             // Try to find a selector that can fit all (or partial) pending values
             for (selector_idx, &(count, bits)) in SELECTORS.iter().enumerate() {
-                let max_value = if bits == 0 {
-                    0
-                } else {
-                    (1u64 << bits) - 1
-                };
+                let max_value = if bits == 0 { 0 } else { (1u64 << bits) - 1 };
 
                 // Determine how many values we can pack with this selector
                 let can_pack = if count as usize <= self.pending.len() {
                     // We have enough values - check if they all fit in this selector
-                    if self.pending[..count as usize].iter().all(|&v| v <= max_value) {
+                    if self.pending[..count as usize]
+                        .iter()
+                        .all(|&v| v <= max_value)
+                    {
                         count as usize
                     } else {
                         0
@@ -345,11 +340,7 @@ impl Simple8bDecoder {
         let index = count - self.current_pos;
 
         let value = if bits == 0 {
-            if self.current_selector == 1 {
-                1
-            } else {
-                0
-            }
+            if self.current_selector == 1 { 1 } else { 0 }
         } else {
             let shift = index as u64 * bits as u64;
             let mask = (1u64 << bits) - 1;
@@ -372,11 +363,7 @@ impl Simple8bDecoder {
         let index = count - self.current_pos;
 
         let value = if bits == 0 {
-            if self.current_selector == 1 {
-                1
-            } else {
-                0
-            }
+            if self.current_selector == 1 { 1 } else { 0 }
         } else {
             let shift = index as u64 * bits as u64;
             let mask = (1u64 << bits) - 1;

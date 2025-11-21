@@ -68,11 +68,8 @@ impl ChunkReader {
             .par_iter()
             .map(|page_data| {
                 // Cada thread crea su propio PageReader para decodificar
-                let mut page_reader = PageReader::new(
-                    self.data_type,
-                    self.encoding,
-                    self.compression_type,
-                );
+                let mut page_reader =
+                    PageReader::new(self.data_type, self.encoding, self.compression_type);
                 page_reader
                     .read_page_data(page_data)
                     .map_err(|e| format!("Failed to decode page: {:?}", e))
@@ -113,7 +110,7 @@ impl ChunkReader {
                     return Err(crate::error::TsFileError::TypeMismatch {
                         expected: format!("{:?}", self.data_type),
                         actual: "mismatched types across pages".to_string(),
-                    })
+                    });
                 }
             }
         }
@@ -363,7 +360,8 @@ impl DecodedChunk {
         let mut filtered_timestamps = Vec::new();
 
         // Build filtered indices first
-        let filtered_indices: Vec<usize> = self.timestamps
+        let filtered_indices: Vec<usize> = self
+            .timestamps
             .iter()
             .enumerate()
             .filter_map(|(i, &ts)| {
@@ -395,7 +393,12 @@ impl DecodedChunk {
             }
             DecodedValues::Text(vec) => {
                 // OPT-ZERO-COPY-2: Arc::clone is cheap (just refcount increment, no data copy)
-                DecodedValues::Text(filtered_indices.iter().map(|&i| Arc::clone(&vec[i])).collect())
+                DecodedValues::Text(
+                    filtered_indices
+                        .iter()
+                        .map(|&i| Arc::clone(&vec[i]))
+                        .collect(),
+                )
             }
         };
 
