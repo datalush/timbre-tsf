@@ -241,7 +241,6 @@ impl Chimp128Encoder {
             } else {
                 xor.trailing_zeros()
             };
-            let significant_bits = self.bit_width as u32 - leading - trailing;
 
             // Check if we can reuse previous range
             if leading >= self.prev_leading as u32 && trailing >= self.prev_trailing as u32 {
@@ -286,6 +285,9 @@ impl Chimp128Encoder {
                 self.write_bit(true); // 1
                 self.write_bit(true); // 1
                 self.write_bit(true); // 1
+
+                // OPT: Calculate significant_bits only when needed (Case 4)
+                let significant_bits = self.bit_width as u32 - leading - trailing;
 
                 // OPT-4: Encode metadata and data with single writes (was 3 separate loops)
                 self.write_bits(leading as u64, 6); // Leading zeros (6 bits)
