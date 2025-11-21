@@ -33,7 +33,7 @@
 //! assert!(std::sync::Arc::ptr_eq(&device1, &device2));
 //! ```
 
-use rustc_hash::FxHashMap;  // OPT: 3-5x faster than SipHash for device IDs
+use rustc_hash::FxHashMap; // OPT: 3-5x faster than SipHash for device IDs
 use std::sync::{Arc, Mutex};
 
 /// Thread-safe string interner for deduplicating device IDs and measurement names.
@@ -55,7 +55,7 @@ use std::sync::{Arc, Mutex};
 /// invalidates the optimization for existing Arc references.
 #[derive(Debug, Default)]
 pub struct StringInterner {
-    pool: Mutex<FxHashMap<String, Arc<str>>>,  // OPT: FxHash for 3-5x faster lookups
+    pool: Mutex<FxHashMap<String, Arc<str>>>, // OPT: FxHash for 3-5x faster lookups
 }
 
 impl StringInterner {
@@ -71,7 +71,7 @@ impl StringInterner {
     /// ```
     pub fn new() -> Self {
         Self {
-            pool: Mutex::new(FxHashMap::default()),  // OPT: FxHash is 3-5x faster
+            pool: Mutex::new(FxHashMap::default()), // OPT: FxHash is 3-5x faster
         }
     }
 
@@ -89,7 +89,10 @@ impl StringInterner {
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            pool: Mutex::new(FxHashMap::with_capacity_and_hasher(capacity, Default::default())),  // OPT: FxHash
+            pool: Mutex::new(FxHashMap::with_capacity_and_hasher(
+                capacity,
+                Default::default(),
+            )), // OPT: FxHash
         }
     }
 

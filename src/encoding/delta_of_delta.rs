@@ -89,7 +89,7 @@ impl DeltaOfDeltaEncoder {
             previous_value: 0,
             previous_delta: 0,
             simple8b: Simple8bEncoder::new(TSDataType::Int64),
-            count: 0,  // OPT: Single counter replaces Option + bool
+            count: 0, // OPT: Single counter replaces Option + bool
         }
     }
 
@@ -102,7 +102,7 @@ impl DeltaOfDeltaEncoder {
     ///
     /// The first value is stored directly, the second value's delta is stored,
     /// and all subsequent values are encoded as delta-of-delta compressed with Simple8b.
-    #[inline(always)]  // OPT: Hot path - inline to avoid call overhead (12.76% CPU)
+    #[inline(always)] // OPT: Hot path - inline to avoid call overhead (12.76% CPU)
     fn encode_value(&mut self, value: i64, out: &mut Vec<u8>) -> Result<()> {
         // OPT: Use match on counter instead of Option + bool (eliminates 2 branches)
         match self.count {
@@ -152,7 +152,7 @@ impl DeltaOfDeltaEncoder {
     pub fn reset(&mut self) {
         self.previous_value = 0;
         self.previous_delta = 0;
-        self.count = 0;  // OPT: Single counter reset
+        self.count = 0; // OPT: Single counter reset
         // Note: We create a new Simple8bEncoder since it doesn't have reset()
         // This is still faster than creating the entire DeltaOfDeltaEncoder
         self.simple8b = Simple8bEncoder::new(TSDataType::Int64);
@@ -222,7 +222,7 @@ impl DeltaOfDeltaDecoder {
             previous_value: 0,
             previous_delta: 0,
             simple8b: Simple8bDecoder::new(data_type),
-            count: 0,  // OPT: Single counter replaces Option + bool
+            count: 0, // OPT: Single counter replaces Option + bool
         }
     }
 
@@ -235,7 +235,7 @@ impl DeltaOfDeltaDecoder {
     ///
     /// Reads the first value directly, then the first delta, and reconstructs
     /// all subsequent values by adding the computed delta to the previous value.
-    #[inline(always)]  // OPT: Inline for consistency with encoder
+    #[inline(always)] // OPT: Inline for consistency with encoder
     fn decode_value(&mut self, input: &[u8], pos: &mut usize) -> Result<i64> {
         // OPT: Use match on counter instead of Option + bool
         match self.count {

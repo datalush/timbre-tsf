@@ -18,7 +18,11 @@ fn main() {
     println!("Generating {} rows...", total_rows);
 
     let schema = Arc::new(Schema::new(vec![
-        Field::new("timestamp", DataType::Timestamp(TimeUnit::Millisecond, None), false),
+        Field::new(
+            "timestamp",
+            DataType::Timestamp(TimeUnit::Millisecond, None),
+            false,
+        ),
         Field::new("device_id", DataType::Utf8, false),
         Field::new("temperature", DataType::Float32, false),
         Field::new("humidity", DataType::Float32, false),

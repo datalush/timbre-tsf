@@ -196,8 +196,12 @@ impl<'a> ValueMatrix<'a> {
     pub fn new(data_type: TSDataType, capacity: usize) -> Self {
         match data_type {
             TSDataType::Boolean => Self::Boolean(Cow::Owned(Vec::with_capacity(capacity))),
-            TSDataType::Int32 | TSDataType::Date => Self::Int32(Cow::Owned(Vec::with_capacity(capacity))),
-            TSDataType::Int64 | TSDataType::Timestamp => Self::Int64(Cow::Owned(Vec::with_capacity(capacity))),
+            TSDataType::Int32 | TSDataType::Date => {
+                Self::Int32(Cow::Owned(Vec::with_capacity(capacity)))
+            }
+            TSDataType::Int64 | TSDataType::Timestamp => {
+                Self::Int64(Cow::Owned(Vec::with_capacity(capacity)))
+            }
             TSDataType::Float => Self::Float(Cow::Owned(Vec::with_capacity(capacity))),
             TSDataType::Double => Self::Double(Cow::Owned(Vec::with_capacity(capacity))),
             TSDataType::Text | TSDataType::String => Self::Text(Vec::with_capacity(capacity)),

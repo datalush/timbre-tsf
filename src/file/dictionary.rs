@@ -40,7 +40,7 @@
 
 use crate::error::{Result, TsFileError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use rustc_hash::FxHashMap;  // OPT: 3-5x faster than SipHash for device IDs
+use rustc_hash::FxHashMap; // OPT: 3-5x faster than SipHash for device IDs
 use std::io::{Read, Write};
 
 /// Header for the global dictionary section
@@ -113,7 +113,7 @@ impl GlobalDictionary {
     /// Creates a new empty dictionary
     pub fn new() -> Self {
         Self {
-            string_to_id: FxHashMap::default(),  // OPT: FxHash for 3-5x faster lookups
+            string_to_id: FxHashMap::default(), // OPT: FxHash for 3-5x faster lookups
             id_to_string: Vec::new(),
             next_id: 0,
         }
@@ -193,10 +193,8 @@ impl GlobalDictionary {
         let header = DictionaryHeader::deserialize(reader)?;
 
         // OPT: FxHash for 3-5x faster lookups
-        let mut string_to_id = FxHashMap::with_capacity_and_hasher(
-            header.entry_count as usize,
-            Default::default(),
-        );
+        let mut string_to_id =
+            FxHashMap::with_capacity_and_hasher(header.entry_count as usize, Default::default());
         let mut id_to_string = Vec::with_capacity(header.entry_count as usize);
 
         // Read string table

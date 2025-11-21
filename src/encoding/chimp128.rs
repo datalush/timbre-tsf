@@ -335,7 +335,6 @@ impl Chimp128Encoder {
         self.bit_buffer = 0;
         self.bits_in_buffer = 0;
     }
-
 }
 
 impl Encoder for Chimp128Encoder {

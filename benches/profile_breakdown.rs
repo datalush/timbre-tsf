@@ -3,8 +3,8 @@
 
 use std::time::Instant;
 use timbre_tsf::common::{CompressionType, TSDataType, TSEncoding};
-use timbre_tsf::encoding::{create_encoder, EncoderImpl};
 use timbre_tsf::compress::create_compressor;
+use timbre_tsf::encoding::{EncoderImpl, create_encoder};
 
 macro_rules! measure {
     ($label:expr, $iterations:expr, $code:block) => {{
@@ -60,11 +60,16 @@ fn main() {
     // Prepare encoded data for compression tests
     let mut chimp_encoder = create_encoder(TSEncoding::Chimp128, TSDataType::Float);
     let mut encoded_data = Vec::new();
-    chimp_encoder.encode_f32_batch(&values, &mut encoded_data).unwrap();
+    chimp_encoder
+        .encode_f32_batch(&values, &mut encoded_data)
+        .unwrap();
     chimp_encoder.flush(&mut encoded_data).unwrap();
     let encoded_size = encoded_data.len();
 
-    println!("\n{:40} | Encoded: {} bytes", "Chimp128 output size", encoded_size);
+    println!(
+        "\n{:40} | Encoded: {} bytes",
+        "Chimp128 output size", encoded_size
+    );
 
     // 4. Snappy compression
     measure!("Snappy compress (encoded data)", 1000, {

@@ -69,22 +69,22 @@ const SELECTORS: [(u8, u8); 16] = [
 
 /// OPT: Pre-calculated max values for each selector (avoids (1u64 << bits) - 1 in hot path)
 const MAX_VALUES: [u64; 16] = [
-    0,                      // 0: 0 bits (all zeros)
-    0,                      // 1: 0 bits (all ones)
-    1,                      // 2: 1 bit max = 1
-    3,                      // 3: 2 bits max = 3
-    7,                      // 4: 3 bits max = 7
-    15,                     // 5: 4 bits max = 15
-    31,                     // 6: 5 bits max = 31
-    63,                     // 7: 6 bits max = 63
-    127,                    // 8: 7 bits max = 127
-    255,                    // 9: 8 bits max = 255
-    1023,                   // 10: 10 bits max = 1023
-    4095,                   // 11: 12 bits max = 4095
-    32767,                  // 12: 15 bits max = 32767
-    1048575,                // 13: 20 bits max = 1048575
-    1073741823,             // 14: 30 bits max = 1073741823
-    1152921504606846975,    // 15: 60 bits max = 2^60 - 1
+    0,                   // 0: 0 bits (all zeros)
+    0,                   // 1: 0 bits (all ones)
+    1,                   // 2: 1 bit max = 1
+    3,                   // 3: 2 bits max = 3
+    7,                   // 4: 3 bits max = 7
+    15,                  // 5: 4 bits max = 15
+    31,                  // 6: 5 bits max = 31
+    63,                  // 7: 6 bits max = 63
+    127,                 // 8: 7 bits max = 127
+    255,                 // 9: 8 bits max = 255
+    1023,                // 10: 10 bits max = 1023
+    4095,                // 11: 12 bits max = 4095
+    32767,               // 12: 15 bits max = 32767
+    1048575,             // 13: 20 bits max = 1048575
+    1073741823,          // 14: 30 bits max = 1073741823
+    1152921504606846975, // 15: 60 bits max = 2^60 - 1
 ];
 
 /// Simple8b encoder for integer values.
@@ -131,7 +131,7 @@ impl Simple8bEncoder {
     }
 
     /// Tries to pack pending values into a 64-bit word.
-    #[inline]  // OPT: Inline hot path (5.15% CPU)
+    #[inline] // OPT: Inline hot path (5.15% CPU)
     fn try_pack(&mut self) {
         if self.pending.is_empty() {
             return;

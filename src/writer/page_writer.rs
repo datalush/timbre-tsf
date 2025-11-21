@@ -6,7 +6,7 @@
 //! - Each mini-block is encoded and compressed independently
 //! - Enables parallel decoding (potential 8x speedup)
 
-use crate::common::statistic::{Statistic, create_statistic};
+use crate::common::statistic::{StatisticEnum, create_statistic};
 use crate::common::{CompressionType, TSDataType, TSEncoding};
 use crate::compress::create_compressor;
 use crate::encoding::{EncoderImpl, create_encoder};
@@ -14,19 +14,25 @@ use crate::error::{Result, TsFileError};
 use crate::file::{MiniBlock, MiniBlockConfig, MiniBlockHeader, PageData, PageHeader};
 
 /// Writer for pages with mini-blocks (Timbre format)
+///
+/// OPT: Struct layout optimized for cache locality:
+/// - HOT PATH fields (accessed during write operations) are grouped first
+/// - COLD PATH fields (config, buffers) are placed after
+/// - This minimizes cache misses during the critical write_*() → statistic.update_*() path
 pub struct PageWriter {
+    // HOT PATH GROUP: Write operations (first cache lines)
+    // These fields are accessed together during every write_*() call
+    timestamps: Vec<i64>,        // 24 bytes (ptr + cap + len)
+    value_data: ValueData,       // 32 bytes (enum tag + largest variant)
+    statistic: StatisticEnum,    // 64 bytes (enum tag + largest variant)
+
+    // COLD PATH GROUP: Configuration (rarely accessed after construction)
     data_type: TSDataType,
     encoding: TSEncoding,
     compression_type: CompressionType,
     pub miniblock_config: MiniBlockConfig,
 
-    // Accumulated RAW data (unencoded)
-    timestamps: Vec<i64>,
-    // ValueData is an enum for different types
-    value_data: ValueData,
-
-    statistic: Box<dyn Statistic>,
-
+    // COLD PATH GROUP: Encoding machinery (accessed only during finish())
     // OPT: Reusable encoders (avoids 16-32 allocations per page)
     time_encoder: EncoderImpl,
     value_encoder: EncoderImpl,
@@ -93,6 +99,11 @@ impl PageWriter {
     }
 
     /// Writes a boolean value
+    ///
+    /// OPT: #[inline(always)] to eliminate function call overhead in hot path.
+    /// Combined with StatisticEnum's inline methods, the entire write path
+    /// becomes a straight-line sequence of inlined operations.
+    #[inline(always)]
     pub fn write_bool(&mut self, timestamp: i64, value: bool) -> Result<()> {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
@@ -104,11 +115,15 @@ impl PageWriter {
                 });
             }
         }
-        // OPT: Stats calculated in create_miniblock() for better cache locality
+        // OPT: StatisticEnum dispatch is now fully inlined (vs vtable call)
+        self.statistic.update_bool(timestamp, value);
         Ok(())
     }
 
     /// Writes an i32 value
+    ///
+    /// OPT: #[inline(always)] to eliminate function call overhead in hot path.
+    #[inline(always)]
     pub fn write_i32(&mut self, timestamp: i64, value: i32) -> Result<()> {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
@@ -120,11 +135,15 @@ impl PageWriter {
                 });
             }
         }
-        // OPT: Stats calculated in create_miniblock() for better cache locality
+        // OPT: StatisticEnum dispatch is now fully inlined (vs vtable call)
+        self.statistic.update_i32(timestamp, value);
         Ok(())
     }
 
     /// Writes an i64 value
+    ///
+    /// OPT: #[inline(always)] to eliminate function call overhead in hot path.
+    #[inline(always)]
     pub fn write_i64(&mut self, timestamp: i64, value: i64) -> Result<()> {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
@@ -136,11 +155,16 @@ impl PageWriter {
                 });
             }
         }
-        // OPT: Stats calculated in create_miniblock() for better cache locality
+        // OPT: StatisticEnum dispatch is now fully inlined (vs vtable call)
+        self.statistic.update_i64(timestamp, value);
         Ok(())
     }
 
     /// Writes an f32 value
+    ///
+    /// OPT: #[inline(always)] to eliminate function call overhead in hot path.
+    /// This is critical as write_f32 was identified as 4.11% of CPU in profiling.
+    #[inline(always)]
     pub fn write_f32(&mut self, timestamp: i64, value: f32) -> Result<()> {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
@@ -152,11 +176,15 @@ impl PageWriter {
                 });
             }
         }
-        // OPT: Stats calculated in create_miniblock() for better cache locality
+        // OPT: StatisticEnum dispatch is now fully inlined (vs vtable call)
+        self.statistic.update_f32(timestamp, value);
         Ok(())
     }
 
     /// Writes an f64 value
+    ///
+    /// OPT: #[inline(always)] to eliminate function call overhead in hot path.
+    #[inline(always)]
     pub fn write_f64(&mut self, timestamp: i64, value: f64) -> Result<()> {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
@@ -168,11 +196,15 @@ impl PageWriter {
                 });
             }
         }
-        // OPT: Stats calculated in create_miniblock() for better cache locality
+        // OPT: StatisticEnum dispatch is now fully inlined (vs vtable call)
+        self.statistic.update_f64(timestamp, value);
         Ok(())
     }
 
     /// Writes a string value
+    ///
+    /// OPT: #[inline(always)] to eliminate function call overhead in hot path.
+    #[inline(always)]
     pub fn write_string(&mut self, timestamp: i64, value: &str) -> Result<()> {
         self.timestamps.push(timestamp);
         match &mut self.value_data {
@@ -184,7 +216,8 @@ impl PageWriter {
                 });
             }
         }
-        // OPT: Stats calculated in create_miniblock() for better cache locality
+        // OPT: StatisticEnum dispatch is now fully inlined (vs vtable call)
+        self.statistic.update_string(timestamp, value);
         Ok(())
     }
 
@@ -254,10 +287,10 @@ impl PageWriter {
         match &self.value_data {
             ValueData::Boolean(v) => {
                 let values = &v[start..end];
-                // OPT-BATCH-STATS: Calculate stats before encoding
-                for (i, &val) in values.iter().enumerate() {
-                    self.statistic.update_bool(timestamps[i], val);
-                }
+                // BASELINE: Stats already calculated in write_bool() - commenting out batch calculation
+                // for (i, &val) in values.iter().enumerate() {
+                //     self.statistic.update_bool(timestamps[i], val);
+                // }
                 // Then encode
                 for &val in values {
                     self.value_encoder
@@ -266,42 +299,42 @@ impl PageWriter {
             }
             ValueData::Int32(v) => {
                 let values = &v[start..end];
-                // OPT-BATCH-STATS: Batch stats calculation for i32 (HOT PATH)
-                compute_and_update_stats_i32(&mut self.statistic, timestamps, values);
+                // BASELINE: Stats already calculated in write_i32() - commenting out batch calculation
+                // compute_and_update_stats_i32(&mut self.statistic, timestamps, values);
                 // Then batch encode
                 self.value_encoder
                     .encode_i32_batch(values, &mut self.value_buffer)?;
             }
             ValueData::Int64(v) => {
                 let values = &v[start..end];
-                // OPT-BATCH-STATS: Batch stats calculation for i64
-                compute_and_update_stats_i64(&mut self.statistic, timestamps, values);
+                // BASELINE: Stats already calculated in write_i64() - commenting out batch calculation
+                // compute_and_update_stats_i64(&mut self.statistic, timestamps, values);
                 // Then batch encode
                 self.value_encoder
                     .encode_i64_batch(values, &mut self.value_buffer)?;
             }
             ValueData::Float(v) => {
                 let values = &v[start..end];
-                // OPT-BATCH-STATS: Batch stats calculation for f32 (HOT PATH for sensor data)
-                compute_and_update_stats_f32(&mut self.statistic, timestamps, values);
+                // BASELINE: Stats already calculated in write_f32() - commenting out batch calculation
+                // compute_and_update_stats_f32(&mut self.statistic, timestamps, values);
                 // Then batch encode
                 self.value_encoder
                     .encode_f32_batch(values, &mut self.value_buffer)?;
             }
             ValueData::Double(v) => {
                 let values = &v[start..end];
-                // OPT-BATCH-STATS: Batch stats calculation for f64 (HOT PATH for high-precision)
-                compute_and_update_stats_f64(&mut self.statistic, timestamps, values);
+                // BASELINE: Stats already calculated in write_f64() - commenting out batch calculation
+                // compute_and_update_stats_f64(&mut self.statistic, timestamps, values);
                 // Then batch encode
                 self.value_encoder
                     .encode_f64_batch(values, &mut self.value_buffer)?;
             }
             ValueData::String(v) => {
                 let values = &v[start..end];
-                // OPT-BATCH-STATS: Calculate stats before encoding
-                for (i, val) in values.iter().enumerate() {
-                    self.statistic.update_string(timestamps[i], val);
-                }
+                // BASELINE: Stats already calculated in write_string() - commenting out batch calculation
+                // for (i, val) in values.iter().enumerate() {
+                //     self.statistic.update_string(timestamps[i], val);
+                // }
                 // Then encode
                 for val in values {
                     self.value_encoder
@@ -339,8 +372,8 @@ impl PageWriter {
     }
 
     /// Returns current statistics
-    pub fn statistic(&self) -> &dyn Statistic {
-        self.statistic.as_ref()
+    pub fn statistic(&self) -> &StatisticEnum {
+        &self.statistic
     }
 
     /// Resetea el writer para reutilización
@@ -370,79 +403,12 @@ impl PageWriter {
     }
 }
 
-// ============================================================================
-// OPT-BATCH-STATS: Helper functions for batch statistics calculation
-// ============================================================================
-//
-// These functions calculate statistics in batch during create_miniblock()
-// instead of during individual write_*() calls. This provides:
-//
-// - 10-15% performance improvement by reducing function call overhead
-// - Better cache locality (stats calculated alongside encoding)
-// - Preparation for SIMD optimizations in future iterations
-//
-// Current implementation is scalar; SIMD versions will be added later.
-
-/// Calculates and updates statistics for i32 values in batch
-#[inline]
-fn compute_and_update_stats_i32(
-    statistic: &mut Box<dyn Statistic>,
-    timestamps: &[i64],
-    values: &[i32],
-) {
-    // Bounds are guaranteed by miniblock_config.split_into_ranges()
-    debug_assert_eq!(timestamps.len(), values.len());
-
-    for (i, &val) in values.iter().enumerate() {
-        statistic.update_i32(timestamps[i], val);
-    }
-}
-
-/// Calculates and updates statistics for i64 values in batch
-#[inline]
-fn compute_and_update_stats_i64(
-    statistic: &mut Box<dyn Statistic>,
-    timestamps: &[i64],
-    values: &[i64],
-) {
-    debug_assert_eq!(timestamps.len(), values.len());
-
-    for (i, &val) in values.iter().enumerate() {
-        statistic.update_i64(timestamps[i], val);
-    }
-}
-
-/// Calculates and updates statistics for f32 values in batch
-/// HOT PATH: This is critical for sensor data performance
-#[inline]
-fn compute_and_update_stats_f32(
-    statistic: &mut Box<dyn Statistic>,
-    timestamps: &[i64],
-    values: &[f32],
-) {
-    debug_assert_eq!(timestamps.len(), values.len());
-
-    // TODO-SIMD: This loop can be vectorized in future iterations
-    for (i, &val) in values.iter().enumerate() {
-        statistic.update_f32(timestamps[i], val);
-    }
-}
-
-/// Calculates and updates statistics for f64 values in batch
-/// HOT PATH: This is critical for high-precision sensor data
-#[inline]
-fn compute_and_update_stats_f64(
-    statistic: &mut Box<dyn Statistic>,
-    timestamps: &[i64],
-    values: &[f64],
-) {
-    debug_assert_eq!(timestamps.len(), values.len());
-
-    // TODO-SIMD: This loop can be vectorized in future iterations
-    for (i, &val) in values.iter().enumerate() {
-        statistic.update_f64(timestamps[i], val);
-    }
-}
+// OPT: Batch stats helper functions removed - statistics are now calculated
+// incrementally during write_*() calls using optimized StatisticEnum dispatch.
+// This provides better performance than batch calculation due to:
+// - Zero vtable overhead (enum dispatch vs Box<dyn Statistic>)
+// - Aggressive inlining (#[inline(always)] on entire call chain)
+// - Better cache locality (stats updated immediately with data)
 
 #[cfg(test)]
 mod tests {
@@ -497,8 +463,8 @@ mod tests {
 
     #[test]
     fn test_batch_stats_calculation() {
-        // Test that statistics are correctly calculated in batch during create_miniblock()
-        // OPT-BATCH-STATS: Stats are now calculated during finish() instead of write_*()
+        // BASELINE MODE: Test that statistics are correctly calculated per-value in write_*()
+        // NOTE: This test was modified for baseline profiling comparison
         let mut writer = PageWriter::new(
             TSDataType::Float,
             TSEncoding::Gorilla,
@@ -516,15 +482,15 @@ mod tests {
             writer.write_f32(start_ts + i, value).unwrap();
         }
 
-        // Statistics should NOT be updated yet (they're calculated in batch during finish)
+        // BASELINE: Statistics ARE updated immediately during write_*() calls
         let stat = writer.statistic();
-        assert_eq!(stat.start_time(), i64::MAX); // Default value before finish()
-        assert_eq!(stat.end_time(), i64::MIN);   // Default value before finish()
+        assert_eq!(stat.start_time(), start_ts);
+        assert_eq!(stat.end_time(), start_ts + 499);
 
-        // Finish should calculate all stats in batch
+        // Finish should complete successfully with correct data
         let page_data = writer.finish().unwrap();
 
-        // Verify page header has correct timestamp range from batch stats calculation
+        // Verify page header has correct timestamp range
         assert_eq!(page_data.header.min_timestamp, start_ts);
         assert_eq!(page_data.header.max_timestamp, start_ts + 499);
 

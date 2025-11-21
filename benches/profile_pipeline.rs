@@ -19,7 +19,11 @@ fn main() {
     // Generate data
     let start = Instant::now();
     let schema = Arc::new(Schema::new(vec![
-        Field::new("timestamp", DataType::Timestamp(TimeUnit::Millisecond, None), false),
+        Field::new(
+            "timestamp",
+            DataType::Timestamp(TimeUnit::Millisecond, None),
+            false,
+        ),
         Field::new("device_id", DataType::Utf8, false),
         Field::new("temperature", DataType::Float32, false),
         Field::new("humidity", DataType::Float32, false),
@@ -54,7 +58,10 @@ fn main() {
         ],
     )
     .unwrap();
-    println!("  RecordBatch creation: {:.2}s", start.elapsed().as_secs_f64());
+    println!(
+        "  RecordBatch creation: {:.2}s",
+        start.elapsed().as_secs_f64()
+    );
 
     // Test 1: Full write (baseline)
     println!("\n--- Full Write (baseline) ---");
@@ -71,8 +78,8 @@ fn main() {
     println!("  Total time: {:.3}s ({:.2} MB/s)", elapsed, mb / elapsed);
 
     // Test 2: Write without compression (to isolate compression overhead)
-    use timbre_tsf::common::{CompressionType, TSEncoding};
     use timbre_tsf::arrow::ArrowConversionConfig;
+    use timbre_tsf::common::{CompressionType, TSEncoding};
 
     println!("\n--- Write with different configs ---");
 
@@ -91,7 +98,11 @@ fn main() {
     converter.write_batch(&batch).unwrap();
     converter.finish().unwrap();
     let elapsed = start.elapsed().as_secs_f64();
-    println!("  No compression: {:.3}s ({:.2} MB/s)", elapsed, mb / elapsed);
+    println!(
+        "  No compression: {:.3}s ({:.2} MB/s)",
+        elapsed,
+        mb / elapsed
+    );
 
     // Gorilla instead of Chimp128
     let config = ArrowConversionConfig {
@@ -109,7 +120,11 @@ fn main() {
     converter.write_batch(&batch).unwrap();
     converter.finish().unwrap();
     let elapsed = start.elapsed().as_secs_f64();
-    println!("  Gorilla encoding: {:.3}s ({:.2} MB/s)", elapsed, mb / elapsed);
+    println!(
+        "  Gorilla encoding: {:.3}s ({:.2} MB/s)",
+        elapsed,
+        mb / elapsed
+    );
 
     println!("\n=== Summary ===");
     println!("Any difference between configs shows where the bottleneck is:");

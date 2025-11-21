@@ -5,8 +5,8 @@ use arrow::array::{Float32Array, StringArray, TimestampMillisecondArray};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 use std::sync::Arc;
-use std::time::Instant;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
 
 // Global counters
 static TIME_DEVICE_GROUPING: AtomicU64 = AtomicU64::new(0);

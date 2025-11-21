@@ -73,6 +73,17 @@ use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
 use crate::error::{Result, TsFileError};
 
+/// Statistics computed during batch encoding (OPT: stats calculated during encode loop)
+#[derive(Debug, Clone)]
+pub struct F32BatchStats {
+    pub count: usize,
+    pub min: f32,
+    pub max: f32,
+    pub sum: f64, // f64 for precision
+    pub first: f32,
+    pub last: f32,
+}
+
 /// Gorilla encoder with XOR-based delta encoding and variable-length bit packing
 ///
 /// Maintains state to track the previous value and the leading/trailing zero counts
@@ -225,6 +236,7 @@ impl GorillaEncoder {
             // Value changed: store 1 bit + XOR encoding
             self.write_bit(true);
 
+            // Count leading and trailing zeros for XOR result
             // For 32-bit values, count zeros from bit 31, not bit 63
             let leading = if self.value_bits == 32 {
                 (xor as u32).leading_zeros()
@@ -260,7 +272,6 @@ impl GorillaEncoder {
 
         self.previous_value = bits;
     }
-
 
     /// Resets the encoder state for reuse.
     ///
@@ -855,5 +866,4 @@ mod tests {
             assert_eq!(decoded, expected);
         }
     }
-
 }

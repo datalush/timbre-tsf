@@ -26,7 +26,7 @@ use crate::writer::TsFileWriter;
 use arrow::array::*;
 use arrow::datatypes::{DataType, TimeUnit};
 use arrow::record_batch::RecordBatch;
-use rustc_hash::{FxHashMap, FxHashSet};  // OPT: 3-5x faster than SipHash for short strings
+use rustc_hash::{FxHashMap, FxHashSet}; // OPT: 3-5x faster than SipHash for short strings
 use std::path::Path;
 use std::sync::Arc;
 
@@ -304,8 +304,8 @@ impl ArrowToTsFileConverter {
 
                 // OPT-ARROW: Direct buffer access
                 let arrow_buffer = arr.values();
-                let is_contiguous = indices.len() > 1
-                    && indices.windows(2).all(|w| w[1] == w[0] + 1);
+                let is_contiguous =
+                    indices.len() > 1 && indices.windows(2).all(|w| w[1] == w[0] + 1);
 
                 let values = if is_contiguous && arr.null_count() == 0 {
                     // ZERO-COPY: Borrow directly from Arrow buffer
@@ -337,8 +337,8 @@ impl ArrowToTsFileConverter {
 
                 // OPT-ARROW: Direct buffer access
                 let arrow_buffer = arr.values();
-                let is_contiguous = indices.len() > 1
-                    && indices.windows(2).all(|w| w[1] == w[0] + 1);
+                let is_contiguous =
+                    indices.len() > 1 && indices.windows(2).all(|w| w[1] == w[0] + 1);
 
                 let values = if is_contiguous && arr.null_count() == 0 {
                     // ZERO-COPY: Borrow directly from Arrow buffer
@@ -369,11 +369,11 @@ impl ArrowToTsFileConverter {
                 let arr = array.as_any().downcast_ref::<Float32Array>().unwrap();
 
                 // OPT-ARROW: Direct buffer access (20-30% faster than arr.value())
-                let arrow_buffer = arr.values();  // &[f32] - zero-copy!
+                let arrow_buffer = arr.values(); // &[f32] - zero-copy!
 
                 // OPT-CONTIGUOUS: Check if indices are contiguous (common case: single device)
-                let is_contiguous = indices.len() > 1
-                    && indices.windows(2).all(|w| w[1] == w[0] + 1);
+                let is_contiguous =
+                    indices.len() > 1 && indices.windows(2).all(|w| w[1] == w[0] + 1);
 
                 let values = if is_contiguous && arr.null_count() == 0 {
                     // ZERO-COPY: Borrow directly from Arrow buffer (HOT PATH for IoT sensors)
@@ -407,8 +407,8 @@ impl ArrowToTsFileConverter {
                 let arrow_buffer = arr.values();
 
                 // OPT-CONTIGUOUS: Check if indices are contiguous
-                let is_contiguous = indices.len() > 1
-                    && indices.windows(2).all(|w| w[1] == w[0] + 1);
+                let is_contiguous =
+                    indices.len() > 1 && indices.windows(2).all(|w| w[1] == w[0] + 1);
 
                 let values = if is_contiguous && arr.null_count() == 0 {
                     // ZERO-COPY: Borrow directly from Arrow buffer

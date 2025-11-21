@@ -34,14 +34,18 @@ fn main() {
     measure!("Chimp128: slowly changing (IoT pattern)", 1000, {
         let mut encoder = create_encoder(TSEncoding::Chimp128, TSDataType::Float);
         let mut buffer = Vec::new();
-        encoder.encode_f32_batch(&slowly_changing, &mut buffer).unwrap();
+        encoder
+            .encode_f32_batch(&slowly_changing, &mut buffer)
+            .unwrap();
         encoder.flush(&mut buffer).unwrap();
     });
 
     measure!("Gorilla: slowly changing (IoT pattern)", 1000, {
         let mut encoder = create_encoder(TSEncoding::Gorilla, TSDataType::Float);
         let mut buffer = Vec::new();
-        encoder.encode_f32_batch(&slowly_changing, &mut buffer).unwrap();
+        encoder
+            .encode_f32_batch(&slowly_changing, &mut buffer)
+            .unwrap();
         encoder.flush(&mut buffer).unwrap();
     });
 
@@ -68,33 +72,39 @@ fn main() {
     measure!("Chimp128: rapidly changing (sin wave)", 1000, {
         let mut encoder = create_encoder(TSEncoding::Chimp128, TSDataType::Float);
         let mut buffer = Vec::new();
-        encoder.encode_f32_batch(&rapidly_changing, &mut buffer).unwrap();
+        encoder
+            .encode_f32_batch(&rapidly_changing, &mut buffer)
+            .unwrap();
         encoder.flush(&mut buffer).unwrap();
     });
 
     measure!("Gorilla: rapidly changing (sin wave)", 1000, {
         let mut encoder = create_encoder(TSEncoding::Gorilla, TSDataType::Float);
         let mut buffer = Vec::new();
-        encoder.encode_f32_batch(&rapidly_changing, &mut buffer).unwrap();
+        encoder
+            .encode_f32_batch(&rapidly_changing, &mut buffer)
+            .unwrap();
         encoder.flush(&mut buffer).unwrap();
     });
 
     // Pattern 4: Small fluctuations (Chimp128 should excel here)
-    let small_fluctuations: Vec<f32> = (0..4000)
-        .map(|i| 20.0 + (i % 10) as f32 * 0.1)
-        .collect();
+    let small_fluctuations: Vec<f32> = (0..4000).map(|i| 20.0 + (i % 10) as f32 * 0.1).collect();
 
     measure!("Chimp128: small fluctuations (±1 range)", 1000, {
         let mut encoder = create_encoder(TSEncoding::Chimp128, TSDataType::Float);
         let mut buffer = Vec::new();
-        encoder.encode_f32_batch(&small_fluctuations, &mut buffer).unwrap();
+        encoder
+            .encode_f32_batch(&small_fluctuations, &mut buffer)
+            .unwrap();
         encoder.flush(&mut buffer).unwrap();
     });
 
     measure!("Gorilla: small fluctuations (±1 range)", 1000, {
         let mut encoder = create_encoder(TSEncoding::Gorilla, TSDataType::Float);
         let mut buffer = Vec::new();
-        encoder.encode_f32_batch(&small_fluctuations, &mut buffer).unwrap();
+        encoder
+            .encode_f32_batch(&small_fluctuations, &mut buffer)
+            .unwrap();
         encoder.flush(&mut buffer).unwrap();
     });
 
