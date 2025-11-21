@@ -30,6 +30,13 @@ pub struct PageWriter {
     // OPT: Reusable encoders (avoids 16-32 allocations per page)
     time_encoder: EncoderImpl,
     value_encoder: EncoderImpl,
+
+    // OPT: Reusable buffers (avoids 1000+ allocations per page)
+    time_buffer: Vec<u8>,
+    value_buffer: Vec<u8>,
+
+    // OPT: Reusable compressor (avoids 500+ allocations per page)
+    compressor: crate::compress::CompressorImpl,
 }
 
 /// Accumulated value data by type
@@ -77,6 +84,11 @@ impl PageWriter {
             statistic: create_statistic(data_type),
             time_encoder,
             value_encoder,
+            // OPT: Pre-allocate buffers with reasonable capacity
+            time_buffer: Vec::with_capacity(8192),
+            value_buffer: Vec::with_capacity(8192),
+            // OPT: Pre-create compressor for reuse
+            compressor: create_compressor(compression_type),
         }
     }
 
@@ -215,14 +227,15 @@ impl PageWriter {
         let min_timestamp = timestamps[0];
         let max_timestamp = timestamps[timestamps.len() - 1];
 
-        // OPT: Reset reusable encoders instead of creating new ones
+        // OPT: Reset reusable encoders and buffers instead of creating new ones
         self.time_encoder.reset();
         self.value_encoder.reset();
+        self.time_buffer.clear();
+        self.value_buffer.clear();
 
         // Encodear timestamps usando batch API (DeltaOfDelta encoding)
-        let mut time_buffer = Vec::new();
-        self.time_encoder.encode_i64_batch(timestamps, &mut time_buffer)?;
-        self.time_encoder.flush(&mut time_buffer)?;
+        self.time_encoder.encode_i64_batch(timestamps, &mut self.time_buffer)?;
+        self.time_encoder.flush(&mut self.time_buffer)?;
 
         // Encodear values según tipo
         // OPT-BATCH-API: Use batch encoding to eliminate function call overhead
@@ -230,47 +243,46 @@ impl PageWriter {
         // - Single function call + match dispatch instead of N calls
         // - Better cache locality with sequential access
         // - Compiler optimizations enabled for tight loops
-        let mut value_buffer = Vec::new();
 
         match &self.value_data {
             ValueData::Boolean(v) => {
                 // Booleans: no batch API yet, use loop
                 for &val in &v[start..end] {
-                    self.value_encoder.encode_bool(val, &mut value_buffer)?;
+                    self.value_encoder.encode_bool(val, &mut self.value_buffer)?;
                 }
             }
             ValueData::Int32(v) => {
                 // Batch encode i32 values
-                self.value_encoder.encode_i32_batch(&v[start..end], &mut value_buffer)?;
+                self.value_encoder.encode_i32_batch(&v[start..end], &mut self.value_buffer)?;
             }
             ValueData::Int64(v) => {
                 // Batch encode i64 values
-                self.value_encoder.encode_i64_batch(&v[start..end], &mut value_buffer)?;
+                self.value_encoder.encode_i64_batch(&v[start..end], &mut self.value_buffer)?;
             }
             ValueData::Float(v) => {
                 // Batch encode f32 values (HOT PATH for sensor data)
-                self.value_encoder.encode_f32_batch(&v[start..end], &mut value_buffer)?;
+                self.value_encoder.encode_f32_batch(&v[start..end], &mut self.value_buffer)?;
             }
             ValueData::Double(v) => {
                 // Batch encode f64 values (HOT PATH for high-precision sensors)
-                self.value_encoder.encode_f64_batch(&v[start..end], &mut value_buffer)?;
+                self.value_encoder.encode_f64_batch(&v[start..end], &mut self.value_buffer)?;
             }
             ValueData::String(v) => {
                 // Strings: no batch API yet, use loop
                 for val in &v[start..end] {
-                    self.value_encoder.encode_string(val, &mut value_buffer)?;
+                    self.value_encoder.encode_string(val, &mut self.value_buffer)?;
                 }
             }
         }
-        self.value_encoder.flush(&mut value_buffer)?;
+        self.value_encoder.flush(&mut self.value_buffer)?;
 
         // Comprimir timestamps y values independientemente
-        let mut compressor = create_compressor(self.compression_type);
-        let timestamp_uncompressed_size = time_buffer.len() as u32;
-        let value_uncompressed_size = value_buffer.len() as u32;
+        // OPT: Reuse compressor instead of creating new one
+        let timestamp_uncompressed_size = self.time_buffer.len() as u32;
+        let value_uncompressed_size = self.value_buffer.len() as u32;
 
-        let timestamp_data = compressor.compress(&time_buffer)?;
-        let value_data = compressor.compress(&value_buffer)?;
+        let timestamp_data = self.compressor.compress(&self.time_buffer)?;
+        let value_data = self.compressor.compress(&self.value_buffer)?;
 
         // Crear header de mini-block con tamaños compressed y uncompressed
         let header = MiniBlockHeader::new(
@@ -301,9 +313,11 @@ impl PageWriter {
         self.timestamps.clear();
         self.value_data = ValueData::new(self.data_type);
         self.statistic = create_statistic(self.data_type);
-        // OPT: Reset encoders to reuse them
+        // OPT: Reset encoders and buffers to reuse them
         self.time_encoder.reset();
         self.value_encoder.reset();
+        self.time_buffer.clear();
+        self.value_buffer.clear();
     }
 
     /// Tamaño estimado de los datos acumulados

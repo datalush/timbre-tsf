@@ -36,6 +36,7 @@ roaring = "0.10"        # Roaring bitmaps for inverted index
 # Utilities
 bitflags = "2.6"
 bit-vec = "0.6"
+rustc-hash = "2.0"  # FxHash for fast non-cryptographic hashing
 
 # Arrow integration
 arrow = "53"
@@ -71,6 +72,7 @@ codegen-units = 1
 
 [profile.bench]
 inherits = "release"
+debug = true
 
 [[bench]]
 name = "parquet_vs_tick"
@@ -106,4 +108,24 @@ harness = false
 
 [[bench]]
 name = "simd_encoding"
+harness = false
+
+[[bench]]
+name = "profile_timbre"
+harness = false
+
+[[bench]]
+name = "profile_breakdown"
+harness = false
+
+[[bench]]
+name = "profile_pipeline"
+harness = false
+
+[[bench]]
+name = "profile_encoding_deep"
+harness = false
+
+[[bench]]
+name = "profile_perf"
 harness = false

@@ -574,19 +574,27 @@ impl Statistic for FloatStatistic {
     fn update_i32(&mut self, _: i64, _: i32) {}
     fn update_i64(&mut self, _: i64, _: i64) {}
 
+    #[inline(always)]  // OPT: Inline hot path (4.11% of CPU)
     fn update_f32(&mut self, timestamp: i64, value: f32) {
-        if self.base.count == 0 {
-            self.first_value = value;
-        }
+        // OPT: Branchless first_value assignment using select pattern
+        // BEFORE: if count == 0 { first = value } (1 branch)
+        // AFTER: first = if count == 0 { value } else { first } (cmov on x86, no branch)
+        let is_first = self.base.count == 0;
+        self.first_value = if is_first { value } else { self.first_value };
+
         self.last_value = value;
         self.sum_value += value as f64;
-        if value < self.min_value {
-            self.min_value = value;
-        }
-        if value > self.max_value {
-            self.max_value = value;
-        }
-        self.base.update_time(timestamp);
+
+        // OPT: Branchless min/max using f32::min/max (no branches on x86)
+        // BEFORE: if value < min { min = value } (2 branches)
+        // AFTER: min = value.min(min) (single minss instruction)
+        self.min_value = value.min(self.min_value);
+        self.max_value = value.max(self.max_value);
+
+        // OPT: Inline update_time to avoid call overhead
+        self.base.count += 1;
+        self.base.start_time = self.base.start_time.min(timestamp);
+        self.base.end_time = self.base.end_time.max(timestamp);
     }
 
     fn update_f64(&mut self, _: i64, _: f64) {}
@@ -689,19 +697,23 @@ impl Statistic for DoubleStatistic {
     fn update_i64(&mut self, _: i64, _: i64) {}
     fn update_f32(&mut self, _: i64, _: f32) {}
 
+    #[inline(always)]  // OPT: Inline hot path (same pattern as update_f32)
     fn update_f64(&mut self, timestamp: i64, value: f64) {
-        if self.base.count == 0 {
-            self.first_value = value;
-        }
+        // OPT: Branchless operations (same as update_f32)
+        let is_first = self.base.count == 0;
+        self.first_value = if is_first { value } else { self.first_value };
+
         self.last_value = value;
         self.sum_value += value;
-        if value < self.min_value {
-            self.min_value = value;
-        }
-        if value > self.max_value {
-            self.max_value = value;
-        }
-        self.base.update_time(timestamp);
+
+        // OPT: Branchless min/max
+        self.min_value = value.min(self.min_value);
+        self.max_value = value.max(self.max_value);
+
+        // OPT: Inline update_time to avoid call overhead
+        self.base.count += 1;
+        self.base.start_time = self.base.start_time.min(timestamp);
+        self.base.end_time = self.base.end_time.max(timestamp);
     }
 
     fn update_string(&mut self, _: i64, _: &str) {}

@@ -86,11 +86,11 @@ fn write_timbre_fast(batches: &[RecordBatch], path: &Path) -> std::io::Result<u6
     use timbre_tsf::arrow::ArrowConversionConfig;
     use timbre_tsf::common::{CompressionType, TSEncoding};
 
-    // Fast config: Snappy compression, Chimp128 for floats, larger chunks
+    // Fast config: Snappy compression, Gorilla for floats, larger chunks
     let config = ArrowConversionConfig::default()
         .with_compression(CompressionType::Snappy)
-        .with_f32_encoding(TSEncoding::Chimp128)
-        .with_f64_encoding(TSEncoding::Chimp128)
+        .with_f32_encoding(TSEncoding::Gorilla)
+        .with_f64_encoding(TSEncoding::Gorilla)
         .with_string_encoding(TSEncoding::Plain) // Avoid Dictionary overhead
         .with_max_rows_per_chunk(50_000); // Larger chunks
 
@@ -197,7 +197,7 @@ fn benchmark_compression(c: &mut Criterion) {
     );
 
     // Timbre Fast
-    println!("🚀 Timbre (fast: Snappy, Chimp128, 50K chunks)");
+    println!("🚀 Timbre (fast: Snappy, Gorilla, 50K chunks)");
     let timbre_fast_path = Path::new("/tmp/comparison_fast.timbre");
     let start = Instant::now();
     let timbre_fast_size = write_timbre_fast(&batches, timbre_fast_path).unwrap();

@@ -70,6 +70,7 @@
 use super::schema::MeasurementSchema;
 use super::types::{ColumnCategory, TSDataType, TsValue};
 use crate::error::{Result, TsFileError};
+use std::borrow::Cow;
 use std::sync::Arc;
 
 /// Compact bitmap for tracking null values in a column.
@@ -167,17 +168,26 @@ impl BitMap {
 /// Default values (0, false, empty string) are used for null entries to maintain
 /// alignment, with actual null status tracked in a separate [`BitMap`].
 #[derive(Debug, Clone)]
-pub enum ValueMatrix {
-    Boolean(Vec<bool>),
-    Int32(Vec<i32>),
-    Int64(Vec<i64>),
-    Float(Vec<f32>),
-    Double(Vec<f64>),
+/// Columnar storage for measurement values with zero-copy support.
+///
+/// Uses `Cow` (Clone-on-Write) to allow zero-copy when possible:
+/// - `Cow::Borrowed`: References Arrow buffer directly (0 copies)
+/// - `Cow::Owned`: Owns the data when gather is needed (1 copy)
+///
+/// The encoder only needs `&[T]`, so it doesn't care if data is borrowed or owned.
+pub enum ValueMatrix<'a> {
+    Boolean(Cow<'a, [bool]>),
+    Int32(Cow<'a, [i32]>),
+    Int64(Cow<'a, [i64]>),
+    Float(Cow<'a, [f32]>),
+    Double(Cow<'a, [f64]>),
+    // String cannot use Cow<'a, [String]> because it needs owned Strings
+    // Keep as Vec for now (text is less common in time-series)
     Text(Vec<String>),
 }
 
-impl ValueMatrix {
-    /// Creates a new empty value matrix with pre-allocated capacity.
+impl<'a> ValueMatrix<'a> {
+    /// Creates a new empty value matrix with pre-allocated capacity (owned).
     ///
     /// # Arguments
     ///
@@ -185,13 +195,13 @@ impl ValueMatrix {
     /// * `capacity` - Initial capacity to pre-allocate
     pub fn new(data_type: TSDataType, capacity: usize) -> Self {
         match data_type {
-            TSDataType::Boolean => Self::Boolean(Vec::with_capacity(capacity)),
-            TSDataType::Int32 | TSDataType::Date => Self::Int32(Vec::with_capacity(capacity)),
-            TSDataType::Int64 | TSDataType::Timestamp => Self::Int64(Vec::with_capacity(capacity)),
-            TSDataType::Float => Self::Float(Vec::with_capacity(capacity)),
-            TSDataType::Double => Self::Double(Vec::with_capacity(capacity)),
+            TSDataType::Boolean => Self::Boolean(Cow::Owned(Vec::with_capacity(capacity))),
+            TSDataType::Int32 | TSDataType::Date => Self::Int32(Cow::Owned(Vec::with_capacity(capacity))),
+            TSDataType::Int64 | TSDataType::Timestamp => Self::Int64(Cow::Owned(Vec::with_capacity(capacity))),
+            TSDataType::Float => Self::Float(Cow::Owned(Vec::with_capacity(capacity))),
+            TSDataType::Double => Self::Double(Cow::Owned(Vec::with_capacity(capacity))),
             TSDataType::Text | TSDataType::String => Self::Text(Vec::with_capacity(capacity)),
-            _ => Self::Int32(Vec::with_capacity(capacity)),
+            _ => Self::Int32(Cow::Owned(Vec::with_capacity(capacity))),
         }
     }
 
@@ -255,19 +265,19 @@ impl ValueMatrix {
 /// Once `row_count() >= max_rows`, the tablet is full and must be written to the file
 /// before accepting more data. Attempting to add more rows will return an error.
 #[derive(Debug, Clone)]
-pub struct Tablet {
+pub struct Tablet<'a> {
     pub device_name: String,
     pub schemas: Arc<Vec<MeasurementSchema>>,
     pub column_categories: Vec<ColumnCategory>,
     pub timestamps: Vec<i64>,
-    pub values: Vec<ValueMatrix>,
+    pub values: Vec<ValueMatrix<'a>>,
     pub bitmaps: Vec<BitMap>,
     pub max_rows: usize,
     /// Whether this tablet uses aligned encoding (shared timestamps across measurements)
     is_aligned: bool,
 }
 
-impl Tablet {
+impl<'a> Tablet<'a> {
     /// Creates a new non-aligned tablet.
     ///
     /// Non-aligned tablets support sparse data where measurements may have different
@@ -476,11 +486,11 @@ impl Tablet {
         let expected_type = self.schemas[col_idx].data_type;
         let actual_type = value.data_type();
         match (&mut self.values[col_idx], value) {
-            (ValueMatrix::Boolean(v), TsValue::Boolean(val)) => v.push(val),
-            (ValueMatrix::Int32(v), TsValue::Int32(val)) => v.push(val),
-            (ValueMatrix::Int64(v), TsValue::Int64(val)) => v.push(val),
-            (ValueMatrix::Float(v), TsValue::Float(val)) => v.push(val),
-            (ValueMatrix::Double(v), TsValue::Double(val)) => v.push(val),
+            (ValueMatrix::Boolean(v), TsValue::Boolean(val)) => v.to_mut().push(val),
+            (ValueMatrix::Int32(v), TsValue::Int32(val)) => v.to_mut().push(val),
+            (ValueMatrix::Int64(v), TsValue::Int64(val)) => v.to_mut().push(val),
+            (ValueMatrix::Float(v), TsValue::Float(val)) => v.to_mut().push(val),
+            (ValueMatrix::Double(v), TsValue::Double(val)) => v.to_mut().push(val),
             (ValueMatrix::Text(v), TsValue::Text(val) | TsValue::String(val)) => v.push(val),
             _ => {
                 return Err(TsFileError::TypeMismatch {
@@ -495,11 +505,11 @@ impl Tablet {
     /// Adds a default value to a column (used for null entries).
     fn add_default_value(&mut self, col_idx: usize) -> Result<()> {
         match &mut self.values[col_idx] {
-            ValueMatrix::Boolean(v) => v.push(false),
-            ValueMatrix::Int32(v) => v.push(0),
-            ValueMatrix::Int64(v) => v.push(0),
-            ValueMatrix::Float(v) => v.push(0.0),
-            ValueMatrix::Double(v) => v.push(0.0),
+            ValueMatrix::Boolean(v) => v.to_mut().push(false),
+            ValueMatrix::Int32(v) => v.to_mut().push(0),
+            ValueMatrix::Int64(v) => v.to_mut().push(0),
+            ValueMatrix::Float(v) => v.to_mut().push(0.0),
+            ValueMatrix::Double(v) => v.to_mut().push(0.0),
             ValueMatrix::Text(v) => v.push(String::new()),
         }
         Ok(())
@@ -513,11 +523,11 @@ impl Tablet {
         self.timestamps.clear();
         for value_vec in &mut self.values {
             match value_vec {
-                ValueMatrix::Boolean(v) => v.clear(),
-                ValueMatrix::Int32(v) => v.clear(),
-                ValueMatrix::Int64(v) => v.clear(),
-                ValueMatrix::Float(v) => v.clear(),
-                ValueMatrix::Double(v) => v.clear(),
+                ValueMatrix::Boolean(v) => v.to_mut().clear(),
+                ValueMatrix::Int32(v) => v.to_mut().clear(),
+                ValueMatrix::Int64(v) => v.to_mut().clear(),
+                ValueMatrix::Float(v) => v.to_mut().clear(),
+                ValueMatrix::Double(v) => v.to_mut().clear(),
                 ValueMatrix::Text(v) => v.clear(),
             }
         }
@@ -648,7 +658,8 @@ impl Tablet {
         let expected_type = self.schemas[col_idx].data_type;
 
         match &mut self.values[col_idx] {
-            ValueMatrix::Boolean(vec) => {
+            ValueMatrix::Boolean(cow) => {
+                let vec = cow.to_mut();
                 for (i, val) in values.into_iter().enumerate() {
                     match val {
                         Some(TsValue::Boolean(v)) => {
@@ -668,7 +679,8 @@ impl Tablet {
                     }
                 }
             }
-            ValueMatrix::Int32(vec) => {
+            ValueMatrix::Int32(cow) => {
+                let vec = cow.to_mut();
                 for (i, val) in values.into_iter().enumerate() {
                     match val {
                         Some(TsValue::Int32(v)) => {
@@ -688,7 +700,8 @@ impl Tablet {
                     }
                 }
             }
-            ValueMatrix::Int64(vec) => {
+            ValueMatrix::Int64(cow) => {
+                let vec = cow.to_mut();
                 for (i, val) in values.into_iter().enumerate() {
                     match val {
                         Some(TsValue::Int64(v)) => {
@@ -708,7 +721,8 @@ impl Tablet {
                     }
                 }
             }
-            ValueMatrix::Float(vec) => {
+            ValueMatrix::Float(cow) => {
+                let vec = cow.to_mut();
                 for (i, val) in values.into_iter().enumerate() {
                     match val {
                         Some(TsValue::Float(v)) => {
@@ -728,7 +742,8 @@ impl Tablet {
                     }
                 }
             }
-            ValueMatrix::Double(vec) => {
+            ValueMatrix::Double(cow) => {
+                let vec = cow.to_mut();
                 for (i, val) in values.into_iter().enumerate() {
                     match val {
                         Some(TsValue::Double(v)) => {

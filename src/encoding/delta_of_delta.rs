@@ -70,16 +70,15 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 /// subsequent value as the difference from the expected value based on
 /// the previous delta. Delta-of-deltas are compressed using Simple8b.
 pub struct DeltaOfDeltaEncoder {
-    /// The first value in the sequence (stored unmodified)
-    first_value: Option<i64>,
     /// The most recent value encoded
     previous_value: i64,
     /// The delta between the two most recent values
     previous_delta: i64,
     /// Simple8b encoder for delta-of-deltas
     simple8b: Simple8bEncoder,
-    /// Flag to track if first delta has been written
-    first_delta_written: bool,
+    /// Number of values encoded (OPT: replaces Option + bool with single counter)
+    /// 0 = first value, 1 = first delta, 2+ = delta-of-delta
+    count: u32,
 }
 
 impl DeltaOfDeltaEncoder {
@@ -87,11 +86,10 @@ impl DeltaOfDeltaEncoder {
     pub fn new(_data_type: TSDataType) -> Self {
         // Delta-of-deltas are always encoded as i64, regardless of input data type
         Self {
-            first_value: None,
             previous_value: 0,
             previous_delta: 0,
             simple8b: Simple8bEncoder::new(TSDataType::Int64),
-            first_delta_written: false,
+            count: 0,  // OPT: Single counter replaces Option + bool
         }
     }
 
@@ -104,34 +102,37 @@ impl DeltaOfDeltaEncoder {
     ///
     /// The first value is stored directly, the second value's delta is stored,
     /// and all subsequent values are encoded as delta-of-delta compressed with Simple8b.
+    #[inline(always)]  // OPT: Hot path - inline to avoid call overhead (12.76% CPU)
     fn encode_value(&mut self, value: i64, out: &mut Vec<u8>) -> Result<()> {
-        // First value: write directly
-        if self.first_value.is_none() {
-            self.first_value = Some(value);
-            self.previous_value = value;
-            out.write_i64::<LittleEndian>(value)?;
-            return Ok(());
+        // OPT: Use match on counter instead of Option + bool (eliminates 2 branches)
+        match self.count {
+            0 => {
+                // First value: write directly
+                self.previous_value = value;
+                self.count = 1;
+                out.write_i64::<LittleEndian>(value)?;
+            }
+            1 => {
+                // First delta: write directly
+                let delta = value - self.previous_value;
+                self.previous_delta = delta;
+                self.previous_value = value;
+                self.count = 2;
+                out.write_i64::<LittleEndian>(delta)?;
+            }
+            _ => {
+                // Subsequent values: encode delta-of-delta with Simple8b
+                let delta = value - self.previous_value;
+                let delta_of_delta = delta - self.previous_delta;
+
+                // Simple8b will accumulate this value (no immediate write to out)
+                self.simple8b.encode_i64(delta_of_delta, out)?;
+
+                self.previous_delta = delta;
+                self.previous_value = value;
+                self.count += 1;
+            }
         }
-
-        let delta = value - self.previous_value;
-
-        // First delta: write directly
-        if !self.first_delta_written {
-            self.previous_delta = delta;
-            self.first_delta_written = true;
-            out.write_i64::<LittleEndian>(delta)?;
-            self.previous_value = value;
-            return Ok(());
-        }
-
-        // Subsequent values: encode delta-of-delta with Simple8b
-        let delta_of_delta = delta - self.previous_delta;
-
-        // Simple8b will accumulate this value (no immediate write to out)
-        self.simple8b.encode_i64(delta_of_delta, out)?;
-
-        self.previous_delta = delta;
-        self.previous_value = value;
         Ok(())
     }
 
@@ -149,10 +150,9 @@ impl DeltaOfDeltaEncoder {
     ///
     /// For 8 mini-blocks per page, this saves ~1-2μs per page.
     pub fn reset(&mut self) {
-        self.first_value = None;
         self.previous_value = 0;
         self.previous_delta = 0;
-        self.first_delta_written = false;
+        self.count = 0;  // OPT: Single counter reset
         // Note: We create a new Simple8bEncoder since it doesn't have reset()
         // This is still faster than creating the entire DeltaOfDeltaEncoder
         self.simple8b = Simple8bEncoder::new(TSDataType::Int64);
@@ -205,27 +205,24 @@ impl Encoder for DeltaOfDeltaEncoder {
 /// maintaining the previous value and delta to compute each new value.
 /// Delta-of-deltas are decompressed using Simple8b.
 pub struct DeltaOfDeltaDecoder {
-    /// The first value in the sequence
-    first_value: Option<i64>,
     /// The most recently decoded value
     previous_value: i64,
     /// The delta between the two most recent values
     previous_delta: i64,
     /// Simple8b decoder for delta-of-deltas
     simple8b: Simple8bDecoder,
-    /// Flag to track if first delta has been read
-    first_delta_read: bool,
+    /// Number of values decoded (OPT: replaces Option + bool)
+    count: u32,
 }
 
 impl DeltaOfDeltaDecoder {
     /// Creates a new Delta-of-Delta decoder for the specified data type
     pub fn new(data_type: TSDataType) -> Self {
         Self {
-            first_value: None,
             previous_value: 0,
             previous_delta: 0,
             simple8b: Simple8bDecoder::new(data_type),
-            first_delta_read: false,
+            count: 0,  // OPT: Single counter replaces Option + bool
         }
     }
 
@@ -238,36 +235,41 @@ impl DeltaOfDeltaDecoder {
     ///
     /// Reads the first value directly, then the first delta, and reconstructs
     /// all subsequent values by adding the computed delta to the previous value.
+    #[inline(always)]  // OPT: Inline for consistency with encoder
     fn decode_value(&mut self, input: &[u8], pos: &mut usize) -> Result<i64> {
-        // First value: read directly
-        if self.first_value.is_none() {
-            let value = (&input[*pos..]).read_i64::<LittleEndian>()?;
-            *pos += 8;
-            self.first_value = Some(value);
-            self.previous_value = value;
-            return Ok(value);
+        // OPT: Use match on counter instead of Option + bool
+        match self.count {
+            0 => {
+                // First value: read directly
+                let value = (&input[*pos..]).read_i64::<LittleEndian>()?;
+                *pos += 8;
+                self.previous_value = value;
+                self.count = 1;
+                Ok(value)
+            }
+            1 => {
+                // First delta: read directly
+                let delta = (&input[*pos..]).read_i64::<LittleEndian>()?;
+                *pos += 8;
+                self.previous_delta = delta;
+                self.previous_value += delta;
+                self.count = 2;
+                Ok(self.previous_value)
+            }
+            _ => {
+                // Subsequent values: decode delta-of-delta with Simple8b
+                let delta_of_delta = self.simple8b.read_i64(input, pos)?;
+
+                let delta = self.previous_delta + delta_of_delta;
+                let value = self.previous_value + delta;
+
+                self.previous_delta = delta;
+                self.previous_value = value;
+                self.count += 1;
+
+                Ok(value)
+            }
         }
-
-        // First delta: read directly
-        if !self.first_delta_read {
-            let delta = (&input[*pos..]).read_i64::<LittleEndian>()?;
-            *pos += 8;
-            self.previous_delta = delta;
-            self.first_delta_read = true;
-            self.previous_value += delta;
-            return Ok(self.previous_value);
-        }
-
-        // Subsequent values: decode delta-of-delta with Simple8b
-        let delta_of_delta = self.simple8b.read_i64(input, pos)?;
-
-        let delta = self.previous_delta + delta_of_delta;
-        let value = self.previous_value + delta;
-
-        self.previous_delta = delta;
-        self.previous_value = value;
-
-        Ok(value)
     }
 }
 

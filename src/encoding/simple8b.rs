@@ -67,6 +67,26 @@ const SELECTORS: [(u8, u8); 16] = [
     (1, 60),  // 15: 1 value of 60 bits
 ];
 
+/// OPT: Pre-calculated max values for each selector (avoids (1u64 << bits) - 1 in hot path)
+const MAX_VALUES: [u64; 16] = [
+    0,                      // 0: 0 bits (all zeros)
+    0,                      // 1: 0 bits (all ones)
+    1,                      // 2: 1 bit max = 1
+    3,                      // 3: 2 bits max = 3
+    7,                      // 4: 3 bits max = 7
+    15,                     // 5: 4 bits max = 15
+    31,                     // 6: 5 bits max = 31
+    63,                     // 7: 6 bits max = 63
+    127,                    // 8: 7 bits max = 127
+    255,                    // 9: 8 bits max = 255
+    1023,                   // 10: 10 bits max = 1023
+    4095,                   // 11: 12 bits max = 4095
+    32767,                  // 12: 15 bits max = 32767
+    1048575,                // 13: 20 bits max = 1048575
+    1073741823,             // 14: 30 bits max = 1073741823
+    1152921504606846975,    // 15: 60 bits max = 2^60 - 1
+];
+
 /// Simple8b encoder for integer values.
 #[derive(Debug)]
 pub struct Simple8bEncoder {
@@ -111,21 +131,23 @@ impl Simple8bEncoder {
     }
 
     /// Tries to pack pending values into a 64-bit word.
+    #[inline]  // OPT: Inline hot path (5.15% CPU)
     fn try_pack(&mut self) {
         if self.pending.is_empty() {
             return;
         }
 
-        // Find the best selector that can fit the pending values
-        for (selector_idx, &(count, bits)) in SELECTORS.iter().enumerate() {
+        // OPT: Find the best selector that can fit the pending values
+        for (selector_idx, &(count, _bits)) in SELECTORS.iter().enumerate() {
             if count as usize <= self.pending.len() {
-                let max_value = if bits == 0 { 0 } else { (1u64 << bits) - 1 };
+                // OPT: Use pre-calculated MAX_VALUES table instead of computing (1u64 << bits) - 1
+                let max_value = MAX_VALUES[selector_idx];
 
                 // Check if all values fit in this selector
                 let values_to_pack = &self.pending[..count as usize];
                 if values_to_pack.iter().all(|&v| v <= max_value) {
                     // Pack the values
-                    let packed = self.pack_values(values_to_pack, selector_idx as u8, bits);
+                    let packed = self.pack_values(values_to_pack, selector_idx as u8, _bits);
                     self.output.push(packed);
                     self.pending.drain(..count as usize);
                     return;
@@ -174,8 +196,9 @@ impl Simple8bEncoder {
             let mut best_count = 1;
 
             // Try to find a selector that can fit all (or partial) pending values
-            for (selector_idx, &(count, bits)) in SELECTORS.iter().enumerate() {
-                let max_value = if bits == 0 { 0 } else { (1u64 << bits) - 1 };
+            for (selector_idx, &(count, _bits)) in SELECTORS.iter().enumerate() {
+                // OPT: Use pre-calculated MAX_VALUES table
+                let max_value = MAX_VALUES[selector_idx];
 
                 // Determine how many values we can pack with this selector
                 let can_pack = if count as usize <= self.pending.len() {

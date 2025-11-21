@@ -26,7 +26,7 @@ use crate::writer::TsFileWriter;
 use arrow::array::*;
 use arrow::datatypes::{DataType, TimeUnit};
 use arrow::record_batch::RecordBatch;
-use std::collections::HashMap;
+use rustc_hash::{FxHashMap, FxHashSet};  // OPT: 3-5x faster than SipHash for short strings
 use std::path::Path;
 use std::sync::Arc;
 
@@ -112,16 +112,19 @@ impl ArrowToTsFileConverter {
         // BEFORE: 2M rows × to_string() = 2M allocations (~150-200ms overhead)
         // AFTER: Only allocate unique device strings (typically 5-10 devices)
 
+        // OPT #3: FxHash is 3-5x faster than SipHash for short strings
+        // Perf data: SipHash was 12% of CPU time (7.30% BuildHasher + 4.76% SipHash)
+        // Expected improvement: ~9% total speedup
+
         // Pre-scan to find unique devices (amortized O(n), but only ~5 unique strings allocated)
-        use std::collections::HashSet;
-        let unique_devices: HashSet<&str> = (0..num_rows)
+        let unique_devices: FxHashSet<&str> = (0..num_rows)
             .filter(|&i| !device_array.is_null(i))
             .map(|i| device_array.value(i))
             .collect();
 
         // Now group with zero allocations per row (use &str keys)
-        let mut device_indices: HashMap<&str, Vec<usize>> =
-            HashMap::with_capacity(unique_devices.len());
+        let mut device_indices: FxHashMap<&str, Vec<usize>> =
+            FxHashMap::with_capacity_and_hasher(unique_devices.len(), Default::default());
         let expected_rows_per_device = num_rows / unique_devices.len().max(1);
 
         for row_idx in 0..num_rows {
@@ -197,14 +200,14 @@ impl ArrowToTsFileConverter {
     }
 
     /// Build a tablet for a single device (extracted for parallel/sequential processing)
-    fn build_tablet_for_device(
+    fn build_tablet_for_device<'a>(
         &self,
         device_id: &str,
         indices: &[usize],
         arrow_schema: &arrow::datatypes::SchemaRef,
-        measurement_cols: &[(String, Arc<dyn arrow::array::Array>, DataType)],
+        measurement_cols: &'a [(String, Arc<dyn arrow::array::Array>, DataType)],
         timestamp_array: &[i64],
-    ) -> Result<Tablet> {
+    ) -> Result<Tablet<'a>> {
         log::debug!(
             "  Device '{}': {} rows (bulk extraction)",
             device_id,
@@ -265,16 +268,16 @@ impl ArrowToTsFileConverter {
     ///
     /// OPT-P0: Direct Arrow → ValueMatrix conversion without TsValue intermediate
     /// BEFORE: Arrow → Vec<Option<TsValue>> → Pattern match unwrap → Vec<T>
-    /// AFTER:  Arrow → Vec<T> + BitMap (direct, ~30% faster)
+    /// AFTER:  Arrow → Cow<[T]> + BitMap (zero-copy when possible)
     ///
     /// Returns: (ValueMatrix, BitMap) where bitmap marks null positions
     #[inline]
-    fn extract_column_direct(
+    fn extract_column_direct<'a>(
         &self,
-        array: &Arc<dyn arrow::array::Array>,
+        array: &'a Arc<dyn arrow::array::Array>,
         indices: &[usize],
         data_type: &DataType,
-    ) -> Result<(crate::common::ValueMatrix, crate::common::BitMap)> {
+    ) -> Result<(crate::common::ValueMatrix<'a>, crate::common::BitMap)> {
         use crate::common::{BitMap, ValueMatrix};
 
         let num_values = indices.len();
@@ -282,6 +285,7 @@ impl ArrowToTsFileConverter {
 
         let value_matrix = match data_type {
             DataType::Boolean => {
+                use std::borrow::Cow;
                 let arr = array.as_any().downcast_ref::<BooleanArray>().unwrap();
                 let mut values = Vec::with_capacity(num_values);
                 for (i, &idx) in indices.iter().enumerate() {
@@ -292,72 +296,142 @@ impl ArrowToTsFileConverter {
                         values.push(arr.value(idx));
                     }
                 }
-                ValueMatrix::Boolean(values)
+                ValueMatrix::Boolean(Cow::Owned(values))
             }
             DataType::Int32 => {
+                use std::borrow::Cow;
                 let arr = array.as_any().downcast_ref::<Int32Array>().unwrap();
-                let mut values = Vec::with_capacity(num_values);
-                for (i, &idx) in indices.iter().enumerate() {
-                    if arr.is_null(idx) {
-                        values.push(0);
-                        bitmap.set(i, true);
-                    } else {
-                        values.push(arr.value(idx));
+
+                // OPT-ARROW: Direct buffer access
+                let arrow_buffer = arr.values();
+                let is_contiguous = indices.len() > 1
+                    && indices.windows(2).all(|w| w[1] == w[0] + 1);
+
+                let values = if is_contiguous && arr.null_count() == 0 {
+                    // ZERO-COPY: Borrow directly from Arrow buffer
+                    let start = indices[0];
+                    let end = indices[indices.len() - 1] + 1;
+                    Cow::Borrowed(&arrow_buffer[start..end])
+                } else if arr.null_count() == 0 {
+                    // ONE COPY: Gather scattered indices
+                    Cow::Owned(indices.iter().map(|&idx| arrow_buffer[idx]).collect())
+                } else {
+                    // ONE COPY: Handle nulls
+                    let mut vals = Vec::with_capacity(num_values);
+                    for (i, &idx) in indices.iter().enumerate() {
+                        if arr.is_null(idx) {
+                            vals.push(0);
+                            bitmap.set(i, true);
+                        } else {
+                            vals.push(arrow_buffer[idx]);
+                        }
                     }
-                }
+                    Cow::Owned(vals)
+                };
+
                 ValueMatrix::Int32(values)
             }
             DataType::Int64 => {
+                use std::borrow::Cow;
                 let arr = array.as_any().downcast_ref::<Int64Array>().unwrap();
-                let mut values = Vec::with_capacity(num_values);
-                for (i, &idx) in indices.iter().enumerate() {
-                    if arr.is_null(idx) {
-                        values.push(0);
-                        bitmap.set(i, true);
-                    } else {
-                        values.push(arr.value(idx));
+
+                // OPT-ARROW: Direct buffer access
+                let arrow_buffer = arr.values();
+                let is_contiguous = indices.len() > 1
+                    && indices.windows(2).all(|w| w[1] == w[0] + 1);
+
+                let values = if is_contiguous && arr.null_count() == 0 {
+                    // ZERO-COPY: Borrow directly from Arrow buffer
+                    let start = indices[0];
+                    let end = indices[indices.len() - 1] + 1;
+                    Cow::Borrowed(&arrow_buffer[start..end])
+                } else if arr.null_count() == 0 {
+                    // ONE COPY: Gather scattered indices
+                    Cow::Owned(indices.iter().map(|&idx| arrow_buffer[idx]).collect())
+                } else {
+                    // ONE COPY: Handle nulls
+                    let mut vals = Vec::with_capacity(num_values);
+                    for (i, &idx) in indices.iter().enumerate() {
+                        if arr.is_null(idx) {
+                            vals.push(0);
+                            bitmap.set(i, true);
+                        } else {
+                            vals.push(arrow_buffer[idx]);
+                        }
                     }
-                }
+                    Cow::Owned(vals)
+                };
+
                 ValueMatrix::Int64(values)
             }
             DataType::Float32 => {
+                use std::borrow::Cow;
                 let arr = array.as_any().downcast_ref::<Float32Array>().unwrap();
-                let mut values = Vec::with_capacity(num_values);
-                if arr.null_count() == 0 {
-                    // Fast path: no nulls, just copy values
-                    for &idx in indices {
-                        values.push(arr.value(idx));
-                    }
+
+                // OPT-ARROW: Direct buffer access (20-30% faster than arr.value())
+                let arrow_buffer = arr.values();  // &[f32] - zero-copy!
+
+                // OPT-CONTIGUOUS: Check if indices are contiguous (common case: single device)
+                let is_contiguous = indices.len() > 1
+                    && indices.windows(2).all(|w| w[1] == w[0] + 1);
+
+                let values = if is_contiguous && arr.null_count() == 0 {
+                    // ZERO-COPY: Borrow directly from Arrow buffer (HOT PATH for IoT sensors)
+                    let start = indices[0];
+                    let end = indices[indices.len() - 1] + 1;
+                    Cow::Borrowed(&arrow_buffer[start..end])
+                } else if arr.null_count() == 0 {
+                    // ONE COPY: Gather scattered indices (multi-device IoT benchmark)
+                    Cow::Owned(indices.iter().map(|&idx| arrow_buffer[idx]).collect())
                 } else {
-                    // Slow path: check nulls
+                    // ONE COPY: Handle nulls
+                    let mut vals = Vec::with_capacity(num_values);
                     for (i, &idx) in indices.iter().enumerate() {
                         if arr.is_null(idx) {
-                            values.push(0.0);
+                            vals.push(0.0);
                             bitmap.set(i, true);
                         } else {
-                            values.push(arr.value(idx));
+                            vals.push(arrow_buffer[idx]);
                         }
                     }
-                }
+                    Cow::Owned(vals)
+                };
+
                 ValueMatrix::Float(values)
             }
             DataType::Float64 => {
+                use std::borrow::Cow;
                 let arr = array.as_any().downcast_ref::<Float64Array>().unwrap();
-                let mut values = Vec::with_capacity(num_values);
-                if arr.null_count() == 0 {
-                    for &idx in indices {
-                        values.push(arr.value(idx));
-                    }
+
+                // OPT-ARROW: Direct buffer access
+                let arrow_buffer = arr.values();
+
+                // OPT-CONTIGUOUS: Check if indices are contiguous
+                let is_contiguous = indices.len() > 1
+                    && indices.windows(2).all(|w| w[1] == w[0] + 1);
+
+                let values = if is_contiguous && arr.null_count() == 0 {
+                    // ZERO-COPY: Borrow directly from Arrow buffer
+                    let start = indices[0];
+                    let end = indices[indices.len() - 1] + 1;
+                    Cow::Borrowed(&arrow_buffer[start..end])
+                } else if arr.null_count() == 0 {
+                    // ONE COPY: Gather scattered indices
+                    Cow::Owned(indices.iter().map(|&idx| arrow_buffer[idx]).collect())
                 } else {
+                    // ONE COPY: Handle nulls
+                    let mut vals = Vec::with_capacity(num_values);
                     for (i, &idx) in indices.iter().enumerate() {
                         if arr.is_null(idx) {
-                            values.push(0.0);
+                            vals.push(0.0);
                             bitmap.set(i, true);
                         } else {
-                            values.push(arr.value(idx));
+                            vals.push(arrow_buffer[idx]);
                         }
                     }
-                }
+                    Cow::Owned(vals)
+                };
+
                 ValueMatrix::Double(values)
             }
             DataType::Utf8 => {
@@ -375,6 +449,7 @@ impl ArrowToTsFileConverter {
             }
             // Handle type promotions (Int8/16 → Int32, UInt → Int)
             DataType::Int8 => {
+                use std::borrow::Cow;
                 let arr = array.as_any().downcast_ref::<Int8Array>().unwrap();
                 let mut values = Vec::with_capacity(num_values);
                 for (i, &idx) in indices.iter().enumerate() {
@@ -385,9 +460,10 @@ impl ArrowToTsFileConverter {
                         values.push(arr.value(idx) as i32);
                     }
                 }
-                ValueMatrix::Int32(values)
+                ValueMatrix::Int32(Cow::Owned(values))
             }
             DataType::Int16 => {
+                use std::borrow::Cow;
                 let arr = array.as_any().downcast_ref::<Int16Array>().unwrap();
                 let mut values = Vec::with_capacity(num_values);
                 for (i, &idx) in indices.iter().enumerate() {
@@ -398,9 +474,10 @@ impl ArrowToTsFileConverter {
                         values.push(arr.value(idx) as i32);
                     }
                 }
-                ValueMatrix::Int32(values)
+                ValueMatrix::Int32(Cow::Owned(values))
             }
             DataType::UInt8 | DataType::UInt16 | DataType::UInt32 => {
+                use std::borrow::Cow;
                 // Promote all UInt to Int32
                 let mut values = Vec::with_capacity(num_values);
                 match data_type {
@@ -439,9 +516,10 @@ impl ArrowToTsFileConverter {
                     }
                     _ => unreachable!(),
                 }
-                ValueMatrix::Int32(values)
+                ValueMatrix::Int32(Cow::Owned(values))
             }
             DataType::UInt64 => {
+                use std::borrow::Cow;
                 let arr = array.as_any().downcast_ref::<UInt64Array>().unwrap();
                 let mut values = Vec::with_capacity(num_values);
                 for (i, &idx) in indices.iter().enumerate() {
@@ -452,7 +530,7 @@ impl ArrowToTsFileConverter {
                         values.push(arr.value(idx) as i64);
                     }
                 }
-                ValueMatrix::Int64(values)
+                ValueMatrix::Int64(Cow::Owned(values))
             }
             _ => {
                 return Err(TsFileError::NotImplemented(format!(
