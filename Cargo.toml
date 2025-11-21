@@ -91,3 +91,19 @@ harness = false
 [[bench]]
 name = "encoding_compression_tradeoff"
 harness = false
+
+[[bench]]
+name = "parquet_vs_timbre_iot"
+harness = false
+
+[[bench]]
+name = "parquet_vs_timbre_real"
+harness = false
+
+[[bench]]
+name = "chimp128_vs_gorilla"
+harness = false
+
+[[bench]]
+name = "simd_encoding"
+harness = false

@@ -17,6 +17,7 @@ use timbre_tsf::common::*;
 use timbre_tsf::compress::create_compressor;
 use timbre_tsf::encoding::quantized::{QuantizedEncoder, detect_quantization};
 use timbre_tsf::encoding::dictionary_rle::DictionaryRLEEncoder;
+use timbre_tsf::encoding::chimp128::Chimp128Encoder;
 use timbre_tsf::encoding::create_encoder;
 use std::time::Duration;
 
@@ -25,7 +26,7 @@ fn generate_quantized_data(num_points: usize) -> (Vec<i64>, Vec<f64>) {
     let mut timestamps = Vec::with_capacity(num_points);
     let mut values = Vec::with_capacity(num_points);
 
-    let mut temp: f64 = 20.0;
+    let mut temp = 20.0_f64;
     for i in 0..num_points {
         timestamps.push(1_000_000_000 + (i as i64 * 1000));
         values.push(temp);

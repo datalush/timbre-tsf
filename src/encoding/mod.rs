@@ -54,6 +54,7 @@ mod gorilla;
 mod plain;
 pub mod quantized;
 mod rle;
+pub mod simd;
 mod simple8b;
 mod sprintz;
 mod zigzag;

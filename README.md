@@ -207,18 +207,33 @@ Pages are divided into 4-8 mini-blocks that can be decoded in parallel using Ray
 
 ## Performance
 
-### Compression Benchmarks
+### Real-World Benchmark: Parquet vs Timbre
 
-Real-world IoT sensor data (100K temperature readings, 0.1°C quantization):
+Tested with realistic IoT dataset (1.04 GB Arrow IPC, 20M rows, 40 devices, 9 columns):
+- Temperature (quantized 0.1°C), humidity, pressure, CO2, light, battery, status
+- Generated with `cargo run --release --example generate_iot_dataset`
+
+| Format | Write Time | File Size | Compression Ratio | Throughput | Notes |
+|--------|------------|-----------|-------------------|------------|-------|
+| **Arrow IPC** (source) | - | **1.04 GB** | 1.00x | - | Uncompressed baseline |
+| **Parquet + Snappy** | 3.20s | **289 MB** | **3.59x** | 325 MB/s | Fast writes, standard compression |
+| **Timbre (adaptive)** | 6.34s | **179 MB** | **5.79x** | 164 MB/s | **1.61x better compression, 38% smaller** |
+
+**Key Finding**: Timbre achieves **1.61x better compression** than Parquet Snappy at 2x slower write speed. For IoT workloads where storage costs dominate, this trade-off favors Timbre.
+
+Run the benchmark yourself: `cargo bench --bench parquet_vs_timbre_iot`
+
+### Encoding-Specific Compression
+
+Micro-benchmark on 100K temperature readings (0.1°C quantization):
 
 | Configuration | Size | Ratio | Time | Notes |
 |---------------|------|-------|------|-------|
-| Raw (uncompressed) | 800 KB | 1x | - | Baseline |
-| Plain + Zstd | 689 KB | 1.16x | 3.3 ms | No encoding |
-| Chimp128 + Zstd | 689 KB | 1.22x | 3.3 ms | High entropy |
-| **Chimp128 + LZ4** | **828 KB** | **1.01x** | **80 µs** | **40x faster, 1% ratio loss** |
-| Quantized + Zstd | 94 B | 284x | 9 µs | **Best for quantized data** |
-| DictionaryRLE + Zstd | 97 B | 221x | 9 µs | Best for repetitive data |
+| Raw (uncompressed) | 800 KB | 1.00x | - | Baseline (100K doubles) |
+| Plain + Zstd | 109 KB | 7.13x | 3.3 ms | No encoding |
+| **Chimp128 + Zstd** | **109 KB** | **7.13x** | **3.3 ms** | **Best general-purpose** |
+| Quantized + Zstd | 94 B | 8510x | 9 µs | Best for quantized data (99.99% reduction) |
+| DictionaryRLE + Zstd | 97 B | 8247x | 9 µs | Best for repetitive data |
 
 **Key Insight**: Encoding matters more than compression algorithm. Choose encoding based on data pattern, then pick compression based on encoded data size.
 

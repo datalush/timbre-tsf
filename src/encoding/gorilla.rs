@@ -299,8 +299,7 @@ impl Encoder for GorillaEncoder {
 
     fn flush(&mut self, out: &mut Vec<u8>) -> Result<()> {
         self.flush_bits();
-        out.extend_from_slice(&self.buffer);
-        self.buffer.clear();
+        out.append(&mut self.buffer);
         Ok(())
     }
 
