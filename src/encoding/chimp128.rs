@@ -229,23 +229,22 @@ impl Chimp128Encoder {
             // Case 1: Identical value (1 bit)
             self.write_bit(false); // 0
         } else {
+            // OPT: Use direct leading/trailing_zeros() like Gorilla (faster than cast to u32)
+            // For 32-bit values, the upper 32 bits are 0, so leading_zeros works correctly
             let leading = if self.bit_width == 32 {
-                (xor as u32).leading_zeros() as u8
+                (xor as u32).leading_zeros()
             } else {
-                xor.leading_zeros() as u8
+                xor.leading_zeros()
             };
             let trailing = if self.bit_width == 32 {
-                (xor as u32).trailing_zeros() as u8
+                (xor as u32).trailing_zeros()
             } else {
-                xor.trailing_zeros() as u8
+                xor.trailing_zeros()
             };
-            let significant_bits = self
-                .bit_width
-                .saturating_sub(leading)
-                .saturating_sub(trailing);
+            let significant_bits = self.bit_width as u32 - leading - trailing;
 
             // Check if we can reuse previous range
-            if leading >= self.prev_leading && trailing >= self.prev_trailing {
+            if leading >= self.prev_leading as u32 && trailing >= self.prev_trailing as u32 {
                 // Case 2: Same range (2 bits + data)
                 self.write_bit(true); // 1
                 self.write_bit(false); // 0
@@ -254,9 +253,9 @@ impl Chimp128Encoder {
                 let length = self.bit_width - self.prev_leading - self.prev_trailing;
                 let shifted_xor = xor >> self.prev_trailing;
                 self.write_bits(shifted_xor, length);
-            } else if trailing == self.prev_trailing
-                && (leading >= self.prev_leading.saturating_sub(1)
-                    && leading <= self.prev_leading + 1)
+            } else if trailing == self.prev_trailing as u32
+                && (leading >= (self.prev_leading as u32).saturating_sub(1)
+                    && leading <= (self.prev_leading as u32) + 1)
             {
                 // Case 3: Close range ±1 (3 bits + 2 flag bits + data)
                 self.write_bit(true); // 1
@@ -264,7 +263,7 @@ impl Chimp128Encoder {
                 self.write_bit(false); // 0
 
                 // OPT-5: Encode leading delta as 2-bit value (single write)
-                let leading_delta = (leading as i8) - (self.prev_leading as i8);
+                let leading_delta = (leading as i32) - (self.prev_leading as i32);
                 let delta_bits = match leading_delta {
                     -1 => 0b00u64,
                     0 => 0b01u64,
@@ -277,11 +276,11 @@ impl Chimp128Encoder {
                 // NOTE: In Case 3, we use PREVIOUS trailing, not current trailing
                 // This is critical for decoder compatibility
                 let shifted_xor = xor >> self.prev_trailing;
-                let case3_bits = self.bit_width - leading - self.prev_trailing;
-                self.write_bits(shifted_xor, case3_bits);
+                let case3_bits = self.bit_width as u32 - leading - self.prev_trailing as u32;
+                self.write_bits(shifted_xor, case3_bits as u8);
 
                 // Update ONLY leading, keep previous trailing unchanged
-                self.prev_leading = leading;
+                self.prev_leading = leading as u8;
             } else {
                 // Case 4: New range (3 bits + leading + trailing + data)
                 self.write_bit(true); // 1
@@ -294,11 +293,11 @@ impl Chimp128Encoder {
 
                 // Encode significant bits
                 let shifted_xor = xor >> trailing;
-                self.write_bits(shifted_xor, significant_bits);
+                self.write_bits(shifted_xor, significant_bits as u8);
 
                 // Update previous range
-                self.prev_leading = leading;
-                self.prev_trailing = trailing;
+                self.prev_leading = leading as u8;
+                self.prev_trailing = trailing as u8;
             }
         }
 
