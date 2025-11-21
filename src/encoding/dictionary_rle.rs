@@ -34,7 +34,7 @@
 
 use crate::error::{Result, TimbreError};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::io::Cursor;
 
 /// Dictionary + RLE encoder for high-repetition data.
@@ -42,13 +42,16 @@ pub struct DictionaryRLEEncoder {
     /// Dictionary of unique values
     dictionary: Vec<f64>,
     /// Mapping from value bits to dictionary index
-    value_to_index: HashMap<u64, u8>,
+    value_to_index: FxHashMap<u64, u8>,
     /// RLE runs: (index, run_length)
     runs: Vec<(u8, u32)>,
-    /// Current value being accumulated
-    current_value: Option<u64>,
+    /// Current value being accumulated: (bits, index)
+    current_value: Option<(u64, u8)>,
     /// Current run length
     current_run: u32,
+    /// OPT-Cache: Last looked-up value to avoid HashMap lookup (bits, index)
+    /// With 85% repetition, this eliminates ~85% of HashMap lookups
+    last_cached: Option<(u64, u8)>,
 }
 
 impl DictionaryRLEEncoder {
@@ -56,10 +59,11 @@ impl DictionaryRLEEncoder {
     pub fn new() -> Self {
         Self {
             dictionary: Vec::new(),
-            value_to_index: HashMap::new(),
+            value_to_index: FxHashMap::default(),
             runs: Vec::new(),
             current_value: None,
             current_run: 0,
+            last_cached: None,
         }
     }
 
@@ -81,6 +85,7 @@ impl DictionaryRLEEncoder {
         self.runs.clear();
         self.current_value = None;
         self.current_run = 0;
+        self.last_cached = None;
 
         // Process all values
         for &value in values {
@@ -98,8 +103,41 @@ impl DictionaryRLEEncoder {
     fn encode_value(&mut self, value: f64) -> Result<()> {
         let bits = value.to_bits();
 
-        // Get or create dictionary index
-        let _index = if let Some(&idx) = self.value_to_index.get(&bits) {
+        // OPT-Cache: Check cache before HashMap lookup (eliminates ~85% of lookups)
+        let index = if let Some((cached_bits, cached_idx)) = self.last_cached {
+            if cached_bits == bits {
+                cached_idx
+            } else {
+                // Cache miss: lookup in HashMap
+                self.lookup_or_create_index(bits, value)?
+            }
+        } else {
+            // No cache: lookup in HashMap
+            self.lookup_or_create_index(bits, value)?
+        };
+
+        // RLE: accumulate runs
+        match self.current_value {
+            Some((prev_bits, _prev_idx)) if prev_bits == bits => {
+                // Same value: increment run
+                self.current_run += 1;
+            }
+            _ => {
+                // Different value: flush previous run
+                if self.current_value.is_some() {
+                    self.flush_run()?;
+                }
+                self.current_value = Some((bits, index));
+                self.current_run = 1;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Lookup or create dictionary index and update cache
+    fn lookup_or_create_index(&mut self, bits: u64, value: f64) -> Result<u8> {
+        let index = if let Some(&idx) = self.value_to_index.get(&bits) {
             idx
         } else {
             if self.dictionary.len() >= 256 {
@@ -113,30 +151,16 @@ impl DictionaryRLEEncoder {
             idx
         };
 
-        // RLE: accumulate runs
-        match self.current_value {
-            Some(prev_bits) if prev_bits == bits => {
-                // Same value: increment run
-                self.current_run += 1;
-            }
-            _ => {
-                // Different value: flush previous run
-                if self.current_value.is_some() {
-                    self.flush_run()?;
-                }
-                self.current_value = Some(bits);
-                self.current_run = 1;
-            }
-        }
-
-        Ok(())
+        // Update cache
+        self.last_cached = Some((bits, index));
+        Ok(index)
     }
 
     /// Flushes the current run to the runs list.
     fn flush_run(&mut self) -> Result<()> {
         if self.current_run > 0 {
-            let bits = self.current_value.unwrap();
-            let index = self.value_to_index[&bits];
+            // OPT: Use cached index from current_value, no HashMap lookup needed
+            let (_bits, index) = self.current_value.unwrap();
             self.runs.push((index, self.current_run));
             self.current_run = 0;
         }
