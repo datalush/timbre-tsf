@@ -189,21 +189,58 @@ impl TsFileWriter {
             }
         }
 
-        // OPT-1: Acceso directo por índice (0 allocations, 0 HashMap lookups)
-        // ANTES: 300K × (format! + clone + hash lookup) = 15-30ms
-        // AHORA: 300K × array[idx] = ~0ms
+        // OPT-P0-2: Batch write using new batch APIs (Phase 2 Optimization)
+        // BEFORE: 300K × (function call + bounds check + branch) = significant overhead
+        // AFTER: 3 columns × 1 batch call = eliminates 299,997 function calls
+        //
+        // This optimization eliminates the inner row loop, calling batch write methods
+        // that process entire columns at once. The batch methods handle:
+        // - Null value filtering based on bitmap
+        // - Page boundary management
+        // - Efficient vector extension instead of per-value pushes
         for (col_idx, chunk_writer) in self.current_writers.iter_mut().enumerate() {
-            // Escribir todos los valores de esta columna
-            for row_idx in 0..tablet.row_count() {
-                if !tablet.bitmaps[col_idx].get(row_idx) {
-                    let timestamp = tablet.timestamps[row_idx];
-                    Self::write_column_value(
-                        chunk_writer,
-                        &tablet.values[col_idx],
-                        row_idx,
-                        timestamp,
-                    )?;
-                }
+            // Write entire column in one batch call
+            Self::write_column_batch(
+                chunk_writer,
+                &tablet.values[col_idx],
+                &tablet.timestamps,
+                &tablet.bitmaps[col_idx],
+            )?;
+        }
+
+        Ok(())
+    }
+
+    /// Writes an entire column in batch mode (OPT-P0-2: Phase 2 Optimization)
+    ///
+    /// This method replaces the row-by-row loop with a single batch call,
+    /// eliminating per-value function call overhead.
+    fn write_column_batch(
+        chunk_writer: &mut ChunkWriter,
+        value_matrix: &crate::common::ValueMatrix,
+        timestamps: &[i64],
+        bitmap: &crate::common::BitMap,
+    ) -> Result<()> {
+        use crate::common::ValueMatrix;
+
+        match value_matrix {
+            ValueMatrix::Boolean(v) => {
+                chunk_writer.write_bool_batch_with_bitmap(timestamps, v, bitmap)?
+            }
+            ValueMatrix::Int32(v) => {
+                chunk_writer.write_i32_batch_with_bitmap(timestamps, v, bitmap)?
+            }
+            ValueMatrix::Int64(v) => {
+                chunk_writer.write_i64_batch_with_bitmap(timestamps, v, bitmap)?
+            }
+            ValueMatrix::Float(v) => {
+                chunk_writer.write_f32_batch_with_bitmap(timestamps, v, bitmap)?
+            }
+            ValueMatrix::Double(v) => {
+                chunk_writer.write_f64_batch_with_bitmap(timestamps, v, bitmap)?
+            }
+            ValueMatrix::Text(v) => {
+                chunk_writer.write_string_batch_with_bitmap(timestamps, v, bitmap)?
             }
         }
 

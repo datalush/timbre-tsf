@@ -240,6 +240,170 @@ impl PageWriter {
         Ok(())
     }
 
+    // ===== BATCH WRITE METHODS (Phase 2 Optimization) =====
+    //
+    // These methods write multiple values at once, eliminating function call overhead
+    // and improving cache locality. Projected improvement: +5-8% throughput.
+
+    /// Writes a batch of i32 values with their timestamps
+    ///
+    /// OPT-P0-2: Batch API eliminates per-value function call overhead.
+    /// For 100K values, this eliminates 100K function calls (~2-3% CPU).
+    #[inline]
+    pub fn write_i32_batch(&mut self, timestamps: &[i64], values: &[i32]) -> Result<()> {
+        if timestamps.len() != values.len() {
+            return Err(TsFileError::InvalidState(
+                "Timestamps and values length mismatch".to_string(),
+            ));
+        }
+
+        // Extend vectors in one operation (more efficient than pushing one by one)
+        self.timestamps.extend_from_slice(timestamps);
+        match &mut self.value_data {
+            ValueData::Int32(v) => v.extend_from_slice(values),
+            _ => {
+                return Err(TsFileError::TypeMismatch {
+                    expected: "Int32".to_string(),
+                    actual: format!("{:?}", self.data_type),
+                });
+            }
+        }
+
+        // Update statistics in batch
+        self.statistic.update_i32_batch(timestamps, values);
+        Ok(())
+    }
+
+    /// Writes a batch of i64 values with their timestamps
+    ///
+    /// OPT-P0-2: Batch API eliminates per-value function call overhead.
+    #[inline]
+    pub fn write_i64_batch(&mut self, timestamps: &[i64], values: &[i64]) -> Result<()> {
+        if timestamps.len() != values.len() {
+            return Err(TsFileError::InvalidState(
+                "Timestamps and values length mismatch".to_string(),
+            ));
+        }
+
+        self.timestamps.extend_from_slice(timestamps);
+        match &mut self.value_data {
+            ValueData::Int64(v) => v.extend_from_slice(values),
+            _ => {
+                return Err(TsFileError::TypeMismatch {
+                    expected: "Int64".to_string(),
+                    actual: format!("{:?}", self.data_type),
+                });
+            }
+        }
+
+        self.statistic.update_i64_batch(timestamps, values);
+        Ok(())
+    }
+
+    /// Writes a batch of f32 values with their timestamps
+    ///
+    /// OPT-P0-2: Batch API eliminates per-value function call overhead.
+    #[inline]
+    pub fn write_f32_batch(&mut self, timestamps: &[i64], values: &[f32]) -> Result<()> {
+        if timestamps.len() != values.len() {
+            return Err(TsFileError::InvalidState(
+                "Timestamps and values length mismatch".to_string(),
+            ));
+        }
+
+        self.timestamps.extend_from_slice(timestamps);
+        match &mut self.value_data {
+            ValueData::Float(v) => v.extend_from_slice(values),
+            _ => {
+                return Err(TsFileError::TypeMismatch {
+                    expected: "Float".to_string(),
+                    actual: format!("{:?}", self.data_type),
+                });
+            }
+        }
+
+        self.statistic.update_f32_batch(timestamps, values);
+        Ok(())
+    }
+
+    /// Writes a batch of f64 values with their timestamps
+    ///
+    /// OPT-P0-2: Batch API eliminates per-value function call overhead.
+    #[inline]
+    pub fn write_f64_batch(&mut self, timestamps: &[i64], values: &[f64]) -> Result<()> {
+        if timestamps.len() != values.len() {
+            return Err(TsFileError::InvalidState(
+                "Timestamps and values length mismatch".to_string(),
+            ));
+        }
+
+        self.timestamps.extend_from_slice(timestamps);
+        match &mut self.value_data {
+            ValueData::Double(v) => v.extend_from_slice(values),
+            _ => {
+                return Err(TsFileError::TypeMismatch {
+                    expected: "Double".to_string(),
+                    actual: format!("{:?}", self.data_type),
+                });
+            }
+        }
+
+        self.statistic.update_f64_batch(timestamps, values);
+        Ok(())
+    }
+
+    /// Writes a batch of bool values with their timestamps
+    ///
+    /// OPT-P0-2: Batch API eliminates per-value function call overhead.
+    #[inline]
+    pub fn write_bool_batch(&mut self, timestamps: &[i64], values: &[bool]) -> Result<()> {
+        if timestamps.len() != values.len() {
+            return Err(TsFileError::InvalidState(
+                "Timestamps and values length mismatch".to_string(),
+            ));
+        }
+
+        self.timestamps.extend_from_slice(timestamps);
+        match &mut self.value_data {
+            ValueData::Boolean(v) => v.extend_from_slice(values),
+            _ => {
+                return Err(TsFileError::TypeMismatch {
+                    expected: "Boolean".to_string(),
+                    actual: format!("{:?}", self.data_type),
+                });
+            }
+        }
+
+        self.statistic.update_bool_batch(timestamps, values);
+        Ok(())
+    }
+
+    /// Writes a batch of string values with their timestamps
+    ///
+    /// OPT-P0-2: Batch API eliminates per-value function call overhead.
+    #[inline]
+    pub fn write_string_batch(&mut self, timestamps: &[i64], values: &[String]) -> Result<()> {
+        if timestamps.len() != values.len() {
+            return Err(TsFileError::InvalidState(
+                "Timestamps and values length mismatch".to_string(),
+            ));
+        }
+
+        self.timestamps.extend_from_slice(timestamps);
+        match &mut self.value_data {
+            ValueData::String(v) => v.extend(values.iter().cloned()),
+            _ => {
+                return Err(TsFileError::TypeMismatch {
+                    expected: "String".to_string(),
+                    actual: format!("{:?}", self.data_type),
+                });
+            }
+        }
+
+        self.statistic.update_string_batch(timestamps, values);
+        Ok(())
+    }
+
     /// Finaliza la página y genera mini-blocks
     pub fn finish(&mut self) -> Result<PageData> {
         let total_points = self.timestamps.len();

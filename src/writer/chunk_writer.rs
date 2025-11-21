@@ -128,6 +128,261 @@ impl ChunkWriter {
         Ok(())
     }
 
+    // ===== BATCH WRITE METHODS WITH BITMAP (Phase 2 Optimization) =====
+    //
+    // These methods write multiple values at once while handling null values and page boundaries.
+    // Projected improvement: +5-8% throughput by eliminating per-value function calls.
+
+    /// Writes a batch of i32 values with bitmap indicating null values
+    ///
+    /// OPT-P0-2: Batch API eliminates 100K+ function calls in write_tablet() hot path.
+    /// The bitmap marks non-null values as false (skip if true).
+    ///
+    /// # Arguments
+    /// * `timestamps` - Slice of timestamps for all values
+    /// * `values` - Slice of i32 values
+    /// * `bitmap` - Bitmap indicating null values (true = null, skip)
+    pub fn write_i32_batch_with_bitmap(
+        &mut self,
+        timestamps: &[i64],
+        values: &[i32],
+        bitmap: &crate::common::BitMap,
+    ) -> Result<()> {
+        // Collect non-null values into temporary vectors
+        let mut batch_timestamps = Vec::new();
+        let mut batch_values = Vec::new();
+
+        for i in 0..timestamps.len() {
+            if !bitmap.get(i) {
+                // false in bitmap means non-null
+                batch_timestamps.push(timestamps[i]);
+                batch_values.push(values[i]);
+
+                // Check if we need to flush before adding more
+                // Estimate: 8 bytes timestamp + 4 bytes value = 12 bytes per point
+                if self.current_page_size + (batch_timestamps.len() * 12) >= self.max_page_size {
+                    // Flush accumulated batch
+                    if !batch_timestamps.is_empty() {
+                        self.page_writer
+                            .write_i32_batch(&batch_timestamps, &batch_values)?;
+                        self.current_page_size = self.page_writer.estimated_size();
+                        batch_timestamps.clear();
+                        batch_values.clear();
+                    }
+                    // Seal current page
+                    self.seal_current_page()?;
+                }
+            }
+        }
+
+        // Write remaining batch
+        if !batch_timestamps.is_empty() {
+            self.page_writer
+                .write_i32_batch(&batch_timestamps, &batch_values)?;
+            self.current_page_size = self.page_writer.estimated_size();
+        }
+
+        Ok(())
+    }
+
+    /// Writes a batch of i64 values with bitmap indicating null values
+    ///
+    /// OPT-P0-2: Batch API eliminates 100K+ function calls in write_tablet() hot path.
+    pub fn write_i64_batch_with_bitmap(
+        &mut self,
+        timestamps: &[i64],
+        values: &[i64],
+        bitmap: &crate::common::BitMap,
+    ) -> Result<()> {
+        let mut batch_timestamps = Vec::new();
+        let mut batch_values = Vec::new();
+
+        for i in 0..timestamps.len() {
+            if !bitmap.get(i) {
+                batch_timestamps.push(timestamps[i]);
+                batch_values.push(values[i]);
+
+                if self.current_page_size + (batch_timestamps.len() * 16) >= self.max_page_size {
+                    if !batch_timestamps.is_empty() {
+                        self.page_writer
+                            .write_i64_batch(&batch_timestamps, &batch_values)?;
+                        self.current_page_size = self.page_writer.estimated_size();
+                        batch_timestamps.clear();
+                        batch_values.clear();
+                    }
+                    self.seal_current_page()?;
+                }
+            }
+        }
+
+        if !batch_timestamps.is_empty() {
+            self.page_writer
+                .write_i64_batch(&batch_timestamps, &batch_values)?;
+            self.current_page_size = self.page_writer.estimated_size();
+        }
+
+        Ok(())
+    }
+
+    /// Writes a batch of f32 values with bitmap indicating null values
+    ///
+    /// OPT-P0-2: Batch API eliminates 100K+ function calls in write_tablet() hot path.
+    pub fn write_f32_batch_with_bitmap(
+        &mut self,
+        timestamps: &[i64],
+        values: &[f32],
+        bitmap: &crate::common::BitMap,
+    ) -> Result<()> {
+        let mut batch_timestamps = Vec::new();
+        let mut batch_values = Vec::new();
+
+        for i in 0..timestamps.len() {
+            if !bitmap.get(i) {
+                batch_timestamps.push(timestamps[i]);
+                batch_values.push(values[i]);
+
+                if self.current_page_size + (batch_timestamps.len() * 12) >= self.max_page_size {
+                    if !batch_timestamps.is_empty() {
+                        self.page_writer
+                            .write_f32_batch(&batch_timestamps, &batch_values)?;
+                        self.current_page_size = self.page_writer.estimated_size();
+                        batch_timestamps.clear();
+                        batch_values.clear();
+                    }
+                    self.seal_current_page()?;
+                }
+            }
+        }
+
+        if !batch_timestamps.is_empty() {
+            self.page_writer
+                .write_f32_batch(&batch_timestamps, &batch_values)?;
+            self.current_page_size = self.page_writer.estimated_size();
+        }
+
+        Ok(())
+    }
+
+    /// Writes a batch of f64 values with bitmap indicating null values
+    ///
+    /// OPT-P0-2: Batch API eliminates 100K+ function calls in write_tablet() hot path.
+    pub fn write_f64_batch_with_bitmap(
+        &mut self,
+        timestamps: &[i64],
+        values: &[f64],
+        bitmap: &crate::common::BitMap,
+    ) -> Result<()> {
+        let mut batch_timestamps = Vec::new();
+        let mut batch_values = Vec::new();
+
+        for i in 0..timestamps.len() {
+            if !bitmap.get(i) {
+                batch_timestamps.push(timestamps[i]);
+                batch_values.push(values[i]);
+
+                if self.current_page_size + (batch_timestamps.len() * 16) >= self.max_page_size {
+                    if !batch_timestamps.is_empty() {
+                        self.page_writer
+                            .write_f64_batch(&batch_timestamps, &batch_values)?;
+                        self.current_page_size = self.page_writer.estimated_size();
+                        batch_timestamps.clear();
+                        batch_values.clear();
+                    }
+                    self.seal_current_page()?;
+                }
+            }
+        }
+
+        if !batch_timestamps.is_empty() {
+            self.page_writer
+                .write_f64_batch(&batch_timestamps, &batch_values)?;
+            self.current_page_size = self.page_writer.estimated_size();
+        }
+
+        Ok(())
+    }
+
+    /// Writes a batch of bool values with bitmap indicating null values
+    ///
+    /// OPT-P0-2: Batch API eliminates 100K+ function calls in write_tablet() hot path.
+    pub fn write_bool_batch_with_bitmap(
+        &mut self,
+        timestamps: &[i64],
+        values: &[bool],
+        bitmap: &crate::common::BitMap,
+    ) -> Result<()> {
+        let mut batch_timestamps = Vec::new();
+        let mut batch_values = Vec::new();
+
+        for i in 0..timestamps.len() {
+            if !bitmap.get(i) {
+                batch_timestamps.push(timestamps[i]);
+                batch_values.push(values[i]);
+
+                if self.current_page_size + (batch_timestamps.len() * 9) >= self.max_page_size {
+                    if !batch_timestamps.is_empty() {
+                        self.page_writer
+                            .write_bool_batch(&batch_timestamps, &batch_values)?;
+                        self.current_page_size = self.page_writer.estimated_size();
+                        batch_timestamps.clear();
+                        batch_values.clear();
+                    }
+                    self.seal_current_page()?;
+                }
+            }
+        }
+
+        if !batch_timestamps.is_empty() {
+            self.page_writer
+                .write_bool_batch(&batch_timestamps, &batch_values)?;
+            self.current_page_size = self.page_writer.estimated_size();
+        }
+
+        Ok(())
+    }
+
+    /// Writes a batch of string values with bitmap indicating null values
+    ///
+    /// OPT-P0-2: Batch API eliminates 100K+ function calls in write_tablet() hot path.
+    pub fn write_string_batch_with_bitmap(
+        &mut self,
+        timestamps: &[i64],
+        values: &[String],
+        bitmap: &crate::common::BitMap,
+    ) -> Result<()> {
+        let mut batch_timestamps = Vec::new();
+        let mut batch_values = Vec::new();
+
+        for i in 0..timestamps.len() {
+            if !bitmap.get(i) {
+                batch_timestamps.push(timestamps[i]);
+                batch_values.push(values[i].clone());
+
+                // Estimate string size: 8 bytes timestamp + string length
+                let est_size: usize = batch_timestamps.len() * 8
+                    + batch_values.iter().map(|s| s.len()).sum::<usize>();
+                if self.current_page_size + est_size >= self.max_page_size {
+                    if !batch_timestamps.is_empty() {
+                        self.page_writer
+                            .write_string_batch(&batch_timestamps, &batch_values)?;
+                        self.current_page_size = self.page_writer.estimated_size();
+                        batch_timestamps.clear();
+                        batch_values.clear();
+                    }
+                    self.seal_current_page()?;
+                }
+            }
+        }
+
+        if !batch_timestamps.is_empty() {
+            self.page_writer
+                .write_string_batch(&batch_timestamps, &batch_values)?;
+            self.current_page_size = self.page_writer.estimated_size();
+        }
+
+        Ok(())
+    }
+
     /// Verifica si la página actual excede el tamaño máximo y hace flush si es necesario
     fn check_page_size_and_flush(&mut self) -> Result<()> {
         if self.current_page_size >= self.max_page_size {
@@ -241,7 +496,7 @@ impl ChunkWriter {
         let mut stat = create_statistic(self.data_type);
 
         // Merge statistics from all sealed pages
-        for page in &self.pages {
+        for _page in &self.pages {
             // Note: For now we only have timestamp min/max in PageHeader
             // TODO: If we store full statistics in PageData, merge those too
             stat.merge(self.page_writer.statistic());
