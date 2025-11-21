@@ -197,7 +197,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  - Pressure: Continuous float, slow atmospheric variation");
     println!("  - CO2: Discrete levels (400-1200 ppm)");
     println!("  - Light: High variation day/night cycles");
-    println!("  - Battery: Linear drain 4.2V → 3.0V");
+    println!("  - Battery: Linear drain 4.2V -> 3.0V");
     println!("  - Status: Mostly OK with occasional warnings/errors");
 
     Ok(())

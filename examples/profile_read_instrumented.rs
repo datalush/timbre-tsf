@@ -15,8 +15,8 @@ use std::time::{Duration, Instant};
 ///
 /// This gives REAL DATA about where time is spent!
 use timbre_tsf::common::*;
-use timbre_tsf::reader::TsFileIOReader;
-use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::reader::IOReader;
+use timbre_tsf::writer::FileWriter;
 
 #[derive(Debug, Clone, Default)]
 struct TimingData {
@@ -280,7 +280,7 @@ impl TimingData {
             println!();
             println!("Root Cause:");
             println!("  - Allocations and copies when building Arrow arrays");
-            println!("  - Type conversions (Vec<f32> → Float32Array)");
+            println!("  - Type conversions (Vec<f32> -> Float32Array)");
             println!();
             println!("Optimization Options:");
             println!();
@@ -333,10 +333,10 @@ struct DatasetMetadata {
 
 fn main() {
     println!("========================================");
-    println!("INSTRUMENTED TsFile READ PROFILING");
+    println!("INSTRUMENTED Timbre READ PROFILING");
     println!("========================================\n");
 
-    let path = "/tmp/profile_read_instrumented.tick";
+    let path = "/tmp/profile_read_instrumented.timbre";
     let num_rows = 1_000_000;
     let num_devices = 5;
     let num_measurements = 3;
@@ -370,7 +370,7 @@ fn main() {
 fn generate_test_file(path: &str, total_rows: usize, num_devices: usize) {
     let _ = std::fs::remove_file(path);
 
-    let mut writer = TsFileWriter::new(path).unwrap();
+    let mut writer = FileWriter::new(path).unwrap();
 
     // Register schemas
     for device_idx in 1..=num_devices {
@@ -444,7 +444,7 @@ fn profile_read_instrumented(path: &str) -> (TimingData, Duration) {
     let total_start = Instant::now();
 
     // Open reader
-    let mut io_reader = TsFileIOReader::open(path).unwrap();
+    let mut io_reader = IOReader::open(path).unwrap();
     let devices = io_reader.get_devices();
 
     // Read all chunks with instrumentation
@@ -464,7 +464,7 @@ fn profile_read_instrumented(path: &str) -> (TimingData, Duration) {
 }
 
 fn profile_chunk_read(
-    io_reader: &mut TsFileIOReader,
+    io_reader: &mut IOReader,
     device_id: &str,
     measurement: &str,
     timing: &Arc<Mutex<TimingData>>,

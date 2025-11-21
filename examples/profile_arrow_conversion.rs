@@ -1,4 +1,4 @@
-/// Profile Arrow → TsFile conversion overhead
+/// Profile Arrow -> TsFile conversion overhead
 ///
 /// This example profiles the hot paths in arrow::from_arrow conversion
 /// to identify bottlenecks causing the 1.9x slowdown vs Parquet.
@@ -10,7 +10,7 @@ use arrow::array::{Float32Array, StringArray, TimestampMillisecondArray};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 
-use timbre_tsf::arrow::ArrowToTsFileConverter;
+use timbre_tsf::arrow::FromArrowConverter;
 use timbre_tsf::common::{CompressionType, TSEncoding};
 
 fn generate_large_batch(num_rows: usize) -> RecordBatch {
@@ -67,7 +67,7 @@ fn profile_write_batch(batch: &RecordBatch, batch_size: usize) {
     let temp_file = NamedTempFile::new().unwrap();
     let path = temp_file.path();
 
-    let mut converter = ArrowToTsFileConverter::builder(path)
+    let mut converter = FromArrowConverter::builder(path)
         .with_device_column("device_id")
         .with_timestamp_column("timestamp")
         .build()
@@ -161,7 +161,7 @@ fn profile_write_batch(batch: &RecordBatch, batch_size: usize) {
 }
 
 fn main() {
-    println!("Arrow → TsFile Conversion Profiling");
+    println!("Arrow -> TsFile Conversion Profiling");
     println!("====================================\n");
 
     // Test with 2M rows (matching the benchmark data size)

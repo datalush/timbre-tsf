@@ -1,6 +1,6 @@
 use std::time::Instant;
 use timbre_tsf::common::*;
-use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::writer::FileWriter;
 
 fn main() {
     let path = "/tmp/profile_write.ts";
@@ -29,7 +29,7 @@ fn main() {
 fn write_tsfile(path: &str, total_rows: usize) {
     let _ = std::fs::remove_file(path);
 
-    let mut writer = TsFileWriter::new(path).unwrap();
+    let mut writer = FileWriter::new(path).unwrap();
 
     // 5 devices × 3 measurements
     for device_idx in 1..=5 {

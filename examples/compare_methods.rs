@@ -7,11 +7,11 @@ use arrow::array::{Float32Array, StringArray, TimestampMillisecondArray};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 
-use timbre_tsf::arrow::ArrowToTsFileConverter;
+use timbre_tsf::arrow::FromArrowConverter;
 use timbre_tsf::common::{
     ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsValue,
 };
-use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::writer::FileWriter;
 
 fn generate_test_batch(num_rows: usize) -> RecordBatch {
     let devices = ["device_1", "device_2", "device_3", "device_4", "device_5"];
@@ -60,7 +60,7 @@ fn write_tsfile_native(batch: &RecordBatch) -> std::time::Duration {
     let temp_file = NamedTempFile::new().unwrap();
     let start = Instant::now();
 
-    let mut writer = TsFileWriter::new(temp_file.path()).unwrap();
+    let mut writer = FileWriter::new(temp_file.path()).unwrap();
 
     // Register schemas
     let devices = ["device_1", "device_2", "device_3", "device_4", "device_5"];
@@ -196,7 +196,7 @@ fn write_tsfile_arrow(batch: &RecordBatch) -> std::time::Duration {
     let temp_file = NamedTempFile::new().unwrap();
     let start = Instant::now();
 
-    let mut converter = ArrowToTsFileConverter::builder(temp_file.path())
+    let mut converter = FromArrowConverter::builder(temp_file.path())
         .with_device_column("device_id")
         .with_timestamp_column("timestamp")
         .build()

@@ -1,10 +1,10 @@
 /// Debug file size issue
 use timbre_tsf::common::*;
-use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::writer::FileWriter;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = "/tmp/debug_timbre.timbre";
-    let mut writer = TsFileWriter::new(path)?;
+    let mut writer = FileWriter::new(path)?;
 
     let temp_schema = MeasurementSchema::new(
         "temperature",

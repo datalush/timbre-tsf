@@ -2,7 +2,7 @@ use std::time::Instant;
 use timbre_tsf::common::*;
 use timbre_tsf::compress::create_compressor;
 use timbre_tsf::encoding::create_encoder;
-use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::writer::FileWriter;
 
 fn main() {
     println!("=== Análisis del Bottleneck de Escritura ===\n");
@@ -72,7 +72,7 @@ fn main() {
         let _ = std::fs::remove_file(path);
 
         let start = Instant::now();
-        let mut writer = TsFileWriter::new(path).unwrap();
+        let mut writer = FileWriter::new(path).unwrap();
 
         let device_id = "device_1";
         let schemas = vec![

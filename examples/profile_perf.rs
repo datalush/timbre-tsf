@@ -1,7 +1,7 @@
 use arrow::ipc::reader::FileReader;
 use std::fs::File;
 use std::time::Instant;
-use timbre_tsf::arrow::ArrowToTsFileConverter;
+use timbre_tsf::arrow::FromArrowConverter;
 
 const DATASET_PATH: &str = "data/iot_dataset.arrow";
 
@@ -19,7 +19,7 @@ fn main() {
     println!("Running Timbre write...");
     let start = Instant::now();
 
-    let mut converter = ArrowToTsFileConverter::builder("/tmp/profile_perf.timbre")
+    let mut converter = FromArrowConverter::builder("/tmp/profile_perf.timbre")
         .with_device_column("device_id")
         .with_timestamp_column("timestamp")
         .build()

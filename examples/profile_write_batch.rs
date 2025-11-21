@@ -1,6 +1,6 @@
 use std::time::Instant;
 use timbre_tsf::common::*;
-use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::writer::FileWriter;
 
 fn main() {
     let path = "/tmp/profile_write_batch.ts";
@@ -49,7 +49,7 @@ fn main() {
 /// Current implementation: write_record() row-by-row
 fn write_row_by_row(path: &str, total_rows: usize) {
     let _ = std::fs::remove_file(path);
-    let mut writer = TsFileWriter::new(path).unwrap();
+    let mut writer = FileWriter::new(path).unwrap();
 
     // Register schemas
     for device_idx in 1..=5 {
@@ -85,7 +85,7 @@ fn write_row_by_row(path: &str, total_rows: usize) {
 /// Optimized: write_tablet() batch writing
 fn write_with_tablets(path: &str, total_rows: usize) {
     let _ = std::fs::remove_file(path);
-    let mut writer = TsFileWriter::new(path).unwrap();
+    let mut writer = FileWriter::new(path).unwrap();
 
     let rows_per_device = total_rows / 5;
 

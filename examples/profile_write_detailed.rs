@@ -2,7 +2,7 @@ use std::time::Instant;
 use timbre_tsf::common::*;
 use timbre_tsf::compress::create_compressor;
 use timbre_tsf::encoding::create_encoder;
-use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::writer::FileWriter;
 
 fn main() {
     println!("=== Detailed Write Profiling ===\n");
@@ -71,7 +71,7 @@ fn benchmark_encoding_compression() {
 
         total_time += elapsed.as_micros();
         println!(
-            "  Run {}: {:?} (compressed: {} → {} bytes, ratio: {:.2}x)",
+            "  Run {}: {:?} (compressed: {} -> {} bytes, ratio: {:.2}x)",
             run + 1,
             elapsed,
             encoded.len(),
@@ -107,7 +107,7 @@ fn benchmark_full_write() {
 
 fn write_tsfile(path: &str, total_rows: usize) {
     let _ = std::fs::remove_file(path);
-    let mut writer = TsFileWriter::new(path).unwrap();
+    let mut writer = FileWriter::new(path).unwrap();
 
     // 5 devices × 3 measurements
     for device_idx in 1..=5 {

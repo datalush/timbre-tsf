@@ -12,7 +12,7 @@ use arrow::record_batch::RecordBatch;
 use timbre_tsf::common::{
     ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsValue,
 };
-use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::writer::FileWriter;
 
 /// Generate test data
 fn generate_test_data(num_rows: usize) -> RecordBatch {
@@ -71,7 +71,7 @@ fn profile_write_batch_detailed(batch: &RecordBatch) {
     println!("\n=== DETAILED PROFILING OF write_batch() ===\n");
 
     let temp_file = NamedTempFile::new().unwrap();
-    let mut writer = TsFileWriter::new(temp_file.path()).unwrap();
+    let mut writer = FileWriter::new(temp_file.path()).unwrap();
 
     let start_total = Instant::now();
 

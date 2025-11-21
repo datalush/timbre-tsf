@@ -1,4 +1,4 @@
-//! Benchmark SOLO la conversión Arrow → Timbre/Parquet
+//! Benchmark SOLO la conversión Arrow -> Timbre/Parquet
 //!
 //! Mide el overhead puro de conversión, SIN encoding/compression/I/O
 //!
@@ -14,7 +14,7 @@ use parquet::file::properties::WriterProperties;
 use std::fs::File;
 use std::sync::Arc;
 use std::time::Instant;
-use timbre_tsf::arrow::ArrowToTsFileConverter;
+use timbre_tsf::arrow::FromArrowConverter;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== Benchmark: Arrow Conversion Overhead ===\n");
@@ -35,9 +35,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // ========================================
-    // Test 1: Arrow → Parquet (conversión + encoding + I/O)
+    // Test 1: Arrow -> Parquet (conversión + encoding + I/O)
     // ========================================
-    println!("📦 Test 1: Arrow → Parquet (TOTAL: conversión + encoding + I/O)");
+    println!("📦 Test 1: Arrow -> Parquet (TOTAL: conversión + encoding + I/O)");
 
     let parquet_path = std::path::Path::new("/tmp/test_overhead.parquet");
     let schema = batches[0].schema();
@@ -66,15 +66,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // ========================================
-    // Test 2: Arrow → Timbre (conversión + encoding + I/O)
+    // Test 2: Arrow -> Timbre (conversión + encoding + I/O)
     // ========================================
-    println!("🎵 Test 2: Arrow → Timbre (TOTAL: conversión + encoding + I/O)");
+    println!("🎵 Test 2: Arrow -> Timbre (TOTAL: conversión + encoding + I/O)");
 
     let timbre_path = std::path::Path::new("/tmp/test_overhead.timbre");
 
     let start = Instant::now();
     {
-        let mut converter = ArrowToTsFileConverter::builder(timbre_path)
+        let mut converter = FromArrowConverter::builder(timbre_path)
             .with_device_column("device_id")
             .with_timestamp_column("timestamp")
             .build()?;
@@ -95,9 +95,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // ========================================
-    // Test 3: Arrow → Memoria (SOLO conversión, sin I/O)
+    // Test 3: Arrow -> Memoria (SOLO conversión, sin I/O)
     // ========================================
-    println!("⚡ Test 3: Arrow → Memoria (SOLO conversión, SIN encoding/I/O)");
+    println!("⚡ Test 3: Arrow -> Memoria (SOLO conversión, SIN encoding/I/O)");
 
     let start = Instant::now();
     let mut total_values = 0u64;

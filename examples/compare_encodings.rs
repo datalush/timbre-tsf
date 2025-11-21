@@ -9,7 +9,7 @@ use parquet::file::properties::{EnabledStatistics, WriterProperties};
 use std::sync::Arc;
 use std::time::Instant;
 use tempfile::NamedTempFile;
-use timbre_tsf::arrow::{ArrowConversionConfig, ArrowToTsFileConverter};
+use timbre_tsf::arrow::{ArrowConversionConfig, FromArrowConverter};
 use timbre_tsf::common::{CompressionType, TSEncoding};
 
 fn generate_timeseries_data(num_rows: usize) -> RecordBatch {
@@ -127,7 +127,7 @@ fn benchmark_tsfile(
     let mut times = Vec::new();
 
     for _ in 0..iterations {
-        let mut converter = ArrowToTsFileConverter::builder(path)
+        let mut converter = FromArrowConverter::builder(path)
             .with_device_column("device_id")
             .with_timestamp_column("timestamp")
             .with_config(config.clone())
@@ -236,7 +236,7 @@ fn main() {
         } else {
             format!("{:.1}x mejor compresión", ratio)
         };
-        println!("  {} → {}", name, speedup);
+        println!("  {} -> {}", name, speedup);
     }
 
     // Mejor combinación velocidad/compresión
@@ -258,16 +258,16 @@ fn main() {
 
     println!("  📊 Para SERIES TEMPORALES (datos con cambios pequeños):");
     println!(
-        "     → TsFile (Gorilla + LZ4): {:.1}x mejor compresión",
+        "     -> TsFile (Gorilla + LZ4): {:.1}x mejor compresión",
         compression_ratio
     );
-    println!("     → Pero {:.1}x más lento en escritura\n", speed_ratio);
+    println!("     -> Pero {:.1}x más lento en escritura\n", speed_ratio);
 
     println!("  ⚡ Para MÁXIMA VELOCIDAD:");
-    println!("     → TsFile (Plain + Uncompressed): máxima velocidad");
-    println!("     → Parquet (ByteStreamSplit + Snappy): buena velocidad\n");
+    println!("     -> TsFile (Plain + Uncompressed): máxima velocidad");
+    println!("     -> Parquet (ByteStreamSplit + Snappy): buena velocidad\n");
 
     println!("  🎯 BALANCE ÓPTIMO:");
-    println!("     → TsFile (Gorilla + LZ4): mejor para almacenamiento largo plazo");
-    println!("     → Parquet (ByteStreamSplit + LZ4): bueno para análisis rápido\n");
+    println!("     -> TsFile (Gorilla + LZ4): mejor para almacenamiento largo plazo");
+    println!("     -> Parquet (ByteStreamSplit + LZ4): bueno para análisis rápido\n");
 }

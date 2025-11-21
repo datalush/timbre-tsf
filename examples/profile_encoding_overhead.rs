@@ -1,8 +1,8 @@
 /// Profile encoding overhead vs Arrow conversion
 ///
 /// This benchmark separates:
-/// 1. Arrow → Tablet conversion (data extraction)
-/// 2. Tablet → TsFile writing (encoding + compression + I/O)
+/// 1. Arrow -> Tablet conversion (data extraction)
+/// 2. Tablet -> TsFile writing (encoding + compression + I/O)
 use std::sync::Arc;
 use std::time::Instant;
 use tempfile::NamedTempFile;
@@ -11,11 +11,11 @@ use arrow::array::{Float32Array, StringArray, TimestampMillisecondArray};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 
-use timbre_tsf::arrow::ArrowToTsFileConverter;
+use timbre_tsf::arrow::FromArrowConverter;
 use timbre_tsf::common::{
     ColumnCategory, CompressionType, MeasurementSchema, TSDataType, TSEncoding, Tablet, TsValue,
 };
-use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::writer::FileWriter;
 
 fn generate_test_batch(num_rows: usize) -> RecordBatch {
     let devices = ["device_1", "device_2", "device_3", "device_4", "device_5"];
@@ -61,7 +61,7 @@ fn generate_test_batch(num_rows: usize) -> RecordBatch {
 }
 
 fn profile_arrow_conversion_only(batch: &RecordBatch) -> std::time::Duration {
-    println!("\n=== Profiling Arrow → Tablet Conversion (NO writing) ===");
+    println!("\n=== Profiling Arrow -> Tablet Conversion (NO writing) ===");
 
     let start = Instant::now();
 
@@ -185,7 +185,7 @@ fn profile_encoding_only(
     compression: CompressionType,
 ) -> std::time::Duration {
     println!(
-        "\n=== Profiling Tablet → TsFile Writing (encoding={:?}, compression={:?}) ===",
+        "\n=== Profiling Tablet -> TsFile Writing (encoding={:?}, compression={:?}) ===",
         encoding, compression
     );
 
@@ -229,7 +229,7 @@ fn profile_encoding_only(
 
     // Now measure ONLY writing
     let temp_file = NamedTempFile::new().unwrap();
-    let mut writer = TsFileWriter::new(temp_file.path()).unwrap();
+    let mut writer = FileWriter::new(temp_file.path()).unwrap();
 
     // Register schemas
     for device in &devices {
@@ -280,12 +280,12 @@ fn profile_encoding_only(
 }
 
 fn profile_full_pipeline(batch: &RecordBatch) -> std::time::Duration {
-    println!("\n=== Profiling FULL Pipeline (Arrow → TsFile) ===");
+    println!("\n=== Profiling FULL Pipeline (Arrow -> TsFile) ===");
 
     let temp_file = NamedTempFile::new().unwrap();
     let start = Instant::now();
 
-    let mut converter = ArrowToTsFileConverter::builder(temp_file.path())
+    let mut converter = FromArrowConverter::builder(temp_file.path())
         .with_device_column("device_id")
         .with_timestamp_column("timestamp")
         .build()
@@ -340,12 +340,12 @@ fn main() {
     println!("==========================================\n");
 
     println!(
-        "Arrow → Tablet conversion: {:?} ({:.1}% of full pipeline)",
+        "Arrow -> Tablet conversion: {:?} ({:.1}% of full pipeline)",
         conversion_time,
         100.0 * conversion_time.as_secs_f64() / full_time.as_secs_f64()
     );
 
-    println!("\nEncoding overhead (Tablet → TsFile):");
+    println!("\nEncoding overhead (Tablet -> TsFile):");
     println!(
         "  Chimp128 + Snappy: {:?} ({:.1}% of full pipeline)",
         encoding_chimp,

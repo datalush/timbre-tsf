@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-/// DEEP READ PROFILING - Measures EVERY phase of TsFile read pipeline
+/// DEEP READ PROFILING - Measures EVERY phase of Timbre read pipeline
 ///
 /// This example instruments the entire read path to identify ACTUAL bottlenecks:
 /// 1. I/O time (reading compressed data from disk)
@@ -12,9 +12,9 @@ use std::time::{Duration, Instant};
 /// Run with: cargo run --release --example profile_read_detailed
 ///
 /// Expected output: Time breakdown showing % of total for each phase
-use timbre_tsf::arrow::TsFileRecordBatchReader;
+use timbre_tsf::arrow::RecordBatchReader;
 use timbre_tsf::common::*;
-use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::writer::FileWriter;
 
 // Global timing accumulators (atomic for thread-safety with rayon)
 static DECOMPRESS_TIME_NS: AtomicU64 = AtomicU64::new(0);
@@ -45,7 +45,7 @@ impl ReadProfile {
         let total_ms = self.total_time.as_secs_f64() * 1000.0;
 
         println!("\n========================================");
-        println!("TsFile READ PERFORMANCE PROFILE");
+        println!("Timbre READ PERFORMANCE PROFILE");
         println!("========================================\n");
 
         println!("Dataset:");
@@ -184,7 +184,7 @@ impl ReadProfile {
 fn main() {
     println!("Creating test file with 1M rows (Gorilla encoding + LZ4 compression)...\n");
 
-    let path = "/tmp/profile_read_detailed.tick";
+    let path = "/tmp/profile_read_detailed.timbre";
     let num_rows = 1_000_000;
     let num_devices = 5;
     let num_measurements = 3;
@@ -205,7 +205,7 @@ fn main() {
 fn generate_test_file(path: &str, total_rows: usize, num_devices: usize) {
     let _ = std::fs::remove_file(path);
 
-    let mut writer = TsFileWriter::new(path).unwrap();
+    let mut writer = FileWriter::new(path).unwrap();
 
     // Register timeseries with Gorilla + LZ4 (realistic configuration)
     for device_idx in 1..=num_devices {
@@ -287,7 +287,7 @@ fn profile_read(
 
     let total_start = Instant::now();
 
-    // Instrument the actual read path by wrapping TsFileRecordBatchReader
+    // Instrument the actual read path by wrapping RecordBatchReader
     profile_read_with_instrumentation(path);
 
     let total_time = total_start.elapsed();
@@ -299,7 +299,7 @@ fn profile_read(
     let mut total_rows = 0;
 
     // Actual read
-    let reader = TsFileRecordBatchReader::try_new(path).unwrap();
+    let reader = RecordBatchReader::try_new(path).unwrap();
 
     for batch_result in reader {
         let batch = batch_result.unwrap();
@@ -356,7 +356,7 @@ fn profile_read_with_instrumentation(path: &str) -> Duration {
     // For now, we'll use the standard reader and make estimates
     let start = Instant::now();
 
-    let reader = TsFileRecordBatchReader::try_new(path).unwrap();
+    let reader = RecordBatchReader::try_new(path).unwrap();
     let mut _total_rows = 0;
 
     for batch_result in reader {

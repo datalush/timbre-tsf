@@ -1,4 +1,4 @@
-/// Ejemplo completo end-to-end de escritura y lectura de Tick
+/// Ejemplo completo end-to-end de escritura y lectura de Timbre
 ///
 /// Este ejemplo demuestra:
 /// - Escritura de múltiples dispositivos con diferentes mediciones
@@ -8,15 +8,15 @@
 use timbre_tsf::common::{
     CompressionType, MeasurementSchema, TSDataType, TSEncoding, TsRecord, TsValue,
 };
-use timbre_tsf::reader::{DecodedValueData, TsFileReader};
-use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::reader::{DecodedValueData, FileReader};
+use timbre_tsf::writer::FileWriter;
 
 fn main() -> timbre_tsf::error::Result<()> {
-    let filename = "examples/demo.tick";
+    let filename = "examples/demo.timbre";
     let base_time = 1704067200000i64; // 2024-01-01 00:00:00
 
     println!("═══════════════════════════════════════════════════");
-    println!("Tick Rust - Ejemplo End-to-End");
+    println!("Timbre - Ejemplo End-to-End");
     println!("═══════════════════════════════════════════════════\n");
 
     // ============================================================
@@ -25,10 +25,10 @@ fn main() -> timbre_tsf::error::Result<()> {
     println!("📝 FASE 1: Escritura de datos\n");
 
     {
-        let mut writer = TsFileWriter::new(filename)?;
+        let mut writer = FileWriter::new(filename)?;
 
         // Dispositivo 1: Sensor de temperatura (Float con Plain encoding)
-        println!("  → Registrando dispositivo 'weather_station'");
+        println!("  -> Registrando dispositivo 'weather_station'");
         let temp_schema = MeasurementSchema::new(
             "temperature",
             TSDataType::Float,
@@ -47,7 +47,7 @@ fn main() -> timbre_tsf::error::Result<()> {
         writer.register_timeseries("weather_station", humidity_schema)?;
 
         // Escribir datos de clima cada 5 minutos durante 2 horas
-        println!("  → Escribiendo 24 registros de clima (2 horas)");
+        println!("  -> Escribiendo 24 registros de clima (2 horas)");
         for i in 0..24 {
             let timestamp = base_time + i * 300_000; // cada 5 minutos
             let temp = 20.0 + (i as f32 * 0.5); // temperatura aumenta gradualmente
@@ -61,7 +61,7 @@ fn main() -> timbre_tsf::error::Result<()> {
         }
 
         // Dispositivo 2: Contador de energía (Int64 con Plain encoding)
-        println!("  → Registrando dispositivo 'power_meter'");
+        println!("  -> Registrando dispositivo 'power_meter'");
         let energy_schema = MeasurementSchema::new(
             "energy_kwh",
             TSDataType::Int64,
@@ -71,7 +71,7 @@ fn main() -> timbre_tsf::error::Result<()> {
         writer.register_timeseries("power_meter", energy_schema)?;
 
         // Escribir lecturas de energía cada hora
-        println!("  → Escribiendo 24 lecturas de energía (1 día)");
+        println!("  -> Escribiendo 24 lecturas de energía (1 día)");
         for i in 0..24 {
             let timestamp = base_time + i * 3600_000; // cada hora
             let energy = 1000 + i * 50; // consumo acumulado
@@ -83,7 +83,7 @@ fn main() -> timbre_tsf::error::Result<()> {
         }
 
         // Dispositivo 3: Sensor de presión (Double con Plain encoding)
-        println!("  → Registrando dispositivo 'pressure_sensor'");
+        println!("  -> Registrando dispositivo 'pressure_sensor'");
         let pressure_schema = MeasurementSchema::new(
             "pressure_hpa",
             TSDataType::Double,
@@ -93,7 +93,7 @@ fn main() -> timbre_tsf::error::Result<()> {
         writer.register_timeseries("pressure_sensor", pressure_schema)?;
 
         // Escribir datos de presión cada 15 minutos
-        println!("  → Escribiendo 96 lecturas de presión (1 día)");
+        println!("  -> Escribiendo 96 lecturas de presión (1 día)");
         for i in 0..96 {
             let timestamp = base_time + i * 900_000; // cada 15 minutos
             let pressure = 1013.25 + (i as f64 * 0.1).sin() * 5.0; // oscilación sinusoidal
@@ -114,7 +114,7 @@ fn main() -> timbre_tsf::error::Result<()> {
     println!("\n\n📖 FASE 2: Lectura de datos\n");
 
     {
-        let mut reader = TsFileReader::open(filename)?;
+        let mut reader = FileReader::open(filename)?;
 
         // Mostrar información del archivo
         let info = reader.info();

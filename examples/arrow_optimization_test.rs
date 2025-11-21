@@ -6,7 +6,7 @@ use arrow::array::{Float32Array, StringArray, TimestampMillisecondArray};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 
-use timbre_tsf::arrow::ArrowToTsFileConverter;
+use timbre_tsf::arrow::FromArrowConverter;
 
 fn generate_test_batch(num_rows: usize) -> RecordBatch {
     let devices = ["device_1", "device_2", "device_3", "device_4", "device_5"];
@@ -65,7 +65,7 @@ fn main() {
         // Warmup
         {
             let temp_file = NamedTempFile::new().unwrap();
-            let mut converter = ArrowToTsFileConverter::builder(temp_file.path())
+            let mut converter = FromArrowConverter::builder(temp_file.path())
                 .with_device_column("device_id")
                 .with_timestamp_column("timestamp")
                 .build()
@@ -80,7 +80,7 @@ fn main() {
             let temp_file = NamedTempFile::new().unwrap();
 
             let start = Instant::now();
-            let mut converter = ArrowToTsFileConverter::builder(temp_file.path())
+            let mut converter = FromArrowConverter::builder(temp_file.path())
                 .with_device_column("device_id")
                 .with_timestamp_column("timestamp")
                 .build()

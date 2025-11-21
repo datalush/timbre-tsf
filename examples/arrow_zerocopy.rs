@@ -2,16 +2,16 @@ use arrow::array::Array;
 /// Arrow Zero-Copy Integration Example
 ///
 /// Este ejemplo demuestra:
-/// - Conversión zero-copy de TsFile → Arrow RecordBatch
+/// - Conversión zero-copy de TsFile -> Arrow RecordBatch
 /// - Buffers alineados a 64 bytes para SIMD performance
 /// - Verificación de alignment para optimización SIMD
 ///
 /// Run with: cargo run --example arrow_zerocopy
-use timbre_tsf::arrow::{ARROW_ALIGNMENT, TsFileRecordBatchReader};
+use timbre_tsf::arrow::{ARROW_ALIGNMENT, RecordBatchReader};
 use timbre_tsf::common::{
     CompressionType, MeasurementSchema, TSDataType, TSEncoding, TsRecord, TsValue,
 };
-use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::writer::FileWriter;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("════════════════════════════════════════════════");
@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📝 PHASE 1: Writing TsFile data\n");
 
     {
-        let mut writer = TsFileWriter::new(filename)?;
+        let mut writer = FileWriter::new(filename)?;
 
         // Temperature sensor (Float with Chimp128)
         let temp_schema = MeasurementSchema::new(
@@ -57,7 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         writer.register_timeseries("sensor_01", counter_schema)?;
 
         // Write 10,000 points (enough to see alignment benefits)
-        println!("  → Writing 10,000 time series points");
+        println!("  -> Writing 10,000 time series points");
         for i in 0..10_000 {
             let timestamp = 1_704_067_200_000i64 + i * 1000; // 1 Hz sampling
             let temp = 20.0 + ((i as f32) * 0.01).sin() * 5.0;
@@ -81,7 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ========================================
     println!("📖 PHASE 2: Reading as Arrow RecordBatch\n");
 
-    let reader = TsFileRecordBatchReader::try_new(filename)?;
+    let reader = RecordBatchReader::try_new(filename)?;
     let schema = reader.schema();
 
     println!("  Arrow Schema:");
@@ -124,7 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 println!(
-                    "    • {:<12} @ 0x{:016x} → {} (offset: {})",
+                    "    • {:<12} @ 0x{:016x} -> {} (offset: {})",
                     field_name, ptr, status, alignment
                 );
             }

@@ -12,7 +12,7 @@ use parquet::arrow::ArrowWriter;
 use parquet::file::properties::WriterProperties;
 
 // TsFile imports
-use timbre_tsf::arrow::{ArrowConversionConfig, ArrowToTsFileConverter};
+use timbre_tsf::arrow::{ArrowConversionConfig, FromArrowConverter};
 
 /// Generate test data
 fn generate_test_data(num_rows: usize) -> RecordBatch {
@@ -91,7 +91,7 @@ fn benchmark_tsfile(
     let temp_file = NamedTempFile::new().unwrap();
 
     let start = Instant::now();
-    let mut converter = ArrowToTsFileConverter::builder(temp_file.path())
+    let mut converter = FromArrowConverter::builder(temp_file.path())
         .with_device_column("device_id")
         .with_timestamp_column("timestamp")
         .with_config(config)
@@ -114,7 +114,7 @@ fn main() {
     // Warm up
     for _ in 0..3 {
         let temp_file = NamedTempFile::new().unwrap();
-        let mut converter = ArrowToTsFileConverter::builder(temp_file.path())
+        let mut converter = FromArrowConverter::builder(temp_file.path())
             .with_device_column("device_id")
             .with_timestamp_column("timestamp")
             .build()

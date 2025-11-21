@@ -3,7 +3,7 @@ use timbre_tsf::common::{CompressionType, TSDataType, TSEncoding};
 use timbre_tsf::writer::ChunkWriter;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== TsFile Write Example ===\n");
+    println!("=== Timbre Write Example ===\n");
 
     // Crear un ChunkWriter para datos de temperatura
     let mut temp_writer = ChunkWriter::new(
@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  - Estimated size: {} bytes", temp_writer.estimated_size());
 
     // Crear archivo de salida
-    let mut file = File::create("/tmp/example.tick.chunk")?;
+    let mut file = File::create("/tmp/example.timbre")?;
 
     // Serializar el chunk al archivo
     let bytes_written = temp_writer.serialize_to(&mut file)?;
@@ -61,14 +61,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  - Number of pages: {}", humidity_writer.num_of_pages());
 
     // Crear segundo archivo
-    let mut file2 = File::create("/tmp/example.tick.chunk2")?;
+    let mut file2 = File::create("/tmp/example2.timbre")?;
     let bytes_written2 = humidity_writer.serialize_to(&mut file2)?;
     println!("  - Bytes written to file: {}", bytes_written2);
 
     println!("\n=== Write Complete ===");
     println!("Files created:");
-    println!("  - /tmp/example.tick.chunk (temperature)");
-    println!("  - /tmp/example.tick.chunk2 (humidity)");
+    println!("  - /tmp/example.timbre (temperature)");
+    println!("  - /tmp/example2.timbre (humidity)");
 
     Ok(())
 }

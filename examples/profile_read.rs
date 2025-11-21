@@ -1,6 +1,6 @@
-use timbre_tsf::arrow::TsFileRecordBatchReader;
+use timbre_tsf::arrow::RecordBatchReader;
 use timbre_tsf::common::*;
-use timbre_tsf::writer::TsFileWriter;
+use timbre_tsf::writer::FileWriter;
 
 fn main() {
     let path = "/tmp/profile_tsfile.ts";
@@ -22,7 +22,7 @@ fn main() {
 fn generate_test_file(path: &str, total_rows: usize) {
     let _ = std::fs::remove_file(path);
 
-    let mut writer = TsFileWriter::new(path).unwrap();
+    let mut writer = FileWriter::new(path).unwrap();
 
     // 5 devices × 3 measurements
     for device_idx in 1..=5 {
@@ -61,7 +61,7 @@ fn generate_test_file(path: &str, total_rows: usize) {
 }
 
 fn read_tsfile(path: &str) {
-    let reader = TsFileRecordBatchReader::try_new(path).unwrap();
+    let reader = RecordBatchReader::try_new(path).unwrap();
 
     let mut total_rows = 0;
     for batch_result in reader {
