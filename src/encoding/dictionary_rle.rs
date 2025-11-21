@@ -137,18 +137,41 @@ impl DictionaryRLEEncoder {
 
     /// Lookup or create dictionary index and update cache
     fn lookup_or_create_index(&mut self, bits: u64, value: f64) -> Result<u8> {
-        let index = if let Some(&idx) = self.value_to_index.get(&bits) {
-            idx
-        } else {
-            if self.dictionary.len() >= 256 {
-                return Err(TimbreError::EncodingError(
-                    "DictionaryRLE: too many unique values (max 256)".to_string(),
-                ));
+        // OPT-Array: For small dictionaries (≤32), use linear search instead of HashMap
+        // Linear search on small arrays is faster due to cache locality and no hashing overhead
+        const ARRAY_SEARCH_THRESHOLD: usize = 32;
+
+        let index = if self.dictionary.len() <= ARRAY_SEARCH_THRESHOLD {
+            // Fast path: linear search in small array
+            if let Some(idx) = self.dictionary.iter().position(|&v| v.to_bits() == bits) {
+                idx as u8
+            } else {
+                // Not found: add to dictionary
+                if self.dictionary.len() >= 256 {
+                    return Err(TimbreError::EncodingError(
+                        "DictionaryRLE: too many unique values (max 256)".to_string(),
+                    ));
+                }
+                let idx = self.dictionary.len() as u8;
+                self.dictionary.push(value);
+                self.value_to_index.insert(bits, idx);
+                idx
             }
-            let idx = self.dictionary.len() as u8;
-            self.dictionary.push(value);
-            self.value_to_index.insert(bits, idx);
-            idx
+        } else {
+            // Slow path: use HashMap for large dictionaries
+            if let Some(&idx) = self.value_to_index.get(&bits) {
+                idx
+            } else {
+                if self.dictionary.len() >= 256 {
+                    return Err(TimbreError::EncodingError(
+                        "DictionaryRLE: too many unique values (max 256)".to_string(),
+                    ));
+                }
+                let idx = self.dictionary.len() as u8;
+                self.dictionary.push(value);
+                self.value_to_index.insert(bits, idx);
+                idx
+            }
         };
 
         // Update cache
