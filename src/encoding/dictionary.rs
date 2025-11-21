@@ -30,24 +30,27 @@
 use super::{Decoder, Encoder};
 use crate::common::{TSDataType, TSEncoding};
 use crate::error::{Result, TimbreError};
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 /// Dictionary encoder for strings with high repetition
 pub struct DictionaryEncoder {
-    /// Map from string to integer ID
-    entry_index: HashMap<String, i32>,
+    /// Map from string to integer ID (using FxHashMap for faster hashing)
+    entry_index: FxHashMap<String, i32>,
     /// Map from integer ID to string (for ordered storage)
     index_entry: Vec<String>,
     /// Encoded integer IDs (using RLE for better compression)
     encoded_ids: Vec<i32>,
+    /// OPT-Cache: Last string and its ID to avoid HashMap lookup for repetitive data
+    last_cached: Option<(String, i32)>,
 }
 
 impl DictionaryEncoder {
     pub fn new(_data_type: TSDataType) -> Self {
         Self {
-            entry_index: HashMap::new(),
+            entry_index: FxHashMap::default(),
             index_entry: Vec::new(),
             encoded_ids: Vec::new(),
+            last_cached: None,
         }
     }
 
@@ -117,6 +120,24 @@ impl DictionaryEncoder {
         out.extend_from_slice(s.as_bytes());
         Ok(())
     }
+
+    /// Lookup or create ID for string, updating cache
+    fn lookup_or_create_id(&mut self, value: &str) -> Result<i32> {
+        // OPT: Check HashMap first, create only if needed
+        let id = if let Some(&existing_id) = self.entry_index.get(value) {
+            existing_id
+        } else {
+            let new_id = self.index_entry.len() as i32;
+            let owned = value.to_string();
+            self.index_entry.push(owned.clone());
+            self.entry_index.insert(owned, new_id);
+            new_id
+        };
+
+        // Update cache
+        self.last_cached = Some((value.to_string(), id));
+        Ok(id)
+    }
 }
 
 impl Encoder for DictionaryEncoder {
@@ -151,14 +172,17 @@ impl Encoder for DictionaryEncoder {
     }
 
     fn encode_string(&mut self, value: &str, _out: &mut Vec<u8>) -> Result<()> {
-        // Get or create ID for this string
-        let id = if let Some(&existing_id) = self.entry_index.get(value) {
-            existing_id
+        // OPT-Cache: Check cache first (eliminates HashMap lookup for repetitive data)
+        let id = if let Some((cached_str, cached_id)) = &self.last_cached {
+            if cached_str == value {
+                *cached_id
+            } else {
+                // Cache miss: lookup or create
+                self.lookup_or_create_id(value)?
+            }
         } else {
-            let new_id = self.index_entry.len() as i32;
-            self.entry_index.insert(value.to_string(), new_id);
-            self.index_entry.push(value.to_string());
-            new_id
+            // No cache: lookup or create
+            self.lookup_or_create_id(value)?
         };
 
         // Store the ID for later encoding
@@ -177,6 +201,7 @@ impl Encoder for DictionaryEncoder {
         self.entry_index.clear();
         self.index_entry.clear();
         self.encoded_ids.clear();
+        self.last_cached = None;
 
         Ok(())
     }
