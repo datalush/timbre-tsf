@@ -7,7 +7,7 @@
 /// - Application: Buffers data, analyzes with recommend_encoding(), makes decisions
 /// - Timbre: Provides analysis tools and individual encoders
 use timbre_tsf::common::TSEncoding;
-use timbre_tsf::encoding::adaptive::recommend_encoding;
+use timbre_tsf::utils::recommend_encoding;
 use timbre_tsf::encoding::dictionary_rle::DictionaryRLEEncoder;
 use timbre_tsf::encoding::quantized::{QuantizedEncoder, detect_quantization};
 

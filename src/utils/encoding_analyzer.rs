@@ -11,7 +11,7 @@
 //! # Example
 //!
 //! ```
-//! use timbre_tsf::encoding::adaptive::recommend_encoding;
+//! use timbre_tsf::utils::recommend_encoding;
 //!
 //! let sample = vec![20.0, 20.1, 20.2, 20.1, 20.0]; // Regular 0.1 steps
 //! let encoding = recommend_encoding(&sample);
@@ -105,7 +105,7 @@ pub fn analyze_pattern(data: &[f64]) -> DataPattern {
 /// # Example
 ///
 /// ```
-/// use timbre_tsf::encoding::adaptive::recommend_encoding;
+/// use timbre_tsf::utils::recommend_encoding;
 ///
 /// let sample = vec![20.0, 20.1, 20.2, 20.1, 20.0]; // Quantized pattern
 /// let encoding = recommend_encoding(&sample);
@@ -156,7 +156,7 @@ pub fn recommend_encoding(data: &[f64]) -> TSEncoding {
 /// `CompressionType` manualmente si tiene requisitos específicos:
 ///
 /// ```rust
-/// use timbre_tsf::encoding::adaptive::recommend_compression;
+/// use timbre_tsf::utils::recommend_compression;
 /// use timbre_tsf::common::{TSEncoding, CompressionType};
 ///
 /// // Opción A: Usar recomendación

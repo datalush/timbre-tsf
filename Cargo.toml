@@ -129,3 +129,19 @@ harness = false
 [[bench]]
 name = "profile_perf"
 harness = false
+
+[[bench]]
+name = "profile_f32_bottleneck"
+harness = false
+
+[[bench]]
+name = "profile_write_bits_detailed"
+harness = false
+
+[[bench]]
+name = "profile_ramp_analysis"
+harness = false
+
+[[bench]]
+name = "write_bits_analysis"
+harness = false
