@@ -43,10 +43,11 @@ pub struct DictionaryEncoder {
     index_entry: Vec<Arc<str>>,
     /// Encoded integer IDs (using RLE for better compression)
     encoded_ids: Vec<i32>,
-    /// OPT-Cache: Single-slot cache to avoid HashMap lookup on repeated values
-    /// Stores (string, id) for instant lookup when same value repeats
-    /// With 85% repetition, this gives ~93% cache hit rate
-    cache: Option<(Arc<str>, i32)>,
+    /// OPT-Sentinel: Single-slot cache using sentinel pattern (no Option<> overhead)
+    /// cached_id = i32::MIN means empty cache
+    /// Eliminates pattern matching overhead while keeping ~93% cache hit rate
+    cached_id: i32,
+    cached_arc: Arc<str>,
 }
 
 impl DictionaryEncoder {
@@ -55,7 +56,8 @@ impl DictionaryEncoder {
             entry_index: FxHashMap::default(),
             index_entry: Vec::new(),
             encoded_ids: Vec::new(),
-            cache: None,
+            cached_id: i32::MIN,       // Sentinel: empty cache
+            cached_arc: Arc::from(""), // Dummy Arc for empty cache
         }
     }
 
@@ -127,14 +129,14 @@ impl DictionaryEncoder {
     }
 
     /// Lookup or create ID for string, updating cache
-    /// OPT-P0+Cache: Use Arc<str> and single-slot cache (no hash overhead)
+    /// OPT-P0+Sentinel: Use Arc<str> and sentinel-based cache (no Option<> overhead)
     #[inline(always)]
     fn lookup_or_create_id(&mut self, value: &str) -> Result<i32> {
         // Check if value exists in HashMap
         if let Some(&existing_id) = self.entry_index.get(value) {
-            // Update cache with existing value (cheap Arc::clone)
-            let arc_str = Arc::clone(&self.index_entry[existing_id as usize]);
-            self.cache = Some((arc_str, existing_id));
+            // Update sentinel cache with existing value (cheap Arc::clone)
+            self.cached_arc = Arc::clone(&self.index_entry[existing_id as usize]);
+            self.cached_id = existing_id;
             return Ok(existing_id);
         }
 
@@ -146,8 +148,9 @@ impl DictionaryEncoder {
         self.entry_index.insert(Arc::clone(&arc_str), new_id);
         self.index_entry.push(Arc::clone(&arc_str));
 
-        // Update cache with new value
-        self.cache = Some((arc_str, new_id));
+        // Update sentinel cache with new value
+        self.cached_arc = arc_str;
+        self.cached_id = new_id;
 
         Ok(new_id)
     }
@@ -161,12 +164,10 @@ impl DictionaryEncoder {
 
         // Tight loop for better instruction cache usage
         for &value in values {
-            // Same logic as encode_string but inlined in tight loop
-            if let Some((cached_str, cached_id)) = &self.cache {
-                if cached_str.as_ref() == value {
-                    self.encoded_ids.push(*cached_id);
-                    continue;
-                }
+            // OPT-Sentinel: Same sentinel check as encode_string but inlined
+            if self.cached_id != i32::MIN && self.cached_arc.as_ref() == value {
+                self.encoded_ids.push(self.cached_id);
+                continue;
             }
 
             let id = self.lookup_or_create_id(value)?;
@@ -209,13 +210,11 @@ impl Encoder for DictionaryEncoder {
 
     #[inline(always)]
     fn encode_string(&mut self, value: &str, _out: &mut Vec<u8>) -> Result<()> {
-        // OPT-Cache: Check single-slot cache first (~93% hit rate with 85% repetition)
-        if let Some((cached_str, cached_id)) = &self.cache {
-            // Fast path: string comparison (optimized by LLVM for common prefix)
-            if cached_str.as_ref() == value {
-                self.encoded_ids.push(*cached_id);
-                return Ok(());  // Cache hit: instant return
-            }
+        // OPT-Sentinel: Check sentinel cache first (~93% hit rate with 85% repetition)
+        // Single branch check: cached_id != MIN && string match
+        if self.cached_id != i32::MIN && self.cached_arc.as_ref() == value {
+            self.encoded_ids.push(self.cached_id);
+            return Ok(());  // Cache hit: instant return
         }
 
         // Cache miss: lookup HashMap or create new entry (updates cache)
@@ -235,7 +234,8 @@ impl Encoder for DictionaryEncoder {
         self.entry_index.clear();
         self.index_entry.clear();
         self.encoded_ids.clear();
-        self.cache = None;
+        self.cached_id = i32::MIN;         // Reset sentinel cache
+        self.cached_arc = Arc::from("");   // Reset to dummy Arc
 
         Ok(())
     }
