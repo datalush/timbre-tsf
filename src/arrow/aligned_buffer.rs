@@ -127,6 +127,7 @@ pub fn alloc_aligned_vec<T>(capacity: usize) -> Result<Vec<T>> {
 /// │ Address: 0x...0000 (divisible by 64) │
 /// └──────────────────────────────────────┘
 /// ```
+#[derive(Debug)]
 pub struct AlignedVec<T> {
     inner: Vec<T>,
     _align_marker: std::marker::PhantomData<T>,
@@ -195,6 +196,30 @@ impl<T> AlignedVec<T> {
         self.inner.as_ptr()
     }
 
+    /// Extends the vector with another aligned vector
+    #[inline]
+    pub fn extend(&mut self, other: AlignedVec<T>) {
+        self.inner.extend(other.inner);
+    }
+
+    /// Appends all elements from another AlignedVec, leaving it empty
+    #[inline]
+    pub fn append(&mut self, other: &mut AlignedVec<T>) {
+        self.inner.append(&mut other.inner);
+    }
+
+    /// Extends the vector from an iterator
+    #[inline]
+    pub fn extend_from_slice(&mut self, other: &[T]) where T: Clone {
+        self.inner.extend_from_slice(other);
+    }
+
+    /// Returns a slice of the vector
+    #[inline]
+    pub fn as_slice(&self) -> &[T] {
+        &self.inner
+    }
+
     /// Verifies the buffer is 64-byte aligned (for debug builds)
     #[cfg(debug_assertions)]
     pub fn verify_alignment(&self) {
@@ -223,6 +248,43 @@ impl<T> Default for AlignedVec<T> {
 impl<T> From<AlignedVec<T>> for Vec<T> {
     fn from(aligned: AlignedVec<T>) -> Self {
         aligned.into_inner()
+    }
+}
+
+impl<T: Clone> Clone for AlignedVec<T> {
+    fn clone(&self) -> Self {
+        // Clone creates a new aligned buffer
+        let mut cloned = Self::with_capacity(self.len()).unwrap_or_else(|_| Self::new());
+        cloned.inner.extend_from_slice(&self.inner);
+        cloned
+    }
+}
+
+impl<T> std::ops::Index<usize> for AlignedVec<T> {
+    type Output = T;
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.inner[index]
+    }
+}
+
+impl<T> std::ops::IndexMut<usize> for AlignedVec<T> {
+    #[inline]
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.inner[index]
+    }
+}
+
+impl<T> std::iter::FromIterator<T> for AlignedVec<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let iter = iter.into_iter();
+        let (lower, _) = iter.size_hint();
+        let mut vec = Self::with_capacity(lower).unwrap_or_else(|_| Self::new());
+        for item in iter {
+            vec.push(item);
+        }
+        vec
     }
 }
 

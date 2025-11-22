@@ -119,7 +119,7 @@ impl ChunkReader {
             measurement_name: Arc::clone(&self.measurement_name),
             data_type: self.data_type,
             timestamps: all_timestamps,
-            values: all_values.unwrap_or_else(|| DecodedValues::Int32(Vec::new())),
+            values: all_values.unwrap_or_else(|| DecodedValues::Int32(crate::arrow::AlignedVec::new())),
         })
     }
 

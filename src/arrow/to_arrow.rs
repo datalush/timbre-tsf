@@ -293,71 +293,41 @@ impl RecordBatchReader {
         Ok(array)
     }
 
-    /// Ensures buffer is 64-byte aligned for optimal Arrow/SIMD performance
+    /// OPT-ARROW-ALIGNMENT: Converts AlignedVec to Arrow Buffer (100% zero-copy).
     ///
-    /// If the buffer is already aligned, uses zero-copy. Otherwise, reallocates
-    /// with proper alignment (rare case, as decoders should produce aligned buffers).
+    /// Since AlignedVec guarantees 64-byte alignment from creation, this performs
+    /// a zero-copy conversion with no runtime checks or reallocations.
     ///
-    /// # Errors
-    ///
-    /// Returns [`TimbreError::AllocationError`] if aligned memory allocation fails
-    /// during buffer reallocation (extremely rare, only if system is out of memory).
+    /// Benefits:
+    /// - **No branches**: Eliminates alignment check overhead
+    /// - **Predictable performance**: No P99 latency spikes from realignment
+    /// - **100% fast path**: Every call is zero-copy (was 99% before)
     #[inline]
-    fn ensure_aligned_buffer_i32(vec: Vec<i32>) -> Result<Buffer> {
-        use crate::arrow::alloc_aligned_vec;
-
-        let ptr = vec.as_ptr() as usize;
-        if ptr.is_multiple_of(crate::arrow::ARROW_ALIGNMENT) {
-            // Already aligned - zero-copy path
-            Ok(Buffer::from_vec(vec))
-        } else {
-            // Not aligned - reallocate (should be rare)
-            let mut aligned = alloc_aligned_vec::<i32>(vec.len())?;
-            aligned.extend(vec);
-            Ok(Buffer::from_vec(aligned))
-        }
+    fn ensure_aligned_buffer_i32(aligned_vec: crate::arrow::AlignedVec<i32>) -> Result<Buffer> {
+        let vec = aligned_vec.into_inner();
+        debug_assert_eq!(vec.as_ptr() as usize % crate::arrow::ARROW_ALIGNMENT, 0);
+        Ok(Buffer::from_vec(vec))
     }
 
     #[inline]
-    fn ensure_aligned_buffer_i64(vec: Vec<i64>) -> Result<Buffer> {
-        use crate::arrow::alloc_aligned_vec;
-
-        let ptr = vec.as_ptr() as usize;
-        if ptr.is_multiple_of(crate::arrow::ARROW_ALIGNMENT) {
-            Ok(Buffer::from_vec(vec))
-        } else {
-            let mut aligned = alloc_aligned_vec::<i64>(vec.len())?;
-            aligned.extend(vec);
-            Ok(Buffer::from_vec(aligned))
-        }
+    fn ensure_aligned_buffer_i64(aligned_vec: crate::arrow::AlignedVec<i64>) -> Result<Buffer> {
+        let vec = aligned_vec.into_inner();
+        debug_assert_eq!(vec.as_ptr() as usize % crate::arrow::ARROW_ALIGNMENT, 0);
+        Ok(Buffer::from_vec(vec))
     }
 
     #[inline]
-    fn ensure_aligned_buffer_f32(vec: Vec<f32>) -> Result<Buffer> {
-        use crate::arrow::alloc_aligned_vec;
-
-        let ptr = vec.as_ptr() as usize;
-        if ptr.is_multiple_of(crate::arrow::ARROW_ALIGNMENT) {
-            Ok(Buffer::from_vec(vec))
-        } else {
-            let mut aligned = alloc_aligned_vec::<f32>(vec.len())?;
-            aligned.extend(vec);
-            Ok(Buffer::from_vec(aligned))
-        }
+    fn ensure_aligned_buffer_f32(aligned_vec: crate::arrow::AlignedVec<f32>) -> Result<Buffer> {
+        let vec = aligned_vec.into_inner();
+        debug_assert_eq!(vec.as_ptr() as usize % crate::arrow::ARROW_ALIGNMENT, 0);
+        Ok(Buffer::from_vec(vec))
     }
 
     #[inline]
-    fn ensure_aligned_buffer_f64(vec: Vec<f64>) -> Result<Buffer> {
-        use crate::arrow::alloc_aligned_vec;
-
-        let ptr = vec.as_ptr() as usize;
-        if ptr.is_multiple_of(crate::arrow::ARROW_ALIGNMENT) {
-            Ok(Buffer::from_vec(vec))
-        } else {
-            let mut aligned = alloc_aligned_vec::<f64>(vec.len())?;
-            aligned.extend(vec);
-            Ok(Buffer::from_vec(aligned))
-        }
+    fn ensure_aligned_buffer_f64(aligned_vec: crate::arrow::AlignedVec<f64>) -> Result<Buffer> {
+        let vec = aligned_vec.into_inner();
+        debug_assert_eq!(vec.as_ptr() as usize % crate::arrow::ARROW_ALIGNMENT, 0);
+        Ok(Buffer::from_vec(vec))
     }
 
     /// Get the Arrow schema

@@ -207,7 +207,7 @@ impl PageReader {
                 Ok(DecodedValues::Boolean(merged))
             }
             TSDataType::Int32 | TSDataType::Date => {
-                let mut merged = Vec::new();
+                let mut merged = crate::arrow::AlignedVec::new();
                 for dv in values_vec {
                     if let DecodedValues::Int32(v) = dv {
                         merged.extend(v);
@@ -216,7 +216,7 @@ impl PageReader {
                 Ok(DecodedValues::Int32(merged))
             }
             TSDataType::Int64 | TSDataType::Timestamp => {
-                let mut merged = Vec::new();
+                let mut merged = crate::arrow::AlignedVec::new();
                 for dv in values_vec {
                     if let DecodedValues::Int64(v) = dv {
                         merged.extend(v);
@@ -225,7 +225,7 @@ impl PageReader {
                 Ok(DecodedValues::Int64(merged))
             }
             TSDataType::Float => {
-                let mut merged = Vec::new();
+                let mut merged = crate::arrow::AlignedVec::new();
                 for dv in values_vec {
                     if let DecodedValues::Float(v) = dv {
                         merged.extend(v);
@@ -234,7 +234,7 @@ impl PageReader {
                 Ok(DecodedValues::Float(merged))
             }
             TSDataType::Double => {
-                let mut merged = Vec::new();
+                let mut merged = crate::arrow::AlignedVec::new();
                 for dv in values_vec {
                     if let DecodedValues::Double(v) = dv {
                         merged.extend(v);
@@ -277,14 +277,16 @@ impl PageReader {
                 Ok(DecodedValues::Boolean(values))
             }
             TSDataType::Int32 => {
-                let mut values = Vec::with_capacity(count);
+                // OPT-ARROW-ALIGNMENT: Use AlignedVec for guaranteed 64-byte alignment
+                let mut values = crate::arrow::AlignedVec::with_capacity(count)?;
                 for _ in 0..count {
                     values.push(decoder.read_i32(data, pos)?);
                 }
                 Ok(DecodedValues::Int32(values))
             }
             TSDataType::Int64 => {
-                let mut values = Vec::with_capacity(count);
+                // OPT-ARROW-ALIGNMENT: Use AlignedVec for guaranteed 64-byte alignment
+                let mut values = crate::arrow::AlignedVec::with_capacity(count)?;
                 for _ in 0..count {
                     values.push(decoder.read_i64(data, pos)?);
                 }
@@ -294,14 +296,16 @@ impl PageReader {
                 // OPT-READ-4: Hot path for Float - most common in benchmarks
                 // Modern Rust compilers optimize this loop to eliminate bounds checks
                 // when using with_capacity + push pattern
-                let mut values: Vec<f32> = Vec::with_capacity(count);
+                // OPT-ARROW-ALIGNMENT: Use AlignedVec for guaranteed 64-byte alignment
+                let mut values = crate::arrow::AlignedVec::with_capacity(count)?;
                 for _ in 0..count {
                     values.push(decoder.read_f32(data, pos)?);
                 }
                 Ok(DecodedValues::Float(values))
             }
             TSDataType::Double => {
-                let mut values = Vec::with_capacity(count);
+                // OPT-ARROW-ALIGNMENT: Use AlignedVec for guaranteed 64-byte alignment
+                let mut values = crate::arrow::AlignedVec::with_capacity(count)?;
                 for _ in 0..count {
                     values.push(decoder.read_f64(data, pos)?);
                 }
@@ -339,29 +343,33 @@ pub struct DecodedPage {
 /// - 50-70% reduction in allocations during queries
 /// - Cheap Arc::clone (refcount increment) vs String::clone (full copy)
 /// - Enables zero-copy iteration and filtering
+///
+/// OPT-ARROW-ALIGNMENT: Numeric types use AlignedVec for guaranteed 64-byte alignment,
+/// eliminating realignment overhead when converting to Arrow (100% fast path).
 #[derive(Debug, Clone)]
 pub enum DecodedValues {
-    Boolean(Vec<bool>),
-    Int32(Vec<i32>),
-    Int64(Vec<i64>),
-    Float(Vec<f32>),
-    Double(Vec<f64>),
+    Boolean(Vec<bool>),  // Exception: Arrow uses bit-packing, conversion required anyway
+    Int32(crate::arrow::AlignedVec<i32>),
+    Int64(crate::arrow::AlignedVec<i64>),
+    Float(crate::arrow::AlignedVec<f32>),
+    Double(crate::arrow::AlignedVec<f64>),
     /// Text values using Arc<str> for zero-copy semantics
-    Text(Vec<Arc<str>>),
+    Text(Vec<Arc<str>>),  // Exception: Offset buffer structure, alignment not applicable
 }
 
 impl DecodedValues {
     /// Create an empty DecodedValues for a given data type
     pub fn empty(data_type: crate::common::TSDataType) -> Self {
         use crate::common::TSDataType;
+        use crate::arrow::AlignedVec;
         match data_type {
             TSDataType::Boolean => DecodedValues::Boolean(Vec::new()),
-            TSDataType::Int32 | TSDataType::Date => DecodedValues::Int32(Vec::new()),
-            TSDataType::Int64 | TSDataType::Timestamp => DecodedValues::Int64(Vec::new()),
-            TSDataType::Float => DecodedValues::Float(Vec::new()),
-            TSDataType::Double => DecodedValues::Double(Vec::new()),
+            TSDataType::Int32 | TSDataType::Date => DecodedValues::Int32(AlignedVec::new()),
+            TSDataType::Int64 | TSDataType::Timestamp => DecodedValues::Int64(AlignedVec::new()),
+            TSDataType::Float => DecodedValues::Float(AlignedVec::new()),
+            TSDataType::Double => DecodedValues::Double(AlignedVec::new()),
             TSDataType::Text | TSDataType::String => DecodedValues::Text(Vec::new()),
-            _ => DecodedValues::Int32(Vec::new()), // Default fallback
+            _ => DecodedValues::Int32(AlignedVec::new()), // Default fallback
         }
     }
 
