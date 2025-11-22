@@ -51,7 +51,6 @@
 //!
 //! ```no_run
 //! use timbre_tsf::arrow::RecordBatchReader;
-//! use arrow::record_batch::RecordBatchReader;
 //!
 //! let reader = RecordBatchReader::try_new("input.timbreile")?;
 //!

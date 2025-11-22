@@ -135,7 +135,7 @@ Timbre analyzes your data and recommends optimal encoding/compression combinatio
 #### Pattern Detection
 
 ```rust
-use timbre_tsf::encoding::adaptive::recommend_encoding;
+use timbre_tsf::utils::recommend_encoding;
 
 // Detects quantization (e.g., 0.1°C resolution)
 let sample = vec![20.0, 20.1, 20.2, 20.1, 20.0];
@@ -154,7 +154,7 @@ let encoding = recommend_encoding(&sample);
 Based on real benchmarks with 100K data points:
 
 ```rust
-use timbre_tsf::encoding::adaptive::recommend_compression;
+use timbre_tsf::utils::recommend_compression;
 
 // Compact encodings → Zstd serial
 recommend_compression(TSEncoding::Quantized);

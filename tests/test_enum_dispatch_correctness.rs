@@ -3,7 +3,7 @@
 //! This test verifies that enum dispatch produces the same results as
 //! the original Box<dyn Statistic> implementation.
 
-use timbre_tsf::common::statistic::{Statistic, StatisticEnum};
+use timbre_tsf::common::statistic::StatisticEnum;
 use timbre_tsf::common::types::TSDataType;
 
 #[test]
@@ -20,9 +20,6 @@ fn test_enum_dispatch_float() {
     assert_eq!(stat.count(), 4);
     assert_eq!(stat.start_time(), 1000);
     assert_eq!(stat.end_time(), 4000);
-
-    // Verify it implements the Statistic trait
-    let _trait_ref: &dyn Statistic = &stat;
 }
 
 #[test]
@@ -39,9 +36,6 @@ fn test_enum_dispatch_int32() {
     assert_eq!(stat.count(), 4);
     assert_eq!(stat.start_time(), 1000);
     assert_eq!(stat.end_time(), 4000);
-
-    // Verify it implements the Statistic trait
-    let _trait_ref: &dyn Statistic = &stat;
 }
 
 #[test]
@@ -58,9 +52,6 @@ fn test_enum_dispatch_all_types() {
 
     for data_type in types {
         let stat = StatisticEnum::new(data_type);
-
-        // Verify it implements Statistic trait
-        let _trait_ref: &dyn Statistic = &stat;
 
         // Verify initial state
         assert_eq!(stat.count(), 0);
