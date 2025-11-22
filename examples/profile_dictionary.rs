@@ -51,9 +51,8 @@ fn main() {
         let mut encoder = DictionaryEncoder::new(TSDataType::Text);
         let mut output = Vec::new();
 
-        for &device in &data {
-            encoder.encode_string(device, &mut output).unwrap();
-        }
+        // OPT-Batch: Process all values at once for better cache utilization
+        encoder.encode_batch(&data).unwrap();
         encoder.flush(&mut output).unwrap();
 
         // Verify correctness (first iteration only)

@@ -151,6 +151,29 @@ impl DictionaryEncoder {
 
         Ok(new_id)
     }
+
+    /// OPT-Batch: Encode multiple strings at once for better cache utilization
+    /// This reduces function call overhead and improves branch prediction
+    #[inline]
+    pub fn encode_batch(&mut self, values: &[&str]) -> Result<()> {
+        // Pre-allocate space to avoid reallocations
+        self.encoded_ids.reserve(values.len());
+
+        // Tight loop for better instruction cache usage
+        for &value in values {
+            // Same logic as encode_string but inlined in tight loop
+            if let Some((cached_str, cached_id)) = &self.cache {
+                if cached_str.as_ref() == value {
+                    self.encoded_ids.push(*cached_id);
+                    continue;
+                }
+            }
+
+            let id = self.lookup_or_create_id(value)?;
+            self.encoded_ids.push(id);
+        }
+        Ok(())
+    }
 }
 
 impl Encoder for DictionaryEncoder {
