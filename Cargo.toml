@@ -145,3 +145,15 @@ harness = false
 [[bench]]
 name = "write_bits_analysis"
 harness = false
+
+[[bench]]
+name = "profile_realistic"
+harness = false
+
+[[bench]]
+name = "profile_comparison"
+harness = false
+
+[[bench]]
+name = "profile_chimp128"
+harness = false
