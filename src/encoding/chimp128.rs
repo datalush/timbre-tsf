@@ -620,11 +620,9 @@ impl Chimp128Decoder {
         // Read up to max_bytes, limited by available input
         let bytes_to_read = remaining.min(max_bytes).min(8);
 
-        // OPT-6: Load bytes into 8-byte array (zero-padded)
+        // Copy bytes to buffer and convert to u64
         let mut buf = [0u8; 8];
         buf[..bytes_to_read].copy_from_slice(&input[self.byte_pos..self.byte_pos + bytes_to_read]);
-
-        // Convert to u64 (big-endian: first byte becomes MSB)
         let new_data = u64::from_be_bytes(buf);
 
         // Shift right to place after existing bits

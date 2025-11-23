@@ -554,11 +554,9 @@ impl GorillaDecoder {
         // Read up to max_bytes, limited by available input
         let bytes_to_read = remaining.min(max_bytes).min(8);
 
-        // Load bytes into 8-byte array (zero-padded)
+        // Copy bytes to buffer and convert to u64
         let mut buf = [0u8; 8];
         buf[..bytes_to_read].copy_from_slice(&input[self.byte_pos..self.byte_pos + bytes_to_read]);
-
-        // Convert to u64 (big-endian: first byte becomes MSB)
         let new_data = u64::from_be_bytes(buf);
 
         // Shift right to place after existing bits
@@ -689,6 +687,57 @@ impl Decoder for GorillaDecoder {
         let value = self.decode_value(input)?;
         *pos = self.byte_pos;
         Ok(f64::from_bits(value))
+    }
+
+    /// Batch decodes multiple f32 values at once (HOT PATH optimization).
+    ///
+    /// This is significantly faster than calling read_f32 in a loop because:
+    /// - Better cache locality (tight loop)
+    /// - Reduced function call overhead
+    /// - Compiler can better optimize the tight loop
+    fn read_f32_batch(
+        &mut self,
+        data: &[u8],
+        pos: &mut usize,
+        output: &mut Vec<f32>,
+        count: usize,
+    ) -> Result<()> {
+        // Pre-reserve capacity to avoid reallocations
+        output.reserve(count);
+
+        // Decode all values in tight loop (better cache locality)
+        for _ in 0..count {
+            let value = self.decode_value(data)?;
+            output.push(f32::from_bits(value as u32));
+        }
+
+        // Update position to reflect bytes consumed
+        *pos = self.byte_pos;
+        Ok(())
+    }
+
+    /// Batch decodes multiple f64 values at once (HOT PATH optimization).
+    ///
+    /// See read_f32_batch() for performance details.
+    fn read_f64_batch(
+        &mut self,
+        data: &[u8],
+        pos: &mut usize,
+        output: &mut Vec<f64>,
+        count: usize,
+    ) -> Result<()> {
+        // Pre-reserve capacity to avoid reallocations
+        output.reserve(count);
+
+        // Decode all values in tight loop
+        for _ in 0..count {
+            let value = self.decode_value(data)?;
+            output.push(f64::from_bits(value));
+        }
+
+        // Update position to reflect bytes consumed
+        *pos = self.byte_pos;
+        Ok(())
     }
 
     fn read_string(&mut self, _input: &[u8], _pos: &mut usize) -> Result<String> {

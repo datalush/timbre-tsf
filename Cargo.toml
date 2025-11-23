@@ -157,3 +157,15 @@ harness = false
 [[bench]]
 name = "profile_chimp128"
 harness = false
+
+[[bench]]
+name = "profile_decoding"
+harness = false
+
+[[bench]]
+name = "profile_gorilla_decode"
+harness = false
+
+[[bench]]
+name = "profile_decode_only"
+harness = false
