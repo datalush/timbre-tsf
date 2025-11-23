@@ -49,7 +49,7 @@ mod chimp128;
 mod delta_of_delta;
 mod dictionary;
 pub mod dictionary_rle;
-mod gorilla;
+pub mod gorilla;
 mod plain;
 pub mod quantized;
 mod rle;

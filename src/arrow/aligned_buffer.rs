@@ -190,6 +190,12 @@ impl<T> AlignedVec<T> {
         &self.inner
     }
 
+    /// Returns a mutable reference to the inner Vec
+    #[inline]
+    pub fn as_mut_vec(&mut self) -> &mut Vec<T> {
+        &mut self.inner
+    }
+
     /// Returns the pointer address for alignment verification
     #[inline]
     pub fn as_ptr(&self) -> *const T {
