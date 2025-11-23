@@ -578,17 +578,16 @@ impl GorillaDecoder {
             return Ok(0);
         }
 
-        // Refill buffer if needed (may need multiple refills for large reads)
-        while self.bits_available < num_bits {
-            let added_data = self.refill_buffer(input)?;
-
-            // If we couldn't add any bits (no more data or buffer full)
-            if !added_data {
-                // Check if we have enough bits now
-                if self.bits_available < num_bits {
+        // OPT: Fast path - single refill check (most common case)
+        if self.bits_available < num_bits {
+            if !self.refill_buffer(input)? {
+                return Err(TimbreError::UnexpectedEof);
+            }
+            // Very rare case: need multiple refills for large reads (>56 bits)
+            while self.bits_available < num_bits {
+                if !self.refill_buffer(input)? {
                     return Err(TimbreError::UnexpectedEof);
                 }
-                break;
             }
         }
 
@@ -635,9 +634,9 @@ impl GorillaDecoder {
 
         let use_previous_block = !self.read_bit(input)?;
 
-        let (_leading, significant_bits) = if use_previous_block {
-            let bits = self.value_bits as u32 - self.previous_leading - self.previous_trailing;
-            (self.previous_leading, bits)
+        // OPT: Avoid tuple allocation, work directly with significant_bits
+        let significant_bits = if use_previous_block {
+            self.value_bits as u32 - self.previous_leading - self.previous_trailing
         } else {
             let leading = self.read_bits(input, self.leading_bits_width)? as u32;
             let mut significant_bits = self.read_bits(input, self.significant_bits_width)? as u32;
@@ -645,7 +644,7 @@ impl GorillaDecoder {
             significant_bits += 1;
             self.previous_leading = leading;
             self.previous_trailing = self.value_bits as u32 - leading - significant_bits;
-            (leading, significant_bits)
+            significant_bits
         };
 
         let xor_value = self.read_bits(input, significant_bits as u8)?;

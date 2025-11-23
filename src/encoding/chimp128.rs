@@ -644,16 +644,20 @@ impl Chimp128Decoder {
             return Ok(0);
         }
 
-        // OPT-6: Refill buffer if needed (eliminates per-bit bounds checking)
-        while self.bits_available < num_bits {
-            let added_data = self.refill_buffer(input)?;
-            if !added_data {
-                if self.bits_available < num_bits {
+        // OPT: Fast path - single refill check (most common case)
+        if self.bits_available < num_bits {
+            if !self.refill_buffer(input)? {
+                return Err(TimbreError::DecodingError(
+                    "Chimp128: unexpected end of data".to_string(),
+                ));
+            }
+            // Very rare case: need multiple refills for large reads (>56 bits)
+            while self.bits_available < num_bits {
+                if !self.refill_buffer(input)? {
                     return Err(TimbreError::DecodingError(
                         "Chimp128: unexpected end of data".to_string(),
                     ));
                 }
-                break;
             }
         }
 
